@@ -37,6 +37,9 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
+# Env (local secrets; commit .env.example instead)
+.env
+
 # Temp
 *.tmp
 *.bak
