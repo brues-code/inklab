@@ -62,6 +62,14 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      - name: Set build version
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('wails.json'));j.info.productVersion='$VERSION';fs.writeFileSync('wails.json',JSON.stringify(j,null,4)+'\n');"
+          echo "Set wails.json productVersion to $VERSION"
+
       - name: Build
         run: wails build -platform ${{ matrix.platform }} -skipbindings ${{ matrix.build_tags }} -ldflags "-X main.Version=${{ github.ref_name }} -X main.Repo=${{ github.repository }}"
 
