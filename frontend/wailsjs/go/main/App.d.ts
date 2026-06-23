@@ -16,6 +16,8 @@ export function BrowseItemsByClass(arg1:number,arg2:number,arg3:string):Promise<
 
 export function BrowseItemsByClassAndSlot(arg1:number,arg2:number,arg3:number,arg4:string):Promise<Array<models.Item>>;
 
+export function CheckForUpdate():Promise<main.UpdateInfo>;
+
 export function CheckNewItems(arg1:number,arg2:number):Promise<Array<services.RemoteItem>>;
 
 export function CheckNewQuests(arg1:number,arg2:number):Promise<Array<services.RemoteQuest>>;

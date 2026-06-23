@@ -126,6 +126,25 @@ export namespace main {
 		    return a;
 		}
 	}
+	
+	export class UpdateInfo {
+	    current: string;
+	    latest: string;
+	    updateAvailable: boolean;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.current = source["current"];
+	        this.latest = source["latest"];
+	        this.updateAvailable = source["updateAvailable"];
+	        this.url = source["url"];
+	    }
+	}
 
 }
 

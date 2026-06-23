@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-InkLab is a desktop database companion application for Turtle WoW, built using Wails (Go + React). It provides a rich, responsive interface for browsing items, NPCs, quests, and other game data.
+InkLab is a desktop database companion application for Octo WoW, built using Wails (Go + React). It provides a rich, responsive interface for browsing items, NPCs, quests, and other game data.
 
 ## 2. Core Philosophy
 
@@ -22,8 +22,8 @@ The data within `inklab.db` is aggregated from specific sources with a strict hi
 
 These are the authoritative sources for game data values.
 
-1. **database.turtlecraft.gg**: Primary source for Turtle-WoW specific custom content (Items, Quests, Spells).
-2. **Wowhead (Classic)**: Primary source for Vanilla/Classic data (NPC details, Maps, Lore, Standard Drop rates).
+1. **octowow.st/db** (OctoWow Database): Primary source for server-specific custom content (Items, Quests, Spells, NPCs, Icons). It runs the same AoWoW database engine as the former `database.turtlecraft.gg` site, but with a different page structure (title suffix, mapper/coords format, infobox markup, breadcrumb-based item class) — the scrapers/parsers in `backend/parsers` were adapted to it. The base URL lives in a single constant (`services.DatabaseBaseURL` / `DATABASE_BASE_URL`).
+2. **Wowhead (Classic)**: Fallback source for Vanilla/Classic data (NPC details, Maps, Lore, Standard Drop rates).
 
 ### B. Development Data Source (Local MySQL)
 
@@ -33,7 +33,7 @@ _Role: Ingestion & Schema Reference_
 - **Source**: Local `tw_world` MySQL database (standard Mangos/Turtle-WoW core).
 - **Purpose**:
   - To bulk populate the SQLite database initially.
-  - To validata table structures.
+  - To validate table structures.
   - To extract relationships (NPC loot tables, Quest starters/enders).
 - **Restriction**: MySQL code must be isolated. The release build should function perfectly without a MySQL connection (graceful degradation or build tags).
 

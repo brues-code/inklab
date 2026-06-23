@@ -26,6 +26,10 @@ export function BrowseItemsByClassAndSlot(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['BrowseItemsByClassAndSlot'](arg1, arg2, arg3, arg4);
 }
 
+export function CheckForUpdate() {
+  return window['go']['main']['App']['CheckForUpdate']();
+}
+
 export function CheckNewItems(arg1, arg2) {
   return window['go']['main']['App']['CheckNewItems'](arg1, arg2);
 }
