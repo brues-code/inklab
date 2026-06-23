@@ -117,8 +117,12 @@ func (a *AtlasLootImporter) ImportFromLua(luaPath string,
 	// Regex for Categories: {[AL["Dungeons & Raids"]] = {
 	reCategory := regexp.MustCompile(`\{\[AL\["(.*?)"\]\]\s*=\s*\{`)
 
-	// Regex for Menu Items: {{ AL["[13-18] Ragefire Chasm"], "RagefireChasm", "Submenu" },},
-	reMenuItem := regexp.MustCompile(`\{+\s*AL\["(.*?)"\],\s*"(.*?)",\s*"(.*?)"\s*\}+,?`)
+	// Regex for Menu Items. The display part may be a concatenation with a
+	// color/level-range (or [RAID]) prefix before AL["Name"], e.g.
+	//   {{ WHITE.."[13-18]|r "..AL["Ragefire Chasm"], "RagefireChasm", "Submenu" },},
+	//   {{ RED.."[RAID]|r "..AL["Molten Core"], "MoltenCore", "Submenu" },},
+	// Group 1 = prefix (used to detect [RAID]); 2 = name, 3 = key, 4 = type.
+	reMenuItem := regexp.MustCompile(`\{+\s*([^{}]*?)AL\["(.*?)"\]\s*,\s*"(.*?)"\s*,\s*"(.*?)"\s*\}+,?`)
 
 	// Regex for SubTables start: ["RagefireChasm"] = {
 	reSubTableStart := regexp.MustCompile(`\["(.*?)"\]\s*=\s*\{`)
@@ -219,9 +223,10 @@ func (a *AtlasLootImporter) ImportFromLua(luaPath string,
 		parseModules = func(contentBlock string) {
 			matches := reMenuItem.FindAllStringSubmatch(contentBlock, -1)
 			for _, mod := range matches {
-				modName := mod[1]
-				modKey := mod[2]
-				modType := mod[3]
+				modPrefix := mod[1]
+				modName := mod[2]
+				modKey := mod[3]
+				modType := mod[4]
 
 				if insertedModules[modKey] {
 					continue
@@ -230,7 +235,7 @@ func (a *AtlasLootImporter) ImportFromLua(luaPath string,
 
 				targetCatID := currentCatID
 				if isSplit {
-					if strings.HasPrefix(modName, "[RAID]") {
+					if strings.Contains(modPrefix, "[RAID]") {
 						targetCatID = raidsID
 					} else {
 						targetCatID = dungeonsID
