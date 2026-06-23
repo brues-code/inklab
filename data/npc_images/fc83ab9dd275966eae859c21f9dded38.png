@@ -1,0 +1,112 @@
+
+<html>
+<head>
+    	<title>OctoWow Database</title>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+	<link rel="SHORTCUT ICON" href="templates/wowhead/images/favicon.ico">
+
+	<script src="templates/wowhead/js/locale_enus.js" type="text/javascript"></script>
+
+	<link href="templates/wowhead/css/locale_enus.css" type="text/css" rel="stylesheet">
+	<link href="templates/wowhead/css/global.css" type="text/css" rel="stylesheet">
+
+	<script src="templates/wowhead/js/global.js" type="text/javascript"></script>
+	<script src="templates/wowhead/js/Markup.js" type="text/javascript"></script>
+	<script type="text/javascript">
+		var g_serverTime = new Date('2026/06/23 23:09:19');
+		g_locale = { id: 0, name: 'enus' };
+	</script>    <style type="text/css">
+        
+        .menu-buttons a {
+            border-color: black
+        }
+
+        .news {
+            position: relative;
+            text-align: left;
+            width: 415px;
+            height: 191px;
+            margin: 30px auto 0 auto;
+            background: url(templates/wowhead/images/mainpage-bg-news-enus.jpg) no-repeat
+        }
+
+        .news-list {
+            padding: 26px 0 0 26px;
+            margin: 0
+        }
+
+        .news-list li {
+            line-height: 2em
+        }
+
+        .news-img1 {
+            position: absolute;
+            left: 60px;
+            top: 155px;
+            width: 172px;
+            height: 17px
+        }
+
+        .news-img2 {
+            position: absolute;
+            left: 246px;
+            top: 48px;
+            width: 145px;
+            height: 127px
+        }
+
+        .news-talent {
+            position: absolute;
+            left: 240px;
+            top: 29px;
+            width: 152px;
+            height: 146px
+        }
+
+        
+    </style>
+</head>
+<body>
+<div id="layers"></div>
+<noscript>
+    <div id="noscript-bg"></div>
+    <div id="noscript-text"><b>Please make sure you have javascript enabled.</div>
+</noscript>
+<div id="home">
+    <h1></h1>
+    <span id="menu-buttons-generic" class="menu-buttons"></span>
+    <script type="text/javascript">
+        // Menu.addButtons(ge('menu-buttons-generic'), mn_path);
+    </script>
+    <div class="pad"></div>
+
+                    
+    
+    <div class="pad"></div>
+
+
+    <form method="get" action="?" onsubmit="this.elements[0].value = trim(this.elements[0].value).trim(); if(trim(this.elements[0].value) == '' || trim(this.elements[0].value).length <= 2) return false">
+        <input type="text" name="search" size="38" id="search-generic"/><input type="submit" value="Search"/>
+    </form>
+
+
+    <script type="text/javascript">
+        var _ = ge('search-generic');
+        LiveSearch.attach(_);
+        _.focus()
+    </script>
+
+    	<div id="footer">
+	</div>
+</div>
+</div>
+<!--[if lte IE 6]></td><th class="ie6layout-th"></th></tr></table><![endif]-->
+
+</body>
+</html>
+    <div id="footer">
+                                <br/>Based on <span style="color: #8dc63f;">AoWoW</span>
+    </div>
+
+</body>
+</html>
