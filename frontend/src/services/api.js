@@ -1,3 +1,14 @@
+export const CheckForUpdate = () => {
+    if (window?.go?.main?.App?.CheckForUpdate) {
+        return window.go.main.App.CheckForUpdate()
+            .catch(err => {
+                console.error('[API] CheckForUpdate failed:', err);
+                return null;
+            });
+    }
+    return Promise.resolve(null);
+}
+
 export const GetQuestDetail = (entry) => {
     console.log(`[API] Fetching Quest Detail for: ${entry}`);
     if (window?.go?.main?.App?.GetQuestDetail) {

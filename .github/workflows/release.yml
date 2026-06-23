@@ -63,7 +63,7 @@ jobs:
         run: npm install
 
       - name: Build
-        run: wails build -platform ${{ matrix.platform }} -skipbindings ${{ matrix.build_tags }}
+        run: wails build -platform ${{ matrix.platform }} -skipbindings ${{ matrix.build_tags }} -ldflags "-X main.Version=${{ github.ref_name }} -X main.Repo=${{ github.repository }}"
 
       # --- Windows Packaging ---
       - name: Package Windows
