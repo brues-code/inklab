@@ -1,1 +1,28 @@
+# Keep the repo's existing CRLF line endings and prevent cross-platform
+# drift. core.autocrlf no longer matters — endings are pinned here.
+* text=auto eol=crlf
+
+# Shell scripts must stay LF to run on Unix/CI
+*.sh   text eol=lf
+
+# Binary assets — never apply line-ending conversion
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.db    binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.zip   binary
+*.gz    binary
+
+# Large SQL dumps tracked via Git LFS
 *.sql filter=lfs diff=lfs merge=lfs -text
