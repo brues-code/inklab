@@ -112,7 +112,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
               className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded border border-purple-800 transition-colors"
               title="View on Turtle WoW Database"
             >
-              🔗 TurtleCraft
+              🔗 OctoHead
             </a>
             <a
               href={`https://www.wowhead.com/classic/npc=${detail.entry}`}

@@ -267,7 +267,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
               className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"
               title="View on Turtle WoW Database"
             >
-              🔗 TurtleCraft
+              🔗 OctoHead
             </a>
             <button
               onClick={() => {
