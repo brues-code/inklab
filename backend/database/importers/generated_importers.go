@@ -15,7 +15,10 @@ func NewGeneratedImporter(db *sql.DB) *GeneratedImporter {
 	return &GeneratedImporter{db: db}
 }
 
-// ImportItemIcons loads icon paths from item_icons.json and updates item_template
+// ImportItemIcons loads display-id -> icon mappings from item_icons.json into
+// the item_display_info table (the table item queries join against for icons).
+// This is the client ItemDisplayInfo.dbc data and is more complete than the
+// server-side copy, so it upserts over whatever the MySQL import provided.
 func (i *GeneratedImporter) ImportItemIcons(jsonPath string) error {
 	fmt.Printf("  -> Reading item icons from %s...\n", jsonPath)
 	data, err := os.ReadFile(jsonPath)
@@ -29,14 +32,14 @@ func (i *GeneratedImporter) ImportItemIcons(jsonPath string) error {
 		return nil
 	}
 
-	fmt.Printf("  -> Updating database with %d icon mappings...\n", len(iconMap))
+	fmt.Printf("  -> Upserting %d icon mappings into item_display_info...\n", len(iconMap))
 	tx, err := i.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("UPDATE item_template SET icon_path = ? WHERE display_id = ?")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO item_display_info (ID, icon) VALUES (?, ?)")
 	if err != nil {
 		return err
 	}
@@ -47,20 +50,17 @@ func (i *GeneratedImporter) ImportItemIcons(jsonPath string) error {
 		var displayID int
 		fmt.Sscanf(displayIDStr, "%d", &displayID)
 		if displayID > 0 {
-			res, err := stmt.Exec(iconName, displayID)
-			if err != nil {
+			if _, err := stmt.Exec(displayID, iconName); err != nil {
 				continue
 			}
-			if rows, _ := res.RowsAffected(); rows > 0 {
-				count++
-			}
+			count++
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Successfully updated %d items with icons\n", count)
+	fmt.Printf("  ✓ Successfully wrote %d item icon mappings\n", count)
 	return nil
 }
 
