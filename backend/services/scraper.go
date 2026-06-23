@@ -107,7 +107,7 @@ func (s *ScraperService) ScrapeNpcData(npcID int) (*ScrapedNpcData, error) {
 
 // scrapeFromTurtlecraft scrapes NPC data from database.turtlecraft.gg
 func (s *ScraperService) scrapeFromTurtlecraft(npcID int) (*ScrapedNpcData, error) {
-	url := fmt.Sprintf("https://database.turtlecraft.gg/?npc=%d", npcID)
+	url := fmt.Sprintf(DatabaseBaseURL+"/?npc=%d", npcID)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *ScraperService) scrapeFromWowhead(npcID int) (*ScrapedNpcData, error) {
 
 // ScrapeQuestData scrapes Quest data from TurtleCraft
 func (s *ScraperService) ScrapeQuestData(entry int) (*parsers.ScrapedQuestData, error) {
-	url := fmt.Sprintf("https://database.turtlecraft.gg/?quest=%d", entry)
+	url := fmt.Sprintf(DatabaseBaseURL+"/?quest=%d", entry)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

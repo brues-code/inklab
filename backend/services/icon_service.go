@@ -107,8 +107,8 @@ func (s *IconService) downloadProcess() error {
 
 	// Sources to try in order - try PNG first for Turtle WoW custom icons, then fallback to JPG
 	sources := []string{
-		"https://database.turtlecraft.gg/images/icons/large/%s.png",           // Turtle WoW Database (PNG)
-		"https://database.turtlecraft.gg/images/icons/large/%s.jpg",           // Turtle WoW Database (JPG fallback)
+		DatabaseBaseURL + "/images/icons/large/%s.png",                        // WoW Database (PNG)
+		DatabaseBaseURL + "/images/icons/large/%s.jpg",                        // WoW Database (JPG fallback)
 		"https://wow.zamimg.com/images/wow/icons/large/%s.jpg",                // Wowhead CDN (supports Classic)
 		"https://aowow.trinitycore.info/static/images/wow/icons/large/%s.jpg", // Trinity Aowow
 	}
@@ -236,7 +236,7 @@ func NewIconFixService(db *sql.DB, iconDir string) *IconFixService {
 	return &IconFixService{
 		db:      db,
 		iconDir: iconDir,
-		baseURL: "https://database.turtlecraft.gg/?item=",
+		baseURL: DatabaseBaseURL + "/?item=",
 		delayMs: 500, // Be nice to the server
 		client: &http.Client{
 			Timeout: 10 * time.Second,
@@ -366,8 +366,8 @@ func (s *IconFixService) UpdateIconPath(entry int, iconName string) error {
 }
 
 const (
-	TurtleIconPNG = "https://database.turtlecraft.gg/images/icons/large/%s.png"
-	TurtleIconJPG = "https://database.turtlecraft.gg/images/icons/large/%s.jpg"
+	TurtleIconPNG = DatabaseBaseURL + "/images/icons/large/%s.png"
+	TurtleIconJPG = DatabaseBaseURL + "/images/icons/large/%s.jpg"
 	WowheadIcon   = "https://wow.zamimg.com/images/wow/icons/large/%s.jpg"
 	TrinityIcon   = "https://aowow.trinitycore.info/static/images/wow/icons/large/%s.jpg"
 )
@@ -563,7 +563,7 @@ func (s *IconFixService) FixSingleSpell(db *sql.DB, spellID int) (bool, string, 
 
 	if needFetch {
 		// Fetch icon name from website (note: spell uses ?spell= parameter)
-		url := fmt.Sprintf("https://database.turtlecraft.gg/?spell=%d", spellID)
+		url := fmt.Sprintf(DatabaseBaseURL+"/?spell=%d", spellID)
 		resp, err := s.client.Get(url)
 		if err != nil {
 			return false, "", err

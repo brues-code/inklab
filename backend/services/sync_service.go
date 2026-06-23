@@ -72,7 +72,7 @@ func NewSyncService(db *sql.DB) *SyncService {
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		baseURL: "https://database.turtlecraft.gg",
+		baseURL: DatabaseBaseURL,
 	}
 }
 

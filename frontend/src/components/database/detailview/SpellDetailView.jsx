@@ -9,6 +9,7 @@ import {
 } from '../../ui'
 import { useIcon } from '../../../services/useImage'
 import { getQualityColor } from '../../../utils/wow'
+import { DATABASE_BASE_URL } from '../../../utils/constants'
 
 // Helper component for Spell Icon
 const SpellIcon = ({ iconName }) => {
@@ -128,7 +129,7 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             {syncing ? '⏳ Syncing...' : '🔄 Sync'}
                         </button>
                         <a
-                            href={`https://database.turtlecraft.gg/?spell=${entry}`}
+                            href={`${DATABASE_BASE_URL}/?spell=${entry}`}
                             target="_blank"
                             rel="noreferrer"
                             className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"

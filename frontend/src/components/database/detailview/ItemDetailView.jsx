@@ -5,6 +5,7 @@ import {
   SyncSingleItem,
 } from "../../../../wailsjs/go/main/App";
 import { getQualityColor } from "../../../utils/wow";
+import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { useIcon } from "../../../services/useImage";
 import {
   DetailPageLayout,
@@ -128,7 +129,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         alert(
           `Auto-fetch failed: ${result.message}\n\n` +
             `This item's icon data could not be automatically retrieved.\n` +
-            `Visit https://database.turtlecraft.gg/?item=${entry} to check if the item exists.`
+            `Visit ${DATABASE_BASE_URL}/?item=${entry} to check if the item exists.`
         );
       }
     } catch (error) {
@@ -260,7 +261,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         action={
           <div className="flex gap-2">
             <a
-              href={`https://database.turtlecraft.gg/?item=${entry}`}
+              href={`${DATABASE_BASE_URL}/?item=${entry}`}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"

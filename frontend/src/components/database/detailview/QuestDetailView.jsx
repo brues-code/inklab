@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { GetQuestDetail, SyncQuestData } from '../../../services/api'
 import { 
     DetailPageLayout, 
@@ -94,7 +95,7 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             <span>↻</span> Sync
                         </button>
                         <a
-                            href={`https://database.turtlecraft.gg/?quest=${entry}`}
+                            href={`${DATABASE_BASE_URL}/?quest=${entry}`}
                             target="_blank"
                             rel="noreferrer"
                             className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"

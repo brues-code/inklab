@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { GetFactionDetail } from "../../../../wailsjs/go/main/App";
 import {
   DetailPageLayout,
@@ -57,7 +58,7 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
         subtitle={sideStyle.name}
         action={
           <a
-            href={`https://database.turtlecraft.gg/?faction=${detail.id}`}
+            href={`${DATABASE_BASE_URL}/?faction=${detail.id}`}
             target="_blank"
             rel="noreferrer"
             className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"

@@ -20,7 +20,7 @@ func (s *SyncService) SyncSpell(spellID int, iconDir string, fallbackDesc string
 	fmt.Printf("[SyncService] Syncing missing/incomplete spell %d...\n", spellID)
 
 	// Fetch spell details
-	url := fmt.Sprintf("https://database.turtlecraft.gg/?spell=%d", spellID)
+	url := fmt.Sprintf(DatabaseBaseURL+"/?spell=%d", spellID)
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Printf("Error fetching spell %d: %v\n", spellID, err)
@@ -92,8 +92,8 @@ func (s *SyncService) FetchAndImportSpell(spellID int, iconDir string) *SyncSpel
 
 	fmt.Printf("[SyncService] FetchAndImportSpell called for spell %d\n", spellID)
 
-	// Fetch spell details from turtlecraft.gg
-	url := fmt.Sprintf("https://database.turtlecraft.gg/?spell=%d", spellID)
+	// Fetch spell details from remote database
+	url := fmt.Sprintf(DatabaseBaseURL+"/?spell=%d", spellID)
 	resp, err := http.Get(url)
 	if err != nil {
 		return &SyncSpellResult{

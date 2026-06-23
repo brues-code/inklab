@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { GetObjectDetail } from "../../../../wailsjs/go/main/App";
 import {
   DetailPageLayout,
@@ -43,7 +44,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         subtitle={`${detail.typeName || 'Object'} • ID: ${detail.entry}`}
         action={
           <a
-            href={`https://database.turtlecraft.gg/?object=${detail.entry}`}
+            href={`${DATABASE_BASE_URL}/?object=${detail.entry}`}
             target="_blank"
             rel="noreferrer"
             className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-purple-700 hover:bg-purple-600 text-white"

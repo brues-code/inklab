@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { GetNpcFullDetails, SyncNpcData } from "../../../services/api";
 import { useNpcModel, useNpcMap } from "../../../services/useImage";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
+import { DATABASE_BASE_URL } from "../../../utils/constants";
 import {
   DetailPageLayout,
   DetailHeader,
@@ -105,7 +106,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
               <span className="text-sm">↻</span> Sync
             </button>
             <a
-              href={`https://database.turtlecraft.gg/?npc=${detail.entry}`}
+              href={`${DATABASE_BASE_URL}/?npc=${detail.entry}`}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded border border-purple-800 transition-colors"
@@ -496,7 +497,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                               <div className="flex items-center gap-3">
                                 {spell.icon && (
                                   <img
-                                    src={`https://database.turtlecraft.gg/images/icons/large/${spell.icon}.jpg`}
+                                    src={`${DATABASE_BASE_URL}/images/icons/large/${spell.icon}.jpg`}
                                     alt=""
                                     className="w-10 h-10 rounded border border-gray-600"
                                     onError={(e) => {
