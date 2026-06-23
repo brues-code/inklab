@@ -5,7 +5,7 @@
 *.dylib
 bin/
 dist/
-build/
+build/bin/
 
 # Go
 vendor/
