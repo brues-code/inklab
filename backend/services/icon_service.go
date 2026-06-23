@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"shelllab/backend/database"
+	"inklab/backend/database"
 )
 
 // IconService handles downloading icons

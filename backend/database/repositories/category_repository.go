@@ -3,7 +3,7 @@ package repositories
 import (
 	"database/sql"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // CategoryRepository handles category-related database operations

@@ -1,4 +1,4 @@
-# ShellLab - World of Warcraft Database Browser
+# InkLab - World of Warcraft Database Browser
 
 A comprehensive desktop application for browsing and exploring World of Warcraft (Turtle WoW) game data, built with Wails, Go, and React.
 
@@ -55,7 +55,7 @@ The application supports two modes of data operation:
 
 1. **End User Mode** (Default):
 
-   - Uses the embedded SQLite database (`data/shelllab.db`)
+   - Uses the embedded SQLite database (`data/inklab.db`)
    - Syncs missing or updated data directly from `turtlecraft.gg` via the built-in Sync Service
    - No external database dependencies required
 
@@ -83,8 +83,8 @@ The application supports two modes of data operation:
 
 ```bash
 # Clone the repository
-git clone https://github.com/oplancelot/ShellLab.git
-cd ShellLab
+git clone https://github.com/oplancelot/InkLab.git
+cd InkLab
 
 # Install dependencies
 go mod download
@@ -99,7 +99,7 @@ wails dev
 On first startup, the application will:
 
 1. Initialize the SQLite database connection
-2. Validate the integrity of `data/shelllab.db`
+2. Validate the integrity of `data/inklab.db`
 3. Ready to use immediately
 
 **Note**: You can use the **Settings** page in the app to update your local database with the latest changes from Turtle WoW (Sync Items, Spells, Quests, or missing AtlasLoot items).

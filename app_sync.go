@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
-	"shelllab/backend/services"
+	"inklab/backend/services"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )

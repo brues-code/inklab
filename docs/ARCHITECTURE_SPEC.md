@@ -1,22 +1,22 @@
-# ShellLab Project Specification & Data Architecture
+# InkLab Project Specification & Data Architecture
 
 ## 1. Project Overview
 
-ShellLab is a desktop database companion application for Turtle WoW, built using Wails (Go + React). It provides a rich, responsive interface for browsing items, NPCs, quests, and other game data.
+InkLab is a desktop database companion application for Turtle WoW, built using Wails (Go + React). It provides a rich, responsive interface for browsing items, NPCs, quests, and other game data.
 
 ## 2. Core Philosophy
 
 **The Release Build is Standalone.**
 
-- The final distributed application (`shelllab.exe`) **must not** depend on an external MySQL server or require the user to have specific developer environments set up.
+- The final distributed application (`inklab.exe`) **must not** depend on an external MySQL server or require the user to have specific developer environments set up.
 - All data required for the application to function must be contained within:
-  1. **SQLite Database** (`shelllab.db`): The single source of truth for the runtime application.
+  1. **SQLite Database** (`inklab.db`): The single source of truth for the runtime application.
   2. **Data Assets** (`data/`): Images, icons, and maps.
   3. **Application Binary**: The compiled Wails frontend/backend.
 
 ## 3. Data Sources & hierarchy
 
-The data within `shelllab.db` is aggregated from specific sources with a strict hierarchy of authority.
+The data within `inklab.db` is aggregated from specific sources with a strict hierarchy of authority.
 
 ### A. Primary Truth (Web Sources)
 
@@ -50,14 +50,14 @@ _Role: UI Structure & Categorization_
 ### Development Workflow
 
 1. **Ingest**: Developer runs importers that pull data from Local MySQL or Scrape Web Sources.
-2. **Store**: Data is normalized and stored in `shelllab.db` (SQLite).
+2. **Store**: Data is normalized and stored in `inklab.db` (SQLite).
 3. **Verify**: UI reads solely from SQLite to display data.
 
 ### Release Workflow
 
 1. **Build**: The application is compiled.
-2. **Package**: The populated `shelllab.db` is bundled (or downloaded on first run) along with the executable.
-3. **Run**: The User runs `shelllab.exe`. It reads from `shelllab.db`. It may perform live web-scraping (e.g., Wowhead) for ephemeral data but should cache it to SQLite.
+2. **Package**: The populated `inklab.db` is bundled (or downloaded on first run) along with the executable.
+3. **Run**: The User runs `inklab.exe`. It reads from `inklab.db`. It may perform live web-scraping (e.g., Wowhead) for ephemeral data but should cache it to SQLite.
 
 ## 5. Deprecations
 

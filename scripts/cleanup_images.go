@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	dbPath := "data/shelllab.db"
+	dbPath := "data/inklab.db"
 	imgDir := "data/npc_images"
 
 	db, err := sql.Open("sqlite3", dbPath)

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"shelllab/backend/database"
+	"inklab/backend/database"
 )
 
 // GetSpellSkillCategories returns spell skill categories (Class Skills, Professions, etc.)

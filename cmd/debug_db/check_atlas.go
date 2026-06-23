@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"log"
 
-	"shelllab/backend/database/importers"
-	"shelllab/backend/database/schema"
+	"inklab/backend/database/importers"
+	"inklab/backend/database/schema"
 
 	_ "modernc.org/sqlite"
 )
 
 func main() {
-	db, err := sql.Open("sqlite", "./data/shelllab.db")
+	db, err := sql.Open("sqlite", "./data/inklab.db")
 	if err != nil {
 		log.Fatal(err)
 	}

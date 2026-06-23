@@ -19,15 +19,15 @@ jobs:
         include:
           - os: windows-latest
             platform: windows/amd64
-            artifact: ShellLab-Windows.zip
+            artifact: InkLab-Windows.zip
             build_tags: ""
           - os: ubuntu-latest
             platform: linux/amd64
-            artifact: ShellLab-Linux.tar.gz
+            artifact: InkLab-Linux.tar.gz
             build_tags: "-tags webkit2_41"
           - os: macos-latest
             platform: darwin/universal
-            artifact: ShellLab-macOS.zip
+            artifact: InkLab-macOS.zip
             build_tags: ""
 
     runs-on: ${{ matrix.os }}
@@ -71,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "dist/data/icons"
-          Copy-Item "build/bin/ShellLab.exe" -Destination "dist/"
+          Copy-Item "build/bin/InkLab.exe" -Destination "dist/"
           # Database is embedded, no need to copy external file
           # Copy initial icons if any
           if (Test-Path "data/icons") {
@@ -82,14 +82,14 @@ jobs:
           if (Test-Path "data/npc_images") {
             Copy-Item "data/npc_images/*" -Destination "dist/data/npc_images/" -Recurse
           }
-          Compress-Archive -Path "dist/*" -DestinationPath "ShellLab-Windows.zip"
+          Compress-Archive -Path "dist/*" -DestinationPath "InkLab-Windows.zip"
 
       # --- Linux Packaging ---
       - name: Package Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir -p dist/data/icons
-          cp build/bin/ShellLab dist/
+          cp build/bin/InkLab dist/
           # db embedded
           if [ -d "data/icons" ]; then
             cp -r data/icons/* dist/data/icons/
@@ -100,7 +100,7 @@ jobs:
             cp -r data/npc_images/* dist/data/npc_images/
           fi
           cd dist
-          tar -czvf ../ShellLab-Linux.tar.gz *
+          tar -czvf ../InkLab-Linux.tar.gz *
           cd ..
 
       # --- macOS Packaging ---
@@ -108,20 +108,20 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           # Copy data into app bundle MacOS directory (alongside binary) for unified path logic
-          mkdir -p build/bin/ShellLab.app/Contents/MacOS/data/icons
+          mkdir -p build/bin/InkLab.app/Contents/MacOS/data/icons
           # db embedded
           if [ -d "data/icons" ]; then
-            cp -r data/icons/* build/bin/ShellLab.app/Contents/MacOS/data/icons/
+            cp -r data/icons/* build/bin/InkLab.app/Contents/MacOS/data/icons/
           fi
           # Copy NPC images
-          mkdir -p build/bin/ShellLab.app/Contents/MacOS/data/npc_images
+          mkdir -p build/bin/InkLab.app/Contents/MacOS/data/npc_images
           if [ -d "data/npc_images" ]; then
-            cp -r data/npc_images/* build/bin/ShellLab.app/Contents/MacOS/data/npc_images/
+            cp -r data/npc_images/* build/bin/InkLab.app/Contents/MacOS/data/npc_images/
           fi
 
           cd build/bin
-          ditto -c -k --sequesterRsrc --keepParent ShellLab.app ShellLab.app.zip
-          mv ShellLab.app.zip ../../ShellLab-macOS.zip
+          ditto -c -k --sequesterRsrc --keepParent InkLab.app InkLab.app.zip
+          mv InkLab.app.zip ../../InkLab-macOS.zip
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1

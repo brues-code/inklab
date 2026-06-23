@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:embed data/shelllab.db
+//go:embed data/inklab.db
 var embeddedDB []byte
 
 //go:embed data/icons/*
@@ -57,7 +57,7 @@ func InitializeData() (string, bool, error) {
 
 	dataDir := filepath.Join(baseDir, "data")
 	iconsDir := filepath.Join(dataDir, "icons")
-	dbPath := filepath.Join(dataDir, "shelllab.db")
+	dbPath := filepath.Join(dataDir, "inklab.db")
 
 	// Create directories
 	if err := os.MkdirAll(iconsDir, 0755); err != nil {
@@ -65,7 +65,7 @@ func InitializeData() (string, bool, error) {
 	}
 
 	// In production, extract database if not exists
-	// In dev mode, we don't extract - we use the existing data/shelllab.db directly
+	// In dev mode, we don't extract - we use the existing data/inklab.db directly
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		log.Println("Extracting embedded database...")
 		if err := os.WriteFile(dbPath, embeddedDB, 0644); err != nil {

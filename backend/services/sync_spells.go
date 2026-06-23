@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"shelllab/backend/parsers"
+	"inklab/backend/parsers"
 	"time"
 )
 

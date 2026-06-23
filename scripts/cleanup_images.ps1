@@ -1,4 +1,4 @@
-$dbPath = "data\shelllab.db"
+$dbPath = "data\inklab.db"
 $imgDir = "data\npc_images"
 
 # Helper to get the hash name

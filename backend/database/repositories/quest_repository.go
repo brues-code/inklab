@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"shelllab/backend/database/models"
-	"shelllab/backend/parsers"
+	"inklab/backend/database/models"
+	"inklab/backend/parsers"
 )
 
 // QuestRepository handles quest-related database operations

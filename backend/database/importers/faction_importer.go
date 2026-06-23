@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // FactionImporter handles faction data imports

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"shelllab/backend/database"
+	"inklab/backend/database"
 )
 
 // LegacyBossLoot matches the structure from master branch

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // FavoriteRepository handles favorite item operations

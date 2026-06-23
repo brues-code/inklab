@@ -3,8 +3,8 @@ package services
 import (
 	"fmt"
 	"io"
-	"shelllab/backend/database/models"
-	"shelllab/backend/parsers"
+	"inklab/backend/database/models"
+	"inklab/backend/parsers"
 	"time"
 )
 

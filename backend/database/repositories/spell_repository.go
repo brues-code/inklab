@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // SpellRepository handles spell-related database operations

@@ -1,18 +1,18 @@
 {
     "$schema": "https://wails.io/schemas/config.v2.json",
-    "name": "shelllab",
-    "outputfilename": "ShellLab",
+    "name": "inklab",
+    "outputfilename": "InkLab",
     "frontend:install": "npm install",
     "frontend:build": "npm run build",
     "frontend:dev:watcher": "npm run dev",
     "frontend:dev:serverUrl": "auto",
     "author": {
-        "name": "ShellLab Team",
-        "email": "oplancelot@gmail.com"
+        "name": "InkLab Team",
+        "email": ""
     },
     "info": {
-        "companyName": "ShellLab",
-        "productName": "ShellLab - WoW Toolkit",
+        "companyName": "InkLab",
+        "productName": "InkLab - WoW Toolkit",
         "productVersion": "0.5.3",
         "copyright": "Copyright © 2025",
         "comments": "Comprehensive WoW toolset for Turtle WoW"

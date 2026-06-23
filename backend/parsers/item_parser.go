@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 	"strings"
 )
 

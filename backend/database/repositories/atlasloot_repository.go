@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // AtlasLootRepository handles AtlasLoot data queries

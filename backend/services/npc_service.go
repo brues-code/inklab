@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"shelllab/backend/database"
+	"inklab/backend/database"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -785,7 +785,7 @@ func (s *NpcService) SyncNpcData(entry int) error {
 		var dmgMin, dmgMax float64
 
 		// Note: Column names in MySQL might differ slightly (e.g. Health vs health_max)
-		// ShellLab uses `creature_template` structure.
+		// InkLab uses `creature_template` structure.
 		// Let's assume standard names.
 		query := `
 			SELECT 

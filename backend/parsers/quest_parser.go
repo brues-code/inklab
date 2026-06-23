@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 
 	"github.com/PuerkitoBio/goquery"
 )

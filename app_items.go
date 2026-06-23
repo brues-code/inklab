@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"shelllab/backend/database"
+	"inklab/backend/database"
 )
 
 // GetRootCategories returns top-level categories (e.g., "Mage Sets", "Molten Core")

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"shelllab/backend/database/helpers"
-	"shelllab/backend/database/models"
+	"inklab/backend/database/helpers"
+	"inklab/backend/database/models"
 )
 
 // ItemRepository handles item-related database operations

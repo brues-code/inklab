@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"math"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // LootRepository handles loot-related database operations

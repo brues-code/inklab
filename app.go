@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"shelllab/backend/database"
-	"shelllab/backend/services"
+	"inklab/backend/database"
+	"inklab/backend/services"
 
 	"github.com/joho/godotenv"
 )
@@ -59,7 +59,7 @@ func NewApp(dataDir string, isDevMode bool) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	fmt.Println("Initializing ShellLab (SQLite Version)...")
+	fmt.Println("Initializing InkLab (SQLite Version)...")
 
 	// Load .env
 	if err := godotenv.Load(); err != nil {
@@ -67,7 +67,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Initialize SQLite database
-	dbPath := filepath.Join(a.DataDir, "shelllab.db")
+	dbPath := filepath.Join(a.DataDir, "inklab.db")
 
 	db, err := database.NewSQLiteDB(dbPath)
 	if err != nil {
@@ -211,7 +211,7 @@ func (a *App) startup(ctx context.Context) {
 		}
 	}
 
-	fmt.Println("✓ ShellLab ready!")
+	fmt.Println("✓ InkLab ready!")
 }
 
 // importFullTables imports data from MySQL if available

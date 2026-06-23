@@ -21,7 +21,7 @@ frontend/node_modules/
 .idea/
 *.swp
 *.swo
-ShellLab.code-workspace
+InkLab.code-workspace
 
 # OS
 .DS_Store
@@ -32,7 +32,10 @@ Thumbs.db
 
 # Databases
 *.db
-!data/shelllab.db
+!data/inklab.db
+# SQLite runtime artifacts (never commit)
+*.db-wal
+*.db-shm
 
 # Temp
 *.tmp

@@ -1,4 +1,4 @@
-// Package database provides SQLite database operations for ShellLab
+// Package database provides SQLite database operations for InkLab
 package database
 
 import (
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"shelllab/backend/database/schema"
+	"inklab/backend/database/schema"
 
 	_ "modernc.org/sqlite"
 )

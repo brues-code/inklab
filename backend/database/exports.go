@@ -1,14 +1,14 @@
 // Package database - Re-exports for backward compatibility
 // This file re-exports types and functions from sub-packages to maintain
-// compatibility with existing code that imports "shelllab/backend/database"
+// compatibility with existing code that imports "inklab/backend/database"
 package database
 
 import (
 	"database/sql"
-	"shelllab/backend/database/helpers"
-	"shelllab/backend/database/importers"
-	"shelllab/backend/database/models"
-	"shelllab/backend/database/repositories"
+	"inklab/backend/database/helpers"
+	"inklab/backend/database/importers"
+	"inklab/backend/database/models"
+	"inklab/backend/database/repositories"
 )
 
 // === Type Aliases for Models ===

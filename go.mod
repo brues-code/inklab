@@ -1,4 +1,4 @@
-module shelllab
+module inklab
 
 go 1.24.0
 

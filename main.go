@@ -24,7 +24,7 @@ func main() {
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title:  "ShellLab - WoW Toolkit",
+		Title:  "InkLab - WoW Toolkit",
 		Width:  1200,
 		Height: 800,
 		AssetServer: &assetserver.Options{

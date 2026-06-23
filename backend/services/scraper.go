@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 	"net/http"
-	"shelllab/backend/parsers"
+	"inklab/backend/parsers"
 )
 
 // HttpClient defines the interface for HTTP requests

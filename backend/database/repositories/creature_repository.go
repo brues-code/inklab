@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"shelllab/backend/database/helpers"
-	"shelllab/backend/database/models"
+	"inklab/backend/database/helpers"
+	"inklab/backend/database/models"
 )
 
 // CreatureRepository handles creature-related database operations

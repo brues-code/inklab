@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // UpsertItemSet inserts or updates an item set in the database

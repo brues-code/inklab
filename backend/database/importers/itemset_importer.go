@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"shelllab/backend/database/models"
+	"inklab/backend/database/models"
 )
 
 // ItemSetImporter handles item set data imports

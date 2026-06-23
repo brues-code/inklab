@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"shelllab/backend/database"
-	"shelllab/backend/services"
+	"inklab/backend/database"
+	"inklab/backend/services"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
