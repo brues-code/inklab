@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"html"
 	"regexp"
-	"inklab/backend/database/models"
+	"strconv"
 	"strings"
+
+	"inklab/backend/database/models"
 )
 
 // ParseItemTitle extracts the item name from HTML content to check existence
@@ -479,6 +481,16 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 
 	// Extract Dropped By NPCs
 	item.DroppedByNpcs = extractListViewIDs(content, "dropped-by")
+
+	// Item class/subclass come authoritatively from the breadcrumb path the
+	// site emits for every item: g_initPath([0, 0, <class>, <subclass>]).
+	// The equipment text only covers wearable/wieldable items, so without this
+	// trade goods, consumables, recipes, etc. fall through as class 0.
+	pathRegex := regexp.MustCompile(`g_initPath\(\[\s*\d+\s*,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)`)
+	if matches := pathRegex.FindStringSubmatch(content); len(matches) > 2 {
+		item.Class, _ = strconv.Atoi(matches[1])
+		item.Subclass, _ = strconv.Atoi(matches[2])
+	}
 
 	return item, itemSet, nil
 }

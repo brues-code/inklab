@@ -61,6 +61,25 @@ func TestOctowowItemLive(t *testing.T) {
 	if item.DisplayId != 30606 {
 		t.Errorf("DisplayId = %d; want 30606", item.DisplayId)
 	}
+	if item.Class != 2 { // weapon
+		t.Errorf("Class = %d; want 2 (weapon)", item.Class)
+	}
+}
+
+func TestOctowowTradeGoodLive(t *testing.T) {
+	// Trade goods aren't equippable, so class/subclass must come from the
+	// g_initPath breadcrumb, not the equipment tooltip text.
+	content := liveGet(t, octowowBase+"/?item=17771") // Elementium Bar
+	item, _, err := ParseItem(content, 17771)
+	if err != nil {
+		t.Fatalf("ParseItem error: %v", err)
+	}
+	if item.Name != "Elementium Bar" {
+		t.Errorf("Name = %q; want Elementium Bar", item.Name)
+	}
+	if item.Class != 7 { // Trade Goods
+		t.Errorf("Class = %d; want 7 (Trade Goods)", item.Class)
+	}
 }
 
 func TestOctowowSpellLive(t *testing.T) {
