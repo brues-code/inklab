@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 	"net/http"
+	"strings"
+
 	"inklab/backend/parsers"
 )
 
@@ -125,7 +127,16 @@ func (s *ScraperService) scrapeFromTurtlecraft(npcID int) (*ScrapedNpcData, erro
 		return nil, fmt.Errorf("turtlecraft returned status %d", resp.StatusCode)
 	}
 
-	return parsers.ParseNpcDataTurtlecraft(resp.Body)
+	data, err := parsers.ParseNpcDataTurtlecraft(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	// octowow serves model images as a relative path (images/models/<id>.png);
+	// resolve it against the database base URL.
+	if data.ModelImageURL != "" && !strings.HasPrefix(data.ModelImageURL, "http") {
+		data.ModelImageURL = DatabaseBaseURL + "/" + strings.TrimPrefix(data.ModelImageURL, "/")
+	}
+	return data, nil
 }
 
 // scrapeFromWowhead scrapes NPC data from Wowhead Classic

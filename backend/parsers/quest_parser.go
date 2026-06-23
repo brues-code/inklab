@@ -1,7 +1,9 @@
 package parsers
 
 import (
+	"html"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -36,14 +38,14 @@ func ParseQuestDataTurtlecraft(r io.Reader, entry int) (*ScrapedQuestData, error
 	data := &ScrapedQuestData{Entry: entry}
 
 	// Title
-	data.Title = strings.TrimSpace(doc.Find("h1.heading-size-1").First().Text())
+	data.Title = strings.TrimSpace(doc.Find("h1").First().Text())
 	// Remove " - Quests - Turtle WoW Database" suffix if present (handled usually by scraping title element)
 	if idx := strings.Index(data.Title, " - Quests"); idx > 0 {
 		data.Title = data.Title[:idx]
 	}
 
 	// Quick Facts (li elements)
-	doc.Find("div.infobox li").Each(func(i int, s *goquery.Selection) {
+	doc.Find(".infobox li").Each(func(i int, s *goquery.Selection) {
 		text := strings.TrimSpace(s.Text())
 		if strings.HasPrefix(text, "Level: ") {
 			data.QuestLevel, _ = strconv.Atoi(strings.TrimPrefix(text, "Level: "))
@@ -63,21 +65,15 @@ func ParseQuestDataTurtlecraft(r io.Reader, entry int) (*ScrapedQuestData, error
 		// But first let's find Starters/Enders text
 	})
 
-	// Parse Text Sections
-	// Description, Progress (Objectives?), Completion
-	doc.Find("h3").Each(func(i int, s *goquery.Selection) {
-		header := strings.TrimSpace(s.Text())
-		content := strings.TrimSpace(s.Next().Text())
-
-		if header == "Description" {
-			data.Details = content
-		} else if header == "Progress" {
-			// This is usually OfferRewardText (when talking to NPC before completion)
-			data.OfferRewardText = content
-		} else if header == "Completion" {
-			data.EndText = content
-		}
-	})
+	// Parse text sections (Description / Progress / Completion). On octowow the
+	// body is bare text with <br> tags after an <h3> header, running up to the
+	// next header — so extract the HTML between headers instead of relying on a
+	// single sibling element (which .Next() cannot reach across text nodes).
+	if fullHTML, herr := doc.Html(); herr == nil {
+		data.Details = extractQuestSection(fullHTML, "Description")
+		data.OfferRewardText = extractQuestSection(fullHTML, "Progress")
+		data.EndText = extractQuestSection(fullHTML, "Completion")
+	}
 
 	// Objectives are often just before Description or in a summary
 	// In TurtleCraft, Objectives text might be separate?
@@ -106,6 +102,41 @@ func ParseQuestDataTurtlecraft(r io.Reader, entry int) (*ScrapedQuestData, error
 	})
 
 	return data, nil
+}
+
+var (
+	questSectionRe = map[string]*regexp.Regexp{}
+	brTagRe        = regexp.MustCompile(`(?i)<br\s*/?>`)
+	anyTagRe       = regexp.MustCompile(`<[^>]+>`)
+	horizSpaceRe   = regexp.MustCompile(`[ \t]+`)
+	spacedNewateRe = regexp.MustCompile(` *\n *`)
+)
+
+// extractQuestSection returns the cleaned text that follows an <h3>label</h3>
+// header up to the next header (or closing container) in the given HTML.
+func extractQuestSection(content, label string) string {
+	re, ok := questSectionRe[label]
+	if !ok {
+		re = regexp.MustCompile(`(?is)<h3[^>]*>\s*` + regexp.QuoteMeta(label) + `\s*</h3>(.*?)(?:<h[1-4][\s>]|</div>)`)
+		questSectionRe[label] = re
+	}
+	m := re.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return ""
+	}
+	return cleanQuestText(m[1])
+}
+
+// cleanQuestText turns the inner HTML of a quest text section into plain text:
+// <br> becomes a newline, other tags are stripped, entities are decoded, and
+// the indentation whitespace from the source markup is collapsed away.
+func cleanQuestText(s string) string {
+	s = brTagRe.ReplaceAllString(s, "\n")
+	s = anyTagRe.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	s = horizSpaceRe.ReplaceAllString(s, " ")
+	s = spacedNewateRe.ReplaceAllString(s, "\n")
+	return strings.TrimSpace(s)
 }
 
 // ParseQuestTitle checks if content contains a valid quest title

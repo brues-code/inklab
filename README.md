@@ -1,6 +1,6 @@
 # InkLab - World of Warcraft Database Browser
 
-A comprehensive desktop application for browsing and exploring World of Warcraft (Turtle WoW) game data, built with Wails, Go, and React.
+A comprehensive desktop application for browsing and exploring World of Warcraft (Octo WoW) game data, built with Wails, Go, and React.
 
 ## Features
 
@@ -102,7 +102,7 @@ On first startup, the application will:
 2. Validate the integrity of `data/inklab.db`
 3. Ready to use immediately
 
-**Note**: You can use the **Settings** page in the app to update your local database with the latest changes from Turtle WoW (Sync Items, Spells, Quests, or missing AtlasLoot items).
+**Note**: You can use the **Settings** page in the app to update your local database with the latest changes from Octo WoW (Sync Items, Spells, Quests, or missing AtlasLoot items).
 
 ## Development
 

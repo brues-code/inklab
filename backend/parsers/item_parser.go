@@ -17,8 +17,8 @@ func ParseItemTitle(content string) (bool, string) {
 		return false, ""
 	}
 
-	// Extract item name from title: "ItemName - Items - Turtle WoW Database"
-	titleRegex := regexp.MustCompile(`<title>([^<]+) - Items - Turtle WoW Database</title>`)
+	// Extract item name from title: "ItemName - Items - <Site> Database"
+	titleRegex := regexp.MustCompile(`<title>([^<]+) - Items`)
 	matches := titleRegex.FindStringSubmatch(content)
 	if len(matches) > 1 {
 		return true, strings.TrimSpace(matches[1])
@@ -43,7 +43,7 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 	var itemSet *models.ItemSetEntry
 
 	// Extract item name from title
-	titleRegex := regexp.MustCompile(`<title>([^<]+) - Items - Turtle WoW Database</title>`)
+	titleRegex := regexp.MustCompile(`<title>([^<]+) - Items`)
 	if matches := titleRegex.FindStringSubmatch(content); len(matches) > 1 {
 		// Decode HTML entities like &#039; -> '
 		item.Name = html.UnescapeString(strings.TrimSpace(matches[1]))

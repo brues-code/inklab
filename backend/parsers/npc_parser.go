@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -322,7 +323,26 @@ func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
 		}
 	})
 
-	// Parse Mapper Data (g_mapperData) from scripts - similar to Wowhead
+	// Parse map data. octowow (AoWoW) emits the zone via
+	// `new Mapper({...zone:'12'})` in a <script> and the spawn coords via
+	// `myMapper.update({zone: 12, coords: [[26.58,93.94,...]]})` in an onclick
+	// attribute, so scan the full serialized document, not just <script> tags.
+	var mapZoneID string
+	if fullHTML, herr := doc.Html(); herr == nil {
+		zoneRe := regexp.MustCompile(`(?:new Mapper|myMapper\.update)\(\s*\{[^}]*?\bzone:\s*'?(\d+)'?`)
+		if m := zoneRe.FindStringSubmatch(fullHTML); len(m) > 1 {
+			mapZoneID = m[1]
+		}
+		if data.X == 0 && data.Y == 0 {
+			coordRe := regexp.MustCompile(`coords:\s*\[\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)`)
+			if m := coordRe.FindStringSubmatch(fullHTML); len(m) > 2 {
+				data.X, _ = strconv.ParseFloat(m[1], 64)
+				data.Y, _ = strconv.ParseFloat(m[2], 64)
+			}
+		}
+	}
+
+	// Legacy turtlecraft map data (g_mapperData = {...};)
 	doc.Find("script").Each(func(i int, s *goquery.Selection) {
 		scriptContent := s.Text()
 		if strings.Contains(scriptContent, "g_mapperData") {
@@ -367,8 +387,9 @@ func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
 		}
 	})
 
-	// Map URL can be constructed from zone name using known Zamimg patterns
-	if data.ZoneName != "" && data.MapURL == "" {
+	// Resolve the map URL / zone name. octowow only exposes the numeric zone
+	// ID, so reverse-map it to a name when needed and build the URL from it.
+	if data.MapURL == "" {
 		zoneMapIDs := map[string]string{
 			"Western Plaguelands":  "1422",
 			"Eastern Plaguelands":  "1423",
@@ -411,9 +432,21 @@ func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
 			"Teldrassil":           "141",
 			"Darkshore":            "148",
 		}
-		if mapID, ok := zoneMapIDs[data.ZoneName]; ok {
-			data.MapURL = fmt.Sprintf("https://wow.zamimg.com/images/wow/classic/maps/enus/original/%s.jpg", mapID)
-			fmt.Printf("[DEBUG] TurtleCraft: Mapped zone '%s' to map URL\n", data.ZoneName)
+		// octowow gives only the zone ID -> recover the name from the table
+		if data.ZoneName == "" && mapZoneID != "" {
+			for name, id := range zoneMapIDs {
+				if id == mapZoneID {
+					data.ZoneName = name
+					break
+				}
+			}
+		}
+		// Fall back to the name->ID lookup when only the name is known
+		if mapZoneID == "" && data.ZoneName != "" {
+			mapZoneID = zoneMapIDs[data.ZoneName]
+		}
+		if mapZoneID != "" {
+			data.MapURL = fmt.Sprintf("https://wow.zamimg.com/images/wow/classic/maps/enus/original/%s.jpg", mapZoneID)
 		}
 	}
 
