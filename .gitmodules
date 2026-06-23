@@ -1,0 +1,6 @@
+[submodule "addons/AtlasLoot"]
+	path = addons/AtlasLoot
+	url = https://github.com/Otari98/AtlasLoot
+[submodule "addons/MissingCrafts"]
+	path = addons/MissingCrafts
+	url = https://github.com/refaim/MissingCrafts
