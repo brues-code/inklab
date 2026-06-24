@@ -106,7 +106,7 @@ func (r *ItemRepository) GetItemClasses() ([]*models.ItemClass, error) {
 	rows, err := r.db.Query(`
 		SELECT DISTINCT class, subclass, inventory_type
 		FROM item_template
-		WHERE class IN (0,1,2,4,6,7,9,11,12,13,15)
+		WHERE class IN (0,1,2,4,5,6,7,9,11,12,13,15)
 		ORDER BY class, subclass, inventory_type
 	`)
 	if err != nil {

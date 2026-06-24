@@ -91,6 +91,7 @@ func GetSubClassName(c, sc int) string {
 			6: "Mining Bag",
 			7: "Leatherworking Bag",
 			8: "Inscription Bag",
+			9: "Fishing Bag",
 		}
 		if name, ok := containerSubclasses[sc]; ok {
 			return name
@@ -113,6 +114,11 @@ func GetSubClassName(c, sc int) string {
 		if name, ok := consumableSubclasses[sc]; ok {
 			return name
 		}
+	}
+
+	// Reagent subclass
+	if c == 5 {
+		return "Reagent"
 	}
 
 	// Projectile subclasses
