@@ -137,11 +137,16 @@ func records(b []byte) []record {
 	return out
 }
 
-// --- itemcache: class(0) subclass(4) name1..4 then numeric fields ---
+// --- itemcache: class(0) subclass(4) name1..4 then numeric fields. From the
+// displayId field onward they are: displayId, quality, flags, buyPrice,
+// sellPrice, invType, allowableClass, allowableRace, itemLevel, requiredLevel,
+// requiredSkill, requiredSkillRank, requiredSpell, requiredHonorRank,
+// requiredCityRank, requiredRepFaction, requiredRepRank, maxCount, stackable,
+// containerSlots (index 19, o+76). ---
 func decodeItems(recs []record) ([]string, [][]interface{}) {
 	cols := []string{"name", "class", "subclass", "display_id", "quality", "flags",
 		"buy_price", "sell_price", "inventory_type", "allowable_class", "allowable_race",
-		"item_level", "required_level", "entry"}
+		"item_level", "required_level", "container_slots", "entry"}
 	var rows [][]interface{}
 	for _, r := range recs {
 		blk := r.blk
@@ -158,7 +163,7 @@ func decodeItems(recs []record) ([]string, [][]interface{}) {
 		}
 		rows = append(rows, []interface{}{name, class, sub, u32(blk, o), u32(blk, o+4), u32(blk, o+8),
 			u32(blk, o+12), u32(blk, o+16), u32(blk, o+20), int32(u32(blk, o+24)), int32(u32(blk, o+28)),
-			u32(blk, o+32), u32(blk, o+36), r.entry})
+			u32(blk, o+32), u32(blk, o+36), u32(blk, o+76), r.entry})
 	}
 	return cols, rows
 }
