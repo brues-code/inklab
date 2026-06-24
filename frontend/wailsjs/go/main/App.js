@@ -186,6 +186,10 @@ export function GetRootCategories() {
   return window['go']['main']['App']['GetRootCategories']();
 }
 
+export function GetSpellClasses() {
+  return window['go']['main']['App']['GetSpellClasses']();
+}
+
 export function GetSpellDetail(arg1) {
   return window['go']['main']['App']['GetSpellDetail'](arg1);
 }
@@ -196,6 +200,10 @@ export function GetSpellSkillCategories() {
 
 export function GetSpellSkillsByCategory(arg1) {
   return window['go']['main']['App']['GetSpellSkillsByCategory'](arg1);
+}
+
+export function GetSpellSkillsByClass(arg1) {
+  return window['go']['main']['App']['GetSpellSkillsByClass'](arg1);
 }
 
 export function GetSpellsBySkill(arg1, arg2) {

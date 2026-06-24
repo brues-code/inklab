@@ -112,6 +112,7 @@ func CoreSchema() string {
 	CREATE TABLE IF NOT EXISTS spell_skills (
 		id INTEGER PRIMARY KEY,
 		category_id INTEGER DEFAULT 0,
+		class_id INTEGER DEFAULT 0,
 		name TEXT NOT NULL
 	);
 

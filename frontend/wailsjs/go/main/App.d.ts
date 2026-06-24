@@ -96,11 +96,15 @@ export function GetQuestsByEnhancedCategory(arg1:number,arg2:string):Promise<Arr
 
 export function GetRootCategories():Promise<Array<models.Category>>;
 
+export function GetSpellClasses():Promise<Array<models.SpellClass>>;
+
 export function GetSpellDetail(arg1:number):Promise<models.SpellDetail>;
 
 export function GetSpellSkillCategories():Promise<Array<models.SpellSkillCategory>>;
 
 export function GetSpellSkillsByCategory(arg1:number):Promise<Array<models.SpellSkill>>;
+
+export function GetSpellSkillsByClass(arg1:number):Promise<Array<models.SpellSkill>>;
 
 export function GetSpellsBySkill(arg1:number,arg2:string):Promise<Array<models.Spell>>;
 

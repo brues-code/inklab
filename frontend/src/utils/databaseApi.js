@@ -179,6 +179,21 @@ export const GetSpellsBySkill = (skillId, nameFilter = '') => {
     return Promise.resolve([])
 }
 
+// Class Skills sub-navigation: Class Skills -> Class -> Skill (spec)
+export const GetSpellClasses = () => {
+    if (window?.go?.main?.App?.GetSpellClasses) {
+        return window.go.main.App.GetSpellClasses()
+    }
+    return Promise.resolve([])
+}
+
+export const GetSpellSkillsByClass = (classId) => {
+    if (window?.go?.main?.App?.GetSpellSkillsByClass) {
+        return window.go.main.App.GetSpellSkillsByClass(classId)
+    }
+    return Promise.resolve([])
+}
+
 // Enhanced Quest Categories APIs (3-level navigation)
 export const GetQuestCategoryGroups = () => {
     if (window?.go?.main?.App?.GetQuestCategoryGroups) {

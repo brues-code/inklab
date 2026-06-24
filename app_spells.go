@@ -26,6 +26,26 @@ func (a *App) GetSpellSkillsByCategory(categoryID int) []*database.SpellSkill {
 	return skills
 }
 
+// GetSpellClasses returns the classes under the Class Skills category
+func (a *App) GetSpellClasses() []*database.SpellClass {
+	classes, err := a.spellRepo.GetSpellClasses()
+	if err != nil {
+		fmt.Printf("[API] Error: %v\n", err)
+		return []*database.SpellClass{}
+	}
+	return classes
+}
+
+// GetSpellSkillsByClass returns the class skill lines for one class
+func (a *App) GetSpellSkillsByClass(classID int) []*database.SpellSkill {
+	skills, err := a.spellRepo.GetSpellSkillsByClass(classID)
+	if err != nil {
+		fmt.Printf("[API] Error: %v\n", err)
+		return []*database.SpellSkill{}
+	}
+	return skills
+}
+
 // GetSpellsBySkill returns spells for a skill
 func (a *App) GetSpellsBySkill(skillID int, nameFilter string) []*database.Spell {
 	spells, err := a.spellRepo.GetSpellsBySkill(skillID, nameFilter)

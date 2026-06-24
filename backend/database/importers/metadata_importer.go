@@ -113,9 +113,53 @@ func (m *MetadataImporter) importSkills(dataDir string) error {
 	abilityStmt, _ := tx.Prepare("REPLACE INTO spell_skill_spells (skill_id, spell_id) VALUES (?, ?)")
 	defer abilityStmt.Close()
 
+	// Which skills are class skills (category 7) — only those get a class_id.
+	skillCat := make(map[int]int, len(skills))
+	for _, s := range skills {
+		skillCat[s.ID] = s.CategoryID
+	}
+	// Tally class bits seen per class-skill from its abilities' classmasks; the
+	// dominant bit is the owning class (handles strays, e.g. Balance has a few
+	// non-druid abilities).
+	classBits := []int{1, 2, 4, 8, 16, 64, 128, 256, 1024}
+	tally := make(map[int]map[int]int)
+
 	for _, a := range abilities {
 		abilityStmt.Exec(a.SkillID, a.SpellID)
+		if skillCat[a.SkillID] != 7 || a.ClassMask == 0 {
+			continue
+		}
+		bits := tally[a.SkillID]
+		if bits == nil {
+			bits = map[int]int{}
+			tally[a.SkillID] = bits
+		}
+		for _, b := range classBits {
+			if a.ClassMask&b != 0 {
+				bits[b]++
+			}
+		}
 	}
+
+	classUpd, _ := tx.Prepare("UPDATE spell_skills SET class_id = ? WHERE id = ?")
+	defer classUpd.Close()
+	for skillID, bits := range tally {
+		best, bestCount := 0, 0
+		for _, b := range classBits {
+			if bits[b] > bestCount {
+				best, bestCount = b, bits[b]
+			}
+		}
+		if best != 0 {
+			classUpd.Exec(best, skillID)
+		}
+	}
+
+	// Pet ability lines carry no class mask; assign by family so they group
+	// under their owning class (warlock demons vs hunter beasts).
+	tx.Exec(`UPDATE spell_skills SET class_id = 256 WHERE category_id = 7 AND name IN
+		('Pet - Imp','Pet - Voidwalker','Pet - Succubus','Pet - Felhunter','Pet - Doomguard','Pet - Infernal')`)
+	tx.Exec("UPDATE spell_skills SET class_id = 4 WHERE category_id = 7 AND class_id = 0 AND name LIKE 'Pet - %'")
 
 	// Racial skill lines ("Orc Racial", "Racial - Human", ...) are imported
 	// under Secondary Skills (category 9); lift them into the dedicated

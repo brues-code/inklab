@@ -1515,6 +1515,22 @@ export namespace models {
 	}
 	
 	
+	export class SpellClass {
+	    id: number;
+	    name: string;
+	    skillCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpellClass(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.skillCount = source["skillCount"];
+	    }
+	}
 	export class SpellUsedByItem {
 	    entry: number;
 	    name: string;

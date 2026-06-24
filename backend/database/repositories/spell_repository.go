@@ -129,6 +129,61 @@ func (r *SpellRepository) GetSpellSkillsByCategory(categoryID int) ([]*models.Sp
 	return skills, nil
 }
 
+// spellClasses lists the WoW classes (by classmask bit) in display order,
+// plus a General bucket (0) for class-category skills with no single class
+// (Mounts, Companions, Glyphs, ...).
+var spellClasses = []struct {
+	ID   int
+	Name string
+}{
+	{1, "Warrior"}, {2, "Paladin"}, {4, "Hunter"}, {8, "Rogue"}, {16, "Priest"},
+	{64, "Shaman"}, {128, "Mage"}, {256, "Warlock"}, {1024, "Druid"}, {0, "General"},
+}
+
+// GetSpellClasses returns the classes under the Class Skills category that have
+// at least one non-empty skill line, with the count of those skills.
+func (r *SpellRepository) GetSpellClasses() ([]*models.SpellClass, error) {
+	var out []*models.SpellClass
+	for _, c := range spellClasses {
+		var n int
+		r.db.QueryRow(`
+			SELECT COUNT(*) FROM spell_skills s
+			WHERE s.category_id = 7 AND s.class_id = ?
+				AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
+		`, c.ID).Scan(&n)
+		if n > 0 {
+			out = append(out, &models.SpellClass{ID: c.ID, Name: c.Name, SkillCount: n})
+		}
+	}
+	return out, nil
+}
+
+// GetSpellSkillsByClass returns the (non-empty) class skill lines for one class.
+func (r *SpellRepository) GetSpellSkillsByClass(classID int) ([]*models.SpellSkill, error) {
+	rows, err := r.db.Query(`
+		SELECT s.id, s.category_id, s.name,
+		       (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) as spell_count
+		FROM spell_skills s
+		WHERE s.category_id = 7 AND s.class_id = ?
+		       AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
+		ORDER BY s.name
+	`, classID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var skills []*models.SpellSkill
+	for rows.Next() {
+		s := &models.SpellSkill{}
+		if err := rows.Scan(&s.ID, &s.CategoryID, &s.Name, &s.SpellCount); err != nil {
+			continue
+		}
+		skills = append(skills, s)
+	}
+	return skills, nil
+}
+
 // GetSpellsBySkill returns all spells for a given skill
 func (r *SpellRepository) GetSpellsBySkill(skillID int, nameFilter string) ([]*models.Spell, error) {
 	whereClause := "WHERE ss.skill_id = ?"

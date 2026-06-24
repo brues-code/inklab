@@ -77,6 +77,7 @@ func (s *SQLiteDB) InitSchema() error {
 	schema.MigrateAtlasLoot(s.db)
 	schema.MigratePerformance(s.db)
 	schema.MigrateTextBlobs(s.db)
+	s.db.Exec("ALTER TABLE spell_skills ADD COLUMN class_id INTEGER DEFAULT 0") // ignore error if exists
 
 	return nil
 }

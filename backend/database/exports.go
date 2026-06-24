@@ -50,6 +50,7 @@ type QuestTemplateEntry = models.QuestTemplateEntry
 type Spell = models.Spell
 type SpellSkillCategory = models.SpellSkillCategory
 type SpellSkill = models.SpellSkill
+type SpellClass = models.SpellClass
 type SpellEntry = models.SpellEntry
 type SpellDetail = models.SpellDetail
 type SpellTemplateFull = models.SpellTemplateFull

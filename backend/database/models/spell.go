@@ -23,6 +23,14 @@ type SpellSkill struct {
 	SpellCount int    `json:"spellCount"`
 }
 
+// SpellClass represents a class grouping under the Class Skills category.
+// ID is the WoW class bitmask (1 Warrior ... 256 Warlock, 1024 Druid; 0 General).
+type SpellClass struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	SkillCount int    `json:"skillCount"`
+}
+
 // SpellEntry represents a spell for JSON import
 type SpellEntry struct {
 	Entry             int    `json:"entry"`
