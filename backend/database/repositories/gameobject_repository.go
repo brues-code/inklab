@@ -2,9 +2,33 @@ package repositories
 
 import (
 	"database/sql"
+	"fmt"
+	"sort"
 
 	"inklab/backend/database/models"
 )
+
+// objectTypeNames maps GameObject type ids to display labels. Covers the full
+// 1.12 set so every type present in the data can be browsed.
+var objectTypeNames = map[int]string{
+	0: "Doors", 1: "Buttons", 2: "Quest Givers", 3: "Chests", 4: "Binders",
+	5: "Generic / Doodads", 6: "Traps", 7: "Chairs", 8: "Spell Focus",
+	9: "Books & Texts", 10: "Interactive", 11: "Elevators & Lifts",
+	12: "Area Damage", 13: "Cameras", 14: "Map Objects", 15: "Boats & Zeppelins",
+	16: "Duel Flags", 17: "Fishing Nodes", 18: "Summoning Rituals", 19: "Mailboxes",
+	20: "Auction Houses", 21: "Guard Posts", 22: "Spell Casters", 23: "Meeting Stones",
+	24: "Flag Stands", 25: "Fishing Pools", 26: "Flag Drops", 27: "Mini Games",
+	28: "Lottery Kiosks", 29: "Capture Points", 30: "Aura Generators",
+	33: "Destructible Buildings",
+}
+
+// objectTypePriority lists the player-relevant types first; remaining types
+// present in the data are appended afterwards (the bulk doodad buckets like
+// Generic/Map Objects land at the end).
+var objectTypePriority = []int{
+	3, 25, 17, 9, 2, 19, 0, 1, 10, 8, 6, 11, 15, 23, 18, 22, 24, 26, 29,
+	4, 21, 16, 13, 30, 27, 28, 12, 7, 14, 5, 20,
+}
 
 // GameObjectRepository handles game object-related database operations
 type GameObjectRepository struct {
@@ -37,22 +61,46 @@ func (r *GameObjectRepository) GetObjectTypes() ([]*models.ObjectType, error) {
 	countDerived(3, "Mining", -4)
 	countDerived(1, "Lockpicking", -5)
 
-	// Standard types
-	standardTypes := []struct {
-		ID   int
-		Name string
-	}{
-		{3, "Chests"}, {25, "Fishing Pools"}, {9, "Books & Texts"},
-		{2, "Quest Givers"}, {19, "Mailboxes"}, {17, "Fishing Nodes"},
-		{0, "Doors"}, {10, "Interactive"}, {1, "Buttons"},
+	// Count every type actually present, then emit one category per type:
+	// priority (player-relevant) order first, the rest appended ascending.
+	counts := map[int]int{}
+	rows, err := r.db.Query("SELECT type, COUNT(*) FROM gameobject_template GROUP BY type")
+	if err != nil {
+		return types, err
+	}
+	for rows.Next() {
+		var t, c int
+		if err := rows.Scan(&t, &c); err == nil {
+			counts[t] = c
+		}
+	}
+	rows.Close()
+
+	seen := map[int]bool{}
+	add := func(t int) {
+		if seen[t] || counts[t] == 0 {
+			return
+		}
+		seen[t] = true
+		name, ok := objectTypeNames[t]
+		if !ok {
+			name = fmt.Sprintf("Type %d", t)
+		}
+		types = append(types, &models.ObjectType{ID: t, Name: name, Count: counts[t]})
 	}
 
-	for _, st := range standardTypes {
-		var count int
-		r.db.QueryRow("SELECT COUNT(*) FROM gameobject_template WHERE type = ?", st.ID).Scan(&count)
-		if count > 0 {
-			types = append(types, &models.ObjectType{ID: st.ID, Name: st.Name, Count: count})
+	for _, t := range objectTypePriority {
+		add(t)
+	}
+	rest := make([]int, 0, len(counts))
+	for t := range counts {
+		if !seen[t] {
+			rest = append(rest, t)
 		}
+	}
+	sort.Ints(rest)
+	for _, t := range rest {
+		add(t)
 	}
 
 	return types, nil
@@ -149,13 +197,8 @@ func (r *GameObjectRepository) GetObjectDetail(entry int) (*models.GameObjectDet
 		return nil, err
 	}
 
-	// Type name mapping
-	typeNames := map[int]string{
-		0: "Door", 1: "Button", 2: "Quest Giver", 3: "Chest",
-		5: "Generic", 6: "Trap", 7: "Chair", 8: "Spell Focus",
-		9: "Text", 10: "Goober", 17: "Fishing Node", 19: "Mailbox", 25: "Fishing Pool",
-	}
-	if name, ok := typeNames[obj.Type]; ok {
+	// Type name mapping (shared with the category list).
+	if name, ok := objectTypeNames[obj.Type]; ok {
 		obj.TypeName = name
 	}
 
