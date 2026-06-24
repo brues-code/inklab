@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -30,6 +31,13 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 		basePath = filepath.Join(a.DataDir, "icons")
 		extensions = []string{".png", ".jpg", ".jpeg"}
 	case "npc_model", "npc_map":
+		// Synced NPC images are stored under an MD5-of-URL filename (deduped
+		// across NPCs that share a model) and the path recorded in
+		// creature_metadata. Resolve that first so we serve the existing file
+		// instead of letting the frontend re-download it as model_<id>/map_<id>.
+		if r := a.findNpcImage(imageType, name); r != nil {
+			return r
+		}
 		basePath = filepath.Join(a.DataDir, "npc_images")
 		extensions = []string{".jpg", ".png", ".jpeg"}
 	case "zone_map":
@@ -58,6 +66,55 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	}
 
 	return &ImageResult{Error: "file not found: " + name}
+}
+
+// findNpcImage resolves an NPC model/map image to the file recorded in
+// creature_metadata (an MD5-of-URL filename written by the sync). name is the
+// frontend key, e.g. "model_61609" or "map_61609". Returns nil if there's no
+// recorded path or the file is missing, so the caller can fall back.
+func (a *App) findNpcImage(imageType, name string) *ImageResult {
+	if a.db == nil {
+		return nil
+	}
+	var prefix, column string
+	switch imageType {
+	case "npc_model":
+		prefix, column = "model_", "model_image_local"
+	case "npc_map":
+		prefix, column = "map_", "map_image_local"
+	default:
+		return nil
+	}
+	idStr := strings.TrimPrefix(name, prefix)
+	entry, err := strconv.Atoi(idStr)
+	if err != nil {
+		return nil
+	}
+
+	var localPath string
+	q := "SELECT COALESCE(" + column + ", '') FROM creature_metadata WHERE entry = ?"
+	if err := a.db.DB().QueryRow(q, entry).Scan(&localPath); err != nil || localPath == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return nil
+	}
+	mimeType := "image/jpeg"
+	switch strings.ToLower(filepath.Ext(localPath)) {
+	case ".png":
+		mimeType = "image/png"
+	case ".gif":
+		mimeType = "image/gif"
+	case ".webp":
+		mimeType = "image/webp"
+	}
+	return &ImageResult{
+		Data:     base64.StdEncoding.EncodeToString(data),
+		MimeType: mimeType,
+		Source:   "local",
+	}
 }
 
 // normKey reduces a name to lowercase alphanumerics for loose matching, so
