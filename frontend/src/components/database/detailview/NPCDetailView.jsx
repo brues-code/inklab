@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { GetNpcFullDetails, SyncNpcData } from "../../../services/api";
+import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
 import { useNpcModel, useNpcMap } from "../../../services/useImage";
+import { evictNpcImages } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import {
@@ -20,10 +21,12 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [imgReload, setImgReload] = useState(0);
+  const [refreshingImages, setRefreshingImages] = useState(false);
 
   // Use unified image hooks for model and map
-  const modelImage = useNpcModel(entry, detail?.modelImageUrl);
-  const mapImage = useNpcMap(entry, detail?.mapUrl);
+  const modelImage = useNpcModel(entry, detail?.modelImageUrl, imgReload);
+  const mapImage = useNpcMap(entry, detail?.mapUrl, imgReload);
 
   useEffect(() => {
     setLoading(true);
@@ -39,6 +42,19 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
       setDetail(res);
       setLoading(false);
     });
+  };
+
+  // Re-fetch just the model/map images (does NOT replace creature data).
+  const handleRefreshImages = () => {
+    if (refreshingImages) return;
+    setRefreshingImages(true);
+    RefreshNpcImages(entry)
+      .then((res) => {
+        if (res) setDetail(res);
+        evictNpcImages(entry);
+        setImgReload((n) => n + 1);
+      })
+      .finally(() => setRefreshingImages(false));
   };
 
   const renderLootItem = (item) => {
@@ -142,8 +158,19 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 />
               </div>
             ) : (
-              <div className="aspect-[3/4] border border-white/10 rounded bg-black/40 flex items-center justify-center text-gray-500 text-xs">
-                No Model
+              <div
+                onClick={handleRefreshImages}
+                title="Click to fetch model image"
+                className="aspect-[3/4] border border-white/10 rounded bg-black/40 flex flex-col items-center justify-center text-gray-500 text-xs cursor-pointer hover:bg-black/60 hover:text-gray-300 transition-colors"
+              >
+                {refreshingImages ? (
+                  <span className="animate-pulse">Fetching…</span>
+                ) : (
+                  <>
+                    <span>No Model</span>
+                    <span className="mt-1 text-[10px] text-gray-600">click to fetch</span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -180,11 +207,18 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     maxWidth: "488px",
                     maxHeight: "325px",
                   }}
-                  onClick={() => mapImage.src && setShowMapModal(true)}
+                  onClick={() => (mapImage.src ? setShowMapModal(true) : handleRefreshImages())}
                 >
                   {!mapImage.src && !mapImage.loading && (
-                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                      No Map Data
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm">
+                      {refreshingImages ? (
+                        <span className="animate-pulse">Fetching…</span>
+                      ) : (
+                        <>
+                          <span>No Map Data</span>
+                          <span className="mt-1 text-[10px] text-gray-600">click to fetch</span>
+                        </>
+                      )}
                     </div>
                   )}
                   {mapImage.loading && (

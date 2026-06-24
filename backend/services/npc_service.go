@@ -714,7 +714,16 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	return nil
 }
 
-func (s *NpcService) SyncNpcData(entry int) error {
+// RefreshNpcImages scrapes only the visual metadata (model + map images, zone,
+// coords) and stores it, WITHOUT touching creature_template. Use this to pull a
+// missing model/map without re-syncing (and potentially overwriting) the
+// creature's stat data from the frozen MySQL dump.
+func (s *NpcService) RefreshNpcImages(entry int) error {
+	return s.syncNpcImages(entry)
+}
+
+// syncNpcImages performs the scrape + image download + creature_metadata upsert.
+func (s *NpcService) syncNpcImages(entry int) error {
 	// A. Scrape Wowhead for Metadata
 	scrapedData, err := s.scraper.ScrapeNpcData(entry)
 	if err != nil {
@@ -772,7 +781,15 @@ func (s *NpcService) SyncNpcData(entry int) error {
 	if err != nil {
 		return fmt.Errorf("failed to save metadata: %w", err)
 	}
-	// ...
+	return nil
+}
+
+func (s *NpcService) SyncNpcData(entry int) error {
+	// A. Scrape + images + metadata (no creature_template changes).
+	if err := s.syncNpcImages(entry); err != nil {
+		return err
+	}
+	var err error
 
 	// B. Sync from MySQL (if available)
 	if s.mysql != nil {

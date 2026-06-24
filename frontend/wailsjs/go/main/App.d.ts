@@ -116,6 +116,8 @@ export function GetTooltipData(arg1:number):Promise<models.TooltipData>;
 
 export function IsFavorite(arg1:number):Promise<boolean>;
 
+export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;
+
 export function RemoveFavorite(arg1:number):Promise<models.FavoriteResult>;
 
 export function SearchCreatures(arg1:string):Promise<Array<models.Creature>>;

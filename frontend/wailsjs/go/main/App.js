@@ -226,6 +226,10 @@ export function IsFavorite(arg1) {
   return window['go']['main']['App']['IsFavorite'](arg1);
 }
 
+export function RefreshNpcImages(arg1) {
+  return window['go']['main']['App']['RefreshNpcImages'](arg1);
+}
+
 export function RemoveFavorite(arg1) {
   return window['go']['main']['App']['RemoveFavorite'](arg1);
 }

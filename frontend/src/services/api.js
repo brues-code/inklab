@@ -50,6 +50,15 @@ export const SyncNpcData = (entry) => {
     return Promise.resolve(null)
 }
 
+// Re-fetch only the model/map images for an NPC (no creature data is replaced).
+export const RefreshNpcImages = (entry) => {
+    console.log(`[API] Refreshing NPC images: ${entry}`);
+    if (window?.go?.main?.App?.RefreshNpcImages) {
+        return window.go.main.App.RefreshNpcImages(entry);
+    }
+    return Promise.resolve(null)
+}
+
 export const GetItemDetail = (entry) => {
     console.log(`[API] Fetching Item Detail for: ${entry}`);
     if (window?.go?.main?.App?.GetItemDetail) {

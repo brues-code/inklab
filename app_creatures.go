@@ -113,6 +113,17 @@ func (a *App) SyncNpcData(entry int) *services.NpcFullDetails {
 	return details
 }
 
+// RefreshNpcImages re-fetches only the model/map images (and visual metadata)
+// for an NPC, without re-syncing creature_template stats from MySQL.
+func (a *App) RefreshNpcImages(entry int) *services.NpcFullDetails {
+	fmt.Printf("[API] RefreshNpcImages called for %d\n", entry)
+	if err := a.npcService.RefreshNpcImages(entry); err != nil {
+		fmt.Printf("Error refreshing NPC images: %v\n", err)
+	}
+	details, _ := a.npcService.GetNpcDetails(entry)
+	return details
+}
+
 // FullSyncNpcs re-syncs all NPC data (Web + MySQL) starting from a specific ID
 func (a *App) FullSyncNpcs(startFrom int, delayMs int) string {
 	fmt.Printf("[API] FullSyncNpcs called with startFrom=%d, delayMs=%d\n", startFrom, delayMs)

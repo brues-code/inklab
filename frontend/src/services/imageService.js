@@ -101,6 +101,24 @@ export const clearImageCache = () => {
 };
 
 /**
+ * Evict a single cached image so the next load re-reads local/remote.
+ * @param {string} imageType - 'icon' | 'npc_model' | 'npc_map'
+ * @param {string} name - Image name (e.g. 'model_15114')
+ */
+export const evictImage = (imageType, name) => {
+    imageCache.delete(`${imageType}:${name}`);
+};
+
+/**
+ * Evict an NPC's cached model and map images.
+ * @param {number} npcId
+ */
+export const evictNpcImages = (npcId) => {
+    imageCache.delete(`npc_model:model_${npcId}`);
+    imageCache.delete(`npc_map:map_${npcId}`);
+};
+
+/**
  * Preload multiple images in background
  * @param {Array<{type: string, name: string, url: string}>} images
  */

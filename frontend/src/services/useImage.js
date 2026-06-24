@@ -90,7 +90,7 @@ export const useIcon = (iconName) => {
  * @param {string} remoteUrl - Remote URL from Wowhead
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
-export const useNpcModel = (npcId, remoteUrl) => {
+export const useNpcModel = (npcId, remoteUrl, reloadKey = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -119,7 +119,7 @@ export const useNpcModel = (npcId, remoteUrl) => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [npcId, remoteUrl]);
+    }, [npcId, remoteUrl, reloadKey]);
 
     return { src, loading, error };
 };
@@ -130,7 +130,7 @@ export const useNpcModel = (npcId, remoteUrl) => {
  * @param {string} remoteUrl - Remote URL from Wowhead
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
-export const useNpcMap = (npcId, remoteUrl) => {
+export const useNpcMap = (npcId, remoteUrl, reloadKey = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -159,7 +159,7 @@ export const useNpcMap = (npcId, remoteUrl) => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [npcId, remoteUrl]);
+    }, [npcId, remoteUrl, reloadKey]);
 
     return { src, loading, error };
 };
