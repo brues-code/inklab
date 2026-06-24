@@ -21,6 +21,8 @@ func runGen(name, dir, out string) error {
 		v, err = genSLA(dir)
 	case "zones":
 		v, err = genZones(dir)
+	case "questsorts":
+		v, err = genQuestSorts(dir)
 	case "icons":
 		v, err = genIcons(dir)
 	case "spells":
@@ -142,6 +144,25 @@ func genZones(dir string) (interface{}, error) {
 			"x_max": d.Float32(r, 6), // locTop
 			"y_min": d.Float32(r, 5), // locRight
 			"y_max": d.Float32(r, 4), // locLeft
+		})
+	}
+	return out, nil
+}
+
+// QuestSort.dbc (1.12, 10 fields): id(0), name[8](1-8), nameFlags(9).
+// Quests store the NEGATIVE of these ids in ZoneOrSort — these cover the
+// class quest sorts (Warlock, Mage, ...), professions and seasonal/special
+// categories that have no AreaTable entry.
+func genQuestSorts(dir string) (interface{}, error) {
+	d, err := Open(filepath.Join(dir, "QuestSort.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{
+			"sortID":    d.Uint32(r, 0),
+			"name_loc0": d.Str(r, 1),
 		})
 	}
 	return out, nil

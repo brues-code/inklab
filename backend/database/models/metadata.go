@@ -7,6 +7,14 @@ type ZoneEntry struct {
 	Name   string `json:"name_loc0"`
 }
 
+// QuestSortEntry represents a QuestSort.dbc category for JSON import. Quests
+// reference these via a NEGATIVE ZoneOrSort (e.g. ZoneOrSort -61 -> sortID 61
+// "Warlock"); they have no AreaTable entry.
+type QuestSortEntry struct {
+	SortID int    `json:"sortID"`
+	Name   string `json:"name_loc0"`
+}
+
 // SkillEntry represents a skill for JSON import
 type SkillEntry struct {
 	ID         int    `json:"skillID"`

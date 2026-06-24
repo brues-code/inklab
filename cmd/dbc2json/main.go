@@ -62,6 +62,7 @@ func main() {
 			{"skills", "skills.json"},
 			{"sla", "skill_line_abilities.json"},
 			{"zones", "zones.json"},
+			{"questsorts", "quest_sorts.json"},
 			{"icons", "item_icons.json"},
 			{"spells", "spells_enhanced.json"},
 		}
@@ -75,7 +76,7 @@ func main() {
 		// args: gen <name> <dbcDir> <outPath>
 		if len(os.Args) < 5 {
 			fmt.Fprintln(os.Stderr, "usage: dbc2json gen <name> <DBFilesClient dir> <out.json>")
-			fmt.Fprintln(os.Stderr, "names: itemsets skills sla zones icons spells")
+			fmt.Fprintln(os.Stderr, "names: itemsets skills sla zones questsorts icons spells")
 			os.Exit(2)
 		}
 		// here dbcDir is actually os.Args[3]; os.Args[2] is the name
@@ -87,7 +88,7 @@ func main() {
 	case "headers":
 		for _, name := range []string{
 			"ItemSet.dbc", "SkillLine.dbc", "SkillLineAbility.dbc", "AreaTable.dbc",
-			"WorldMapArea.dbc", "ItemDisplayInfo.dbc", "Spell.dbc", "SpellIcon.dbc",
+			"WorldMapArea.dbc", "QuestSort.dbc", "ItemDisplayInfo.dbc", "Spell.dbc", "SpellIcon.dbc",
 		} {
 			d, err := Open(filepath.Join(dbcDir, name))
 			if err != nil {

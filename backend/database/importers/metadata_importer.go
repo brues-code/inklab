@@ -34,6 +34,11 @@ func (m *MetadataImporter) ImportAll(dataDir string) error {
 	} else {
 		// Log success if needed, but avoid spam if it's identical
 	}
+
+	// Quest sorts (class/profession/seasonal categories with no AreaTable entry).
+	if err := m.importQuestSorts(dataDir); err != nil {
+		fmt.Printf("Warning: Failed to import quest sorts: %v\n", err)
+	}
 	return nil
 }
 
@@ -140,6 +145,60 @@ func (m *MetadataImporter) importQuestZones(dataDir string) error {
 			groupID = 2 // Dungeons
 		}
 		stmt.Exec(z.AreaID, groupID, z.Name)
+	}
+	return tx.Commit()
+}
+
+// questSortGroup maps a QuestSort.dbc name to a quest_category_group id:
+// 4 Classes, 5 Professions, 7 Misc (seasonal/special/holiday).
+func questSortGroup(name string) int {
+	classes := map[string]bool{
+		"Warrior": true, "Paladin": true, "Hunter": true, "Rogue": true,
+		"Priest": true, "Shaman": true, "Mage": true, "Warlock": true,
+		"Druid": true, "Death Knight": true,
+	}
+	professions := map[string]bool{
+		"Alchemy": true, "Blacksmithing": true, "Cooking": true, "Enchanting": true,
+		"Engineering": true, "First Aid": true, "Fishing": true, "Herbalism": true,
+		"Leatherworking": true, "Mining": true, "Skinning": true, "Tailoring": true,
+		"Inscription": true, "Jewelcrafting": true,
+	}
+	switch {
+	case classes[name]:
+		return 4 // Classes
+	case professions[name]:
+		return 5 // Professions
+	default:
+		return 7 // Misc
+	}
+}
+
+// importQuestSorts loads QuestSort.dbc categories (class/profession/seasonal)
+// into quest_categories_enhanced under NEGATIVE ids, matching how quests store
+// them in ZoneOrSort. Without this, class quests have no browsable category.
+func (m *MetadataImporter) importQuestSorts(dataDir string) error {
+	file, err := os.Open(fmt.Sprintf("%s/quest_sorts.json", dataDir))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	var sorts []models.QuestSortEntry
+	if err := json.NewDecoder(file).Decode(&sorts); err != nil {
+		return err
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, _ := tx.Prepare("REPLACE INTO quest_categories_enhanced (id, group_id, name) VALUES (?, ?, ?)")
+	defer stmt.Close()
+
+	for _, s := range sorts {
+		stmt.Exec(-s.SortID, questSortGroup(s.Name), s.Name)
 	}
 	return tx.Commit()
 }
