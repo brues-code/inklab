@@ -50,3 +50,5 @@ tmp/
 
 # Locally-generated zone maps (from client art; not shipped)
 data/maps/
+# Icons — extracted locally from client art / downloaded at runtime (not shipped)
+data/icons/

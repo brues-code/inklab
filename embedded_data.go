@@ -36,8 +36,8 @@ func writeExtractedDBVersion(dataDir string, v int) {
 	_ = os.WriteFile(filepath.Join(dataDir, dbVersionFile), []byte(strconv.Itoa(v)), 0644)
 }
 
-//go:embed data/icons/*
-var embeddedIcons embed.FS
+// Icons are not embedded — they're extracted locally from the client art via
+// the Tools tab, or downloaded on demand by the icon service.
 
 //go:embed data/npc_images/*
 var embeddedNpcImages embed.FS
@@ -109,13 +109,8 @@ func InitializeData() (string, bool, error) {
 		log.Println("✓ Using existing database:", dbPath)
 	}
 
-	// Extract icons if directory is empty or mostly empty (< 50 icons)
-	entries, _ := os.ReadDir(iconsDir)
-	if len(entries) < 50 {
-		log.Println("Extracting embedded icons (this may take a moment)...")
-		extractAssets(embeddedIcons, "data/icons", iconsDir)
-		log.Println("📝 Tip: Downloaded icons will be saved to data/icons/ and take precedence over embedded ones")
-	}
+	// Icons live in data/icons (extracted from client art via the Tools tab, or
+	// downloaded on demand). Nothing to extract from the binary.
 
 	// Extract NPC images if directory is empty
 	npcImagesDir := filepath.Join(dataDir, "npc_images")
