@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
-import { useNpcModel, useZoneMap } from "../../../services/useImage";
+import { useNpcModel, useZoneMap, useIcon } from "../../../services/useImage";
 import { evictNpcImages } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
@@ -15,6 +15,22 @@ import {
   DetailError,
   LootItem,
 } from "../../ui";
+
+// AbilityIcon resolves a spell's icon through the local icon service (local
+// data/icons first, then CDN, then the questionmark placeholder) — same as the
+// rest of the app. The previous remote-only <img> 404'd on octo-custom icons
+// and hid itself, which looked like the icon flashing then disappearing.
+const AbilityIcon = ({ iconName }) => {
+  const icon = useIcon(iconName);
+  if (!iconName) return null;
+  return (
+    <img
+      src={icon.src || "/local-icons/inv_misc_questionmark.jpg"}
+      alt=""
+      className="w-10 h-10 rounded border border-gray-600 bg-black/40"
+    />
+  );
+};
 
 const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -523,16 +539,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                         >
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex items-center gap-3">
-                                {spell.icon && (
-                                  <img
-                                    src={`${DATABASE_BASE_URL}/images/icons/large/${spell.icon}.jpg`}
-                                    alt=""
-                                    className="w-10 h-10 rounded border border-gray-600"
-                                    onError={(e) => {
-                                      e.target.style.display = "none";
-                                    }}
-                                  />
-                                )}
+                                <AbilityIcon iconName={spell.icon} />
                                 <h4 className="text-wow-quality-1 font-bold text-lg">
                                   {spell.name}
                                 </h4>

@@ -304,8 +304,8 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 				var icon sql.NullString
 				// Check spell_template and join spell_icons
 				err := s.sqlite.QueryRow(`
-					SELECT st.name, st.description, si.icon_name 
-					FROM spell_template st 
+					SELECT st.name, st.description, COALESCE(NULLIF(si.icon_name, ''), st.iconName, '')
+					FROM spell_template st
 					LEFT JOIN spell_icons si ON st.spellIconId = si.id
 					WHERE st.entry = ?
 				`, id).Scan(&name, &desc, &icon)
