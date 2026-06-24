@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"inklab/backend/database"
 	"inklab/backend/datatools"
 )
 
@@ -53,4 +54,40 @@ func (a *App) RunMapImport(baseDir string) ImportReport {
 		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped", res.Skipped))
 	}
 	return rep
+}
+
+// RunDbcImport regenerates data/*.json from the client DBCs in
+// <baseDir>/DBFilesClient and re-applies the JSON-fed reference tables (zones,
+// skills, quest sorts, factions, item sets, icons, spell backfill) to the live
+// DB. It does NOT touch the MySQL-sourced templates.
+func (a *App) RunDbcImport(baseDir string) ImportReport {
+	dbcDir := filepath.Join(baseDir, "DBFilesClient")
+	if err := datatools.GenerateDBCJSON(dbcDir, a.DataDir); err != nil {
+		return ImportReport{Title: "DBC regen failed", Lines: []string{err.Error(), "looked in: " + dbcDir}}
+	}
+
+	var lines []string
+	add := func(label string, err error) {
+		if err != nil {
+			lines = append(lines, label+": "+err.Error())
+		} else {
+			lines = append(lines, label+" refreshed")
+		}
+	}
+
+	// Skills / zones / quest sorts (REPLACE-based, idempotent).
+	add("zones / skills / quest sorts", database.NewMetadataImporter(a.db).ImportAll(a.DataDir))
+	// Item sets & factions skip when present, so clear then re-import.
+	a.db.DB().Exec("DELETE FROM itemsets")
+	add("item sets", database.NewItemSetImporter(a.db).CheckAndImport(a.DataDir))
+	a.db.DB().Exec("DELETE FROM factions")
+	add("factions", database.NewFactionImporter(a.db).CheckAndImport(a.DataDir))
+	// Icons + missing-spell backfill.
+	gen := database.NewGeneratedImporter(a.db.DB())
+	_ = gen.ImportMissingSpells(filepath.Join(a.DataDir, "spells_enhanced.json"))
+	_ = gen.ImportItemIcons(filepath.Join(a.DataDir, "item_icons.json"))
+	_ = gen.ImportSpellIcons(filepath.Join(a.DataDir, "spells_enhanced.json"))
+	lines = append(lines, "icons + spell text refreshed")
+
+	return ImportReport{Success: true, Title: "DBC import complete", Lines: lines}
 }

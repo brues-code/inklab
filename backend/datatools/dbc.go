@@ -1,0 +1,337 @@
+package datatools
+
+import (
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// --- DBC reader (classic WDBC: 20-byte header, fixed records, string block) ---
+
+type DBC struct {
+	RecordCount int
+	FieldCount  int
+	RecordSize  int
+
+	data       []byte
+	recordsOff int
+	stringsOff int
+}
+
+func openDBC(path string) (*DBC, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(b) < 20 || string(b[0:4]) != "WDBC" {
+		return nil, fmt.Errorf("%s: not a WDBC file", path)
+	}
+	rc := int(binary.LittleEndian.Uint32(b[4:8]))
+	fc := int(binary.LittleEndian.Uint32(b[8:12]))
+	rs := int(binary.LittleEndian.Uint32(b[12:16]))
+	ss := int(binary.LittleEndian.Uint32(b[16:20]))
+	recordsOff := 20
+	stringsOff := recordsOff + rc*rs
+	if stringsOff+ss > len(b) {
+		return nil, fmt.Errorf("%s: truncated", path)
+	}
+	return &DBC{RecordCount: rc, FieldCount: fc, RecordSize: rs, data: b, recordsOff: recordsOff, stringsOff: stringsOff}, nil
+}
+
+func (d *DBC) off(rec, field int) int { return d.recordsOff + rec*d.RecordSize + field*4 }
+func (d *DBC) U32(rec, field int) uint32 {
+	o := d.off(rec, field)
+	if o+4 > len(d.data) {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(d.data[o : o+4])
+}
+func (d *DBC) I32(rec, field int) int32     { return int32(d.U32(rec, field)) }
+func (d *DBC) F32(rec, field int) float32   { return math.Float32frombits(d.U32(rec, field)) }
+func (d *DBC) Str(rec, field int) string {
+	start := d.stringsOff + int(d.U32(rec, field))
+	if start < d.stringsOff || start >= len(d.data) {
+		return ""
+	}
+	end := start
+	for end < len(d.data) && d.data[end] != 0 {
+		end++
+	}
+	return string(d.data[start:end])
+}
+
+// GenerateDBCJSON regenerates every data/*.json file InkLab imports from the
+// client DBCs in dbcDir, writing into dataDir.
+func GenerateDBCJSON(dbcDir, dataDir string) error {
+	if err := writeFactions(dbcDir, filepath.Join(dataDir, "factions.json")); err != nil {
+		return fmt.Errorf("factions: %w", err)
+	}
+	jobs := []struct{ name, file string }{
+		{"itemsets", "item_sets.json"},
+		{"skills", "skills.json"},
+		{"sla", "skill_line_abilities.json"},
+		{"zones", "zones.json"},
+		{"questsorts", "quest_sorts.json"},
+		{"icons", "item_icons.json"},
+		{"spells", "spells_enhanced.json"},
+	}
+	for _, j := range jobs {
+		if err := runGen(j.name, dbcDir, filepath.Join(dataDir, j.file)); err != nil {
+			return fmt.Errorf("%s: %w", j.name, err)
+		}
+	}
+	return nil
+}
+
+func runGen(name, dir, out string) error {
+	var v interface{}
+	var err error
+	switch name {
+	case "itemsets":
+		v, err = genItemSets(dir)
+	case "skills":
+		v, err = genSkills(dir)
+	case "sla":
+		v, err = genSLA(dir)
+	case "zones":
+		v, err = genZones(dir)
+	case "questsorts":
+		v, err = genQuestSorts(dir)
+	case "icons":
+		v, err = genIcons(dir)
+	case "spells":
+		v, err = genSpells(dir)
+	default:
+		return fmt.Errorf("unknown gen %q", name)
+	}
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(out, b, 0644)
+}
+
+func iconBase(p string) string {
+	if i := strings.LastIndexAny(p, `\/`); i >= 0 {
+		p = p[i+1:]
+	}
+	return p
+}
+
+// ItemSet.dbc (45 fields): id(0), name[8](1-8), itemID[17](10-26),
+// setSpellID[8](27-34), setThreshold[8](35-42), reqSkill(43), reqSkillRank(44).
+func genItemSets(dir string) (interface{}, error) {
+	d, err := openDBC(filepath.Join(dir, "ItemSet.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		m := map[string]interface{}{
+			"itemsetID": d.U32(r, 0), "name_loc0": d.Str(r, 1),
+			"skillID": d.U32(r, 43), "skilllevel": d.U32(r, 44),
+		}
+		for i := 0; i < 10; i++ {
+			m[fmt.Sprintf("item%d", i+1)] = d.U32(r, 10+i)
+		}
+		for i := 0; i < 8; i++ {
+			m[fmt.Sprintf("spell%d", i+1)] = d.U32(r, 27+i)
+		}
+		for i := 0; i < 8; i++ {
+			m[fmt.Sprintf("bonus%d", i+1)] = d.U32(r, 35+i)
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+func genSkills(dir string) (interface{}, error) {
+	d, err := openDBC(filepath.Join(dir, "SkillLine.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{
+			"skillID": d.U32(r, 0), "categoryID": d.I32(r, 1), "name_loc0": d.Str(r, 3),
+		})
+	}
+	return out, nil
+}
+
+func genSLA(dir string) (interface{}, error) {
+	d, err := openDBC(filepath.Join(dir, "SkillLineAbility.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{
+			"skillID": d.U32(r, 1), "spellID": d.U32(r, 2),
+			"racemask": d.U32(r, 3), "classmask": d.U32(r, 4),
+			"req_skill_value": d.U32(r, 7), "max_value": d.U32(r, 10), "min_value": d.U32(r, 11),
+		})
+	}
+	return out, nil
+}
+
+// WorldMapArea.dbc: mapID(1), areaID(2), areaName(3), loc bounds(4-7).
+func genZones(dir string) (interface{}, error) {
+	maps, err := openDBC(filepath.Join(dir, "Map.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	instByMap := make(map[uint32]uint32, maps.RecordCount)
+	for r := 0; r < maps.RecordCount; r++ {
+		instByMap[maps.U32(r, 0)] = maps.U32(r, 2)
+	}
+	d, err := openDBC(filepath.Join(dir, "WorldMapArea.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		mapID := d.U32(r, 1)
+		out = append(out, map[string]interface{}{
+			"mapID": mapID, "instanceType": instByMap[mapID],
+			"areatableID": d.U32(r, 2), "name_loc0": d.Str(r, 3),
+			"x_min": d.F32(r, 7), "x_max": d.F32(r, 6),
+			"y_min": d.F32(r, 5), "y_max": d.F32(r, 4),
+		})
+	}
+	return out, nil
+}
+
+// QuestSort.dbc: id(0), name[8](1-8).
+func genQuestSorts(dir string) (interface{}, error) {
+	d, err := openDBC(filepath.Join(dir, "QuestSort.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{"sortID": d.U32(r, 0), "name_loc0": d.Str(r, 1)})
+	}
+	return out, nil
+}
+
+// ItemDisplayInfo.dbc: id(0), inventoryIcon1(5). -> map displayID -> icon name.
+func genIcons(dir string) (interface{}, error) {
+	d, err := openDBC(filepath.Join(dir, "ItemDisplayInfo.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		icon := d.Str(r, 5)
+		if icon == "" {
+			continue
+		}
+		out[fmt.Sprintf("%d", d.U32(r, 0))] = icon
+	}
+	return out, nil
+}
+
+// Spell.dbc: id(0), durationIndex(30), effectDieSides[3](64-66),
+// effectBasePoints[3](76-78), spellIconID(117), name[8](120-127),
+// description[8](138-145). iconName via SpellIcon.dbc: id(0)->texturePath(1).
+func genSpells(dir string) (interface{}, error) {
+	icons, err := openDBC(filepath.Join(dir, "SpellIcon.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	iconByID := make(map[uint32]string, icons.RecordCount)
+	for r := 0; r < icons.RecordCount; r++ {
+		iconByID[icons.U32(r, 0)] = iconBase(icons.Str(r, 1))
+	}
+	d, err := openDBC(filepath.Join(dir, "Spell.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		iconID := d.U32(r, 117)
+		name := iconByID[iconID]
+		if name == "" {
+			name = "temp"
+		}
+		out = append(out, map[string]interface{}{
+			"entry": d.U32(r, 0), "name": d.Str(r, 120), "description": d.Str(r, 138),
+			"effectBasePoints1": d.I32(r, 76), "effectBasePoints2": d.I32(r, 77), "effectBasePoints3": d.I32(r, 78),
+			"effectDieSides1": d.I32(r, 64), "effectDieSides2": d.I32(r, 65), "effectDieSides3": d.I32(r, 66),
+			"durationIndex": d.U32(r, 30), "spellIconId": iconID, "iconName": name,
+		})
+	}
+	return out, nil
+}
+
+// --- Faction.dbc (37 fields, 148-byte records) ---
+const (
+	facID     = 0
+	facParent = 18
+	facName   = 19 // enUS
+	facDesc   = 28 // enUS
+)
+
+type factionOut struct {
+	FactionID uint32 `json:"factionID"`
+	NameLoc0  string `json:"name_loc0"`
+	DescLoc0  string `json:"description1_loc0"`
+	Side      int    `json:"side"`
+	Team      uint32 `json:"team"`
+}
+
+var (
+	allianceParents = map[uint32]bool{469: true, 891: true}
+	hordeParents    = map[uint32]bool{67: true, 892: true}
+	alliancePlayers = map[uint32]bool{1: true, 3: true, 4: true, 8: true}
+	hordePlayers    = map[uint32]bool{2: true, 5: true, 6: true, 9: true}
+	allianceSpecial = map[uint32]bool{469: true, 189: true, 61: true, 71: true, 49: true, 269: true, 589: true}
+	hordeSpecial    = map[uint32]bool{67: true, 66: true}
+)
+
+func factionSide(id, parent uint32) int {
+	switch {
+	case alliancePlayers[id] || allianceParents[parent] || allianceSpecial[id]:
+		return 1
+	case hordePlayers[id] || hordeParents[parent] || hordeSpecial[id]:
+		return 2
+	default:
+		return 0
+	}
+}
+
+func writeFactions(dbcDir, outPath string) error {
+	d, err := openDBC(filepath.Join(dbcDir, "Faction.dbc"))
+	if err != nil {
+		return err
+	}
+	out := make([]factionOut, 0, d.RecordCount)
+	for rec := 0; rec < d.RecordCount; rec++ {
+		id := d.U32(rec, facID)
+		parent := d.U32(rec, facParent)
+		out = append(out, factionOut{
+			FactionID: id, NameLoc0: d.Str(rec, facName), DescLoc0: d.Str(rec, facDesc),
+			Side: factionSide(id, parent), Team: parent,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Side != out[j].Side {
+			return out[i].Side < out[j].Side
+		}
+		return out[i].NameLoc0 < out[j].NameLoc0
+	})
+	b, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outPath, b, 0644)
+}

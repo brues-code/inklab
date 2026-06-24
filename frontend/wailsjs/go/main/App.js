@@ -238,6 +238,10 @@ export function RunCacheImport(arg1) {
   return window['go']['main']['App']['RunCacheImport'](arg1);
 }
 
+export function RunDbcImport(arg1) {
+  return window['go']['main']['App']['RunDbcImport'](arg1);
+}
+
 export function RunMapImport(arg1) {
   return window['go']['main']['App']['RunMapImport'](arg1);
 }

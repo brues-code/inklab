@@ -21,6 +21,14 @@ const IMPORTS = [
     desc:
       "Generate fully-revealed zone maps from the client world-map art into data/maps. These power the map in the NPC view (kept local, never shipped).",
   },
+  {
+    id: "dbc",
+    name: "DBC Reference Data",
+    fn: "RunDbcImport",
+    sub: "DBFilesClient\\*.dbc",
+    desc:
+      "Regenerate reference data from the client DBCs (zones, skills, quest sorts, factions, item sets, icons, spell text) and re-apply it to the database. Does not touch creature/item/quest templates.",
+  },
 ];
 
 function ToolsPage() {
