@@ -49,28 +49,52 @@ export const loadImage = async (imageType, name, remoteUrl = null) => {
             } catch (e) {
                 console.log(`[ImageService] Remote fetch failed: ${remoteUrl}`);
             }
+            // Binding is present and the fetch genuinely failed (e.g. 404 on an
+            // octo-custom icon). Return null so callers can fall back rather
+            // than handing back a dead URL that renders as a broken image.
+            return null;
         }
-        
-        // If API not available, return the remote URL directly
-        // This allows the browser to load it (works for external URLs)
+
+        // Binding unavailable (pure-browser dev): return the URL so the browser
+        // can attempt to load it directly.
         return remoteUrl;
     }
 
     return null;
 };
 
+// Default placeholder icon name (ships locally in data/icons).
+const QUESTIONMARK = 'inv_misc_questionmark';
+
 /**
- * Load an icon with fallback chain
+ * Load the generic questionmark placeholder as a real data URL. Used when a
+ * requested icon resolves nowhere (e.g. octo-custom icons not local and 404 on
+ * the CDN) so callers never have to point at a non-existent /local-icons route.
+ * @returns {Promise<string|null>}
+ */
+export const loadQuestionmarkIcon = async () => {
+    const cdnUrl = `https://wow.zamimg.com/images/wow/icons/medium/${QUESTIONMARK}.jpg`;
+    return loadImage('icon', QUESTIONMARK, cdnUrl);
+};
+
+/**
+ * Load an icon with fallback chain. Resolves to the questionmark placeholder
+ * (as a data URL) when the named icon can't be found locally or remotely, so
+ * the UI always has a usable src instead of a broken image.
  * @param {string} iconName - Icon name (e.g., 'inv_sword_01')
- * @returns {Promise<string>} - Image URL
+ * @returns {Promise<string|null>} - Image data URL
  */
 export const loadIcon = async (iconName) => {
-    if (!iconName) return null;
-    
+    if (!iconName) return loadQuestionmarkIcon();
+
     const name = iconName.toLowerCase();
     const cdnUrl = `https://wow.zamimg.com/images/wow/icons/medium/${name}.jpg`;
-    
-    return loadImage('icon', name, cdnUrl);
+
+    const result = await loadImage('icon', name, cdnUrl);
+    if (result) return result;
+
+    // Named icon resolved nowhere — fall back to the placeholder.
+    return loadQuestionmarkIcon();
 };
 
 /**
