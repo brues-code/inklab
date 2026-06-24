@@ -70,7 +70,7 @@ func (r *ItemRepository) GetItemByID(id int) (*models.Item, error) {
 			t.dmg_min2, t.dmg_max2, t.dmg_type2,
 			t.holy_res, t.fire_res, t.nature_res, t.frost_res, t.shadow_res, t.arcane_res,
 			t.spellid_1, t.spelltrigger_1, t.spellid_2, t.spelltrigger_2, t.spellid_3, t.spelltrigger_3,
-			t.set_id
+			t.set_id, t.container_slots
 		FROM item_template t
 		LEFT JOIN item_display_info d ON t.display_id = d.ID
 		WHERE t.entry = ?
@@ -86,7 +86,7 @@ func (r *ItemRepository) GetItemByID(id int) (*models.Item, error) {
 		&item.DmgMin2, &item.DmgMax2, &item.DmgType2,
 		&item.HolyRes, &item.FireRes, &item.NatureRes, &item.FrostRes, &item.ShadowRes, &item.ArcaneRes,
 		&item.SpellID1, &item.SpellTrigger1, &item.SpellID2, &item.SpellTrigger2, &item.SpellID3, &item.SpellTrigger3,
-		&item.SetID,
+		&item.SetID, &item.ContainerSlots,
 	)
 	if err != nil {
 		return nil, err
@@ -670,6 +670,10 @@ func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error)
 	itemType := helpers.GetSubClassName(item.Class, item.SubClass)
 	itemType = strings.ReplaceAll(itemType, " (One-Handed)", "")
 	itemType = strings.ReplaceAll(itemType, " (Two-Handed)", "")
+	// Containers (class 1) show their capacity, e.g. "18 Slot Bag".
+	if item.Class == 1 && item.ContainerSlots > 0 {
+		itemType = fmt.Sprintf("%d Slot %s", item.ContainerSlots, itemType)
+	}
 	tooltip.ItemType = itemType
 	tooltip.Slot = helpers.GetInventoryTypeName(item.InventoryType)
 

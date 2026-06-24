@@ -67,6 +67,8 @@ type Item struct {
 	// Set
 	SetID    int    `json:"setId,omitempty"`
 	DropRate string `json:"dropRate,omitempty"`
+	// Container (bag) slot count; 0 for non-containers.
+	ContainerSlots int `json:"containerSlots,omitempty"`
 }
 
 // ItemTemplate represents a complete item from item_template.json
