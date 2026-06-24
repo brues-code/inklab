@@ -127,15 +127,22 @@ func stitchZone(zoneDir, name string, overlays map[string]overlay) (*image.RGBA,
 
 // compositeOverlay decodes an overlay's tiles and alpha-blends them onto canvas
 // at the overlay's map offset. Tiles are numbered row-major, ceil(w/256) wide.
+// The read is capped to the DBC's cols*rows: some octo-custom zones ship more
+// physical tiles than their WorldMapOverlay dimensions describe, and reading
+// the extras would place them a row too low (bleeding into the next area).
 func compositeOverlay(canvas *image.RGBA, zoneDir, base string, ov overlay) {
 	cols := (ov.w + 255) / 256
+	rows := (ov.h + 255) / 256
 	if cols < 1 {
 		cols = 1
 	}
-	for i := 1; ; i++ {
+	if rows < 1 {
+		rows = 1
+	}
+	for i := 1; i <= cols*rows; i++ {
 		tile, err := decodeBLP2(filepath.Join(zoneDir, fmt.Sprintf("%s%d.blp", base, i)))
 		if err != nil {
-			break // ran out of tiles
+			break
 		}
 		col := (i - 1) % cols
 		row := (i - 1) / cols
