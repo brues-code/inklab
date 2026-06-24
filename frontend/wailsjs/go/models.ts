@@ -735,6 +735,7 @@ export namespace models {
 	    spellTrigger3?: number;
 	    setId?: number;
 	    dropRate?: string;
+	    containerSlots?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Item(source);
@@ -801,6 +802,7 @@ export namespace models {
 	        this.spellTrigger3 = source["spellTrigger3"];
 	        this.setId = source["setId"];
 	        this.dropRate = source["dropRate"];
+	        this.containerSlots = source["containerSlots"];
 	    }
 	}
 	export class ItemSubClass {
@@ -975,6 +977,7 @@ export namespace models {
 	    spellTrigger3?: number;
 	    setId?: number;
 	    dropRate?: string;
+	    containerSlots?: number;
 	    displayId: number;
 	    flags: number;
 	    buyCount: number;
@@ -1054,6 +1057,7 @@ export namespace models {
 	        this.spellTrigger3 = source["spellTrigger3"];
 	        this.setId = source["setId"];
 	        this.dropRate = source["dropRate"];
+	        this.containerSlots = source["containerSlots"];
 	        this.displayId = source["displayId"];
 	        this.flags = source["flags"];
 	        this.buyCount = source["buyCount"];
