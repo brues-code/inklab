@@ -122,8 +122,21 @@ func stitchZone(zoneDir, name string, overlays map[string]overlay) (*image.RGBA,
 		compositeOverlay(canvas, zoneDir, base, ov)
 	}
 	_ = lowerName
-	return canvas, nil
+
+	// The 4x3 256px tile grid is 1024x768, but the actual map content (and the
+	// in-game WorldMapDetailFrame) is 1002x668 — the extra right/bottom strips
+	// are black tile padding. Crop them off.
+	cropped := image.NewRGBA(image.Rect(0, 0, mapWidth, mapHeight))
+	blit(cropped, canvas.SubImage(image.Rect(0, 0, mapWidth, mapHeight)).(*image.RGBA), 0, 0)
+	return cropped, nil
 }
+
+// mapWidth/mapHeight are the rendered zone-map dimensions (the visible
+// WorldMapDetailFrame region within the 1024x768 tile grid).
+const (
+	mapWidth  = 1002
+	mapHeight = 668
+)
 
 // compositeOverlay decodes an overlay's tiles and alpha-blends them onto canvas
 // at the overlay's map offset. Tiles are numbered row-major, ceil(w/256) wide.

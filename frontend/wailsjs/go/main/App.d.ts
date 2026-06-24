@@ -120,6 +120,10 @@ export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;
 
 export function RemoveFavorite(arg1:number):Promise<models.FavoriteResult>;
 
+export function RunCacheImport(arg1:string):Promise<main.ImportReport>;
+
+export function RunMapImport(arg1:string):Promise<main.ImportReport>;
+
 export function SearchCreatures(arg1:string):Promise<Array<models.Creature>>;
 
 export function SearchItems(arg1:string):Promise<Array<models.Item>>;

@@ -70,6 +70,22 @@ export namespace main {
 	        this.error = source["error"];
 	    }
 	}
+	export class ImportReport {
+	    success: boolean;
+	    title: string;
+	    lines: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.title = source["title"];
+	        this.lines = source["lines"];
+	    }
+	}
 	export class LegacyLootItem {
 	    itemId: number;
 	    itemName: string;

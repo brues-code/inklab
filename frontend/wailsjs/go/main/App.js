@@ -234,6 +234,14 @@ export function RemoveFavorite(arg1) {
   return window['go']['main']['App']['RemoveFavorite'](arg1);
 }
 
+export function RunCacheImport(arg1) {
+  return window['go']['main']['App']['RunCacheImport'](arg1);
+}
+
+export function RunMapImport(arg1) {
+  return window['go']['main']['App']['RunMapImport'](arg1);
+}
+
 export function SearchCreatures(arg1) {
   return window['go']['main']['App']['SearchCreatures'](arg1);
 }

@@ -3,6 +3,7 @@ import AtlasLootPage from './pages/AtlasLootPage/AtlasLootPage'
 import DatabasePage from './pages/DatabasePage/DatabasePage'
 import SearchPage from './pages/SearchPage/SearchPage'
 import SettingsPage from './pages/SettingsPage'
+import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
 import { TabButton, UpdateBanner } from './components/ui'
 
@@ -59,8 +60,14 @@ function App() {
                         >
                             Search
                         </TabButton>
-                        <TabButton 
-                            active={activeTab === 'settings'} 
+                        <TabButton
+                            active={activeTab === 'tools'}
+                            onClick={() => setActiveTab('tools')}
+                        >
+                            Tools
+                        </TabButton>
+                        <TabButton
+                            active={activeTab === 'settings'}
                             onClick={() => setActiveTab('settings')}
                         >
                             Settings
@@ -88,6 +95,7 @@ function App() {
                         onNavigate={handleSearchNavigate}
                     />
                 )}
+                {activeTab === 'tools' && <ToolsPage />}
                 {activeTab === 'settings' && <SettingsPage />}
             </main>
         </div>
