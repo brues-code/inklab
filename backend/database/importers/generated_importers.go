@@ -172,20 +172,33 @@ func (i *GeneratedImporter) ImportSpellIcons(jsonPath string) error {
 	}
 	defer stmt.Close()
 
+	// Also backfill the spell_icons lookup table from the same complete,
+	// DBC-derived mapping. It is otherwise sourced from the live
+	// aowow.aowow_spellicons table, which is an incomplete import (missing icon
+	// ids such as 2164 / Spell_Holy_CrusaderStrike).
+	iconStmt, err := tx.Prepare("INSERT OR REPLACE INTO spell_icons (id, icon_name) VALUES (?, ?)")
+	if err != nil {
+		return err
+	}
+	defer iconStmt.Close()
+
 	count := 0
+	iconCount := 0
 	for iconId, iconName := range iconMap {
 		res, err := stmt.Exec(iconName, iconId)
-		if err != nil {
-			continue
+		if err == nil {
+			if rows, _ := res.RowsAffected(); rows > 0 {
+				count++
+			}
 		}
-		if rows, _ := res.RowsAffected(); rows > 0 {
-			count++
+		if _, err := iconStmt.Exec(iconId, iconName); err == nil {
+			iconCount++
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Successfully updated %d spells with icons\n", count)
+	fmt.Printf("  ✓ Updated %d spells with icons; backfilled %d spell_icons rows\n", count, iconCount)
 	return nil
 }
