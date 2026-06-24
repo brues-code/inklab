@@ -66,8 +66,74 @@ func (i *GeneratedImporter) ImportItemIcons(jsonPath string) error {
 
 // SpellEnhanced represents a spell record from spells_enhanced.json
 type SpellEnhanced struct {
-	SpellIconId int    `json:"spellIconId"`
-	IconName    string `json:"iconName"`
+	Entry         int    `json:"entry"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	BasePoints1   int    `json:"effectBasePoints1"`
+	BasePoints2   int    `json:"effectBasePoints2"`
+	BasePoints3   int    `json:"effectBasePoints3"`
+	DieSides1     int    `json:"effectDieSides1"`
+	DieSides2     int    `json:"effectDieSides2"`
+	DieSides3     int    `json:"effectDieSides3"`
+	DurationIndex int    `json:"durationIndex"`
+	SpellIconId   int    `json:"spellIconId"`
+	IconName      string `json:"iconName"`
+}
+
+// ImportMissingSpells backfills spell_template from the Spell.dbc export with
+// any spell the (frozen) MySQL import lacked. The client DBC carries newer
+// octo spells — e.g. set-bonus spells like 52568/52587 — that otherwise show
+// as a raw spell id in tooltips and are unsearchable. Existing rows are kept
+// (INSERT OR IGNORE), so the richer MySQL data always wins.
+func (i *GeneratedImporter) ImportMissingSpells(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional
+	}
+	var spells []SpellEnhanced
+	if err := json.Unmarshal(data, &spells); err != nil {
+		fmt.Printf("  ERROR parsing spells_enhanced.json: %v\n", err)
+		return nil
+	}
+
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO spell_template
+		(entry, name, description, effectBasePoints1, effectBasePoints2, effectBasePoints3,
+		 effectDieSides1, effectDieSides2, effectDieSides3, durationIndex, spellIconId, iconName)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	count := 0
+	for _, s := range spells {
+		if s.Entry <= 0 {
+			continue
+		}
+		icon := s.IconName
+		if icon == "temp" {
+			icon = ""
+		}
+		res, err := stmt.Exec(s.Entry, s.Name, s.Description, s.BasePoints1, s.BasePoints2, s.BasePoints3,
+			s.DieSides1, s.DieSides2, s.DieSides3, s.DurationIndex, s.SpellIconId, icon)
+		if err != nil {
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			count++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Backfilled %d missing spells from DBC\n", count)
+	return nil
 }
 
 // ImportSpellIcons loads spell icons from spells_enhanced.json and updates spell_template

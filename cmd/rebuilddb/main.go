@@ -78,6 +78,9 @@ func main() {
 	// 3. Icon mappings onto the imported templates (the newly wired step).
 	fmt.Println("Applying icon mappings...")
 	gen := database.NewGeneratedImporter(db.DB())
+	if err := gen.ImportMissingSpells(filepath.Join(dataDir, "spells_enhanced.json")); err != nil {
+		fmt.Println("  warn spell backfill:", err)
+	}
 	if err := gen.ImportItemIcons(filepath.Join(dataDir, "item_icons.json")); err != nil {
 		fmt.Println("  warn item icons:", err)
 	}
