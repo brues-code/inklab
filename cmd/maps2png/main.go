@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	go run ./cmd/maps2png <Interface/WorldMap dir> <out dir>
+//	go run ./cmd/maps2png <Interface/WorldMap dir> <WorldMapOverlay.dbc> <out dir>
 package main
 
 import (
@@ -15,11 +15,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("usage: maps2png <WorldMap dir> <out dir>")
+	if len(os.Args) < 4 {
+		fmt.Println("usage: maps2png <WorldMap dir> <WorldMapOverlay.dbc> <out dir>")
 		os.Exit(2)
 	}
-	res, err := datatools.GenerateZoneMaps(os.Args[1], os.Args[2], func(zone string, i, total int) {
+	res, err := datatools.GenerateZoneMaps(os.Args[1], os.Args[2], os.Args[3], func(zone string, i, total int) {
 		fmt.Printf("\r[%d/%d] %-30s", i, total, zone)
 	})
 	fmt.Println()
