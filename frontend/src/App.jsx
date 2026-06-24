@@ -5,7 +5,7 @@ import SearchPage from './pages/SearchPage/SearchPage'
 import SettingsPage from './pages/SettingsPage'
 import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
-import { TabButton, UpdateBanner } from './components/ui'
+import { TabButton, UpdateBanner, DataStatusBanner } from './components/ui'
 
 function App() {
     const [activeTab, setActiveTab] = useState('atlas')
@@ -28,6 +28,7 @@ function App() {
     return (
         <div className="h-screen flex flex-col bg-bg-dark text-white">
             <UpdateBanner />
+            <DataStatusBanner onGoToTools={() => setActiveTab('tools')} />
             {/* Header */}
             <header className="bg-gradient-to-b from-[#2a2a3a] to-bg-main border-b-[3px] border-bg-dark px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-5">

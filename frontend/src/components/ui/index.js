@@ -4,6 +4,7 @@ export { WowButton, ListItem, TabButton, TabBar } from './Button'
 export { LootItem, EntityIcon } from './LootItem'
 export { SectionHeader } from './SectionHeader'
 export { UpdateBanner } from './UpdateBanner'
+export { DataStatusBanner } from './DataStatusBanner'
 export { default as ItemTooltip } from './ItemTooltip'
 export { 
     DetailPageLayout, 
