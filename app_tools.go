@@ -17,6 +17,46 @@ type ImportReport struct {
 	Lines   []string `json:"lines"`
 }
 
+// DataStatus reports how much locally-built image data InkLab currently has, so
+// the UI can tell the user when a category is empty and needs importing.
+type DataStatus struct {
+	Icons     int `json:"icons"`
+	Maps      int `json:"maps"`
+	NpcImages int `json:"npcImages"`
+}
+
+// GetDataStatus counts the local icon / map / npc-image files under the data dir.
+func (a *App) GetDataStatus() DataStatus {
+	return DataStatus{
+		Icons:     countFiles(filepath.Join(a.DataDir, "icons"), ".jpg", ".png", ".jpeg"),
+		Maps:      countFiles(filepath.Join(a.DataDir, "maps"), ".jpg", ".png"),
+		NpcImages: countFiles(filepath.Join(a.DataDir, "npc_images"), ".jpg", ".png", ".jpeg"),
+	}
+}
+
+// countFiles returns the number of files in dir with one of the given
+// extensions (case-insensitive). Missing dir counts as 0.
+func countFiles(dir string, exts ...string) int {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		for _, want := range exts {
+			if ext == want {
+				n++
+				break
+			}
+		}
+	}
+	return n
+}
+
 // openClientMPQ returns an in-memory, read-only ClientFiles over the client's
 // MPQ archives under <baseDir>/Data, or (nil, false) if there are none (callers
 // then fall back to loose extracted folders). The client directory is only

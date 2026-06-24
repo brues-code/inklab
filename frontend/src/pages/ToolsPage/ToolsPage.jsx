@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { PageLayout } from "../../components/ui";
 
 const DEFAULT_BASE = "C:\\WoW\\Octo";
@@ -47,6 +47,21 @@ function ToolsPage({ onNavigate }) {
   const [reports, setReports] = useState({});
   const [whatsNew, setWhatsNew] = useState(null);
   const [wnLoading, setWnLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  const refreshStatus = useCallback(async () => {
+    const app = window?.go?.main?.App;
+    if (!app?.GetDataStatus) return;
+    try {
+      setStatus(await app.GetDataStatus());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshStatus();
+  }, [refreshStatus]);
 
   const loadWhatsNew = async () => {
     const app = window?.go?.main?.App;
@@ -89,8 +104,17 @@ function ToolsPage({ onNavigate }) {
       }));
     } finally {
       setRunning(null);
+      refreshStatus();
     }
   };
+
+  // Categories that are populated by an import and worth warning about when empty.
+  const missing = status
+    ? [
+        status.icons === 0 && "icons",
+        status.maps === 0 && "zone maps",
+      ].filter(Boolean)
+    : [];
 
   return (
     <PageLayout>
@@ -102,6 +126,40 @@ function ToolsPage({ onNavigate }) {
             import reads the files under the folder below.
           </p>
         </div>
+
+        {missing.length > 0 && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+            <div className="text-amber-300 font-semibold text-sm">
+              ⚠️ No {missing.join(" or ")} found
+            </div>
+            <p className="text-amber-200/80 text-sm mt-1">
+              InkLab ships without bundled {missing.join(" / ")} — they're built from
+              your local WoW client. Set the client folder below and run the matching
+              import, or items will show a placeholder icon and NPCs won't show a zone map.
+            </p>
+          </div>
+        )}
+
+        {status && (
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            {[
+              ["Icons", status.icons],
+              ["Zone maps", status.maps],
+              ["NPC images", status.npcImages],
+            ].map(([label, n]) => (
+              <span
+                key={label}
+                className={`px-2 py-1 rounded border font-mono ${
+                  n > 0
+                    ? "border-green-600/40 bg-green-600/10 text-green-300"
+                    : "border-gray-600/40 bg-gray-600/10 text-gray-400"
+                }`}
+              >
+                {label}: {n.toLocaleString()}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
           <label className="block text-[11px] uppercase font-bold text-gray-500 mb-1">
