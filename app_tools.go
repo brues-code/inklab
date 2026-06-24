@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"inklab/backend/database"
 	"inklab/backend/datatools"
@@ -13,6 +15,33 @@ type ImportReport struct {
 	Success bool     `json:"success"`
 	Title   string   `json:"title"`
 	Lines   []string `json:"lines"`
+}
+
+// openClientMPQ returns an in-memory, read-only ClientFiles over the client's
+// MPQ archives under <baseDir>/Data, or (nil, false) if there are none (callers
+// then fall back to loose extracted folders). The client directory is only
+// read, never written.
+func openClientMPQ(baseDir string) (datatools.ClientFiles, bool) {
+	dataDir := filepath.Join(baseDir, "Data")
+	ents, err := os.ReadDir(dataDir)
+	if err != nil {
+		return nil, false
+	}
+	hasMPQ := false
+	for _, e := range ents {
+		if !e.IsDir() && strings.EqualFold(filepath.Ext(e.Name()), ".mpq") {
+			hasMPQ = true
+			break
+		}
+	}
+	if !hasMPQ {
+		return nil, false
+	}
+	src, err := datatools.NewMpqSource(dataDir)
+	if err != nil {
+		return nil, false
+	}
+	return src, true
 }
 
 // RunCacheImport patches the WoW WDB caches under <baseDir>/WDB into inklab.db.
@@ -37,51 +66,84 @@ func (a *App) RunCacheImport(baseDir string) ImportReport {
 	return rep
 }
 
-// RunMapImport stitches the client world-map art into data/maps/<zone>.jpg,
-// reading tiles from <baseDir>/BlizzardInterfaceArt/WorldMap and overlay
-// placements from <baseDir>/DBFilesClient/WorldMapOverlay.dbc.
+// RunMapImport stitches the client world-map art into data/maps/<zone>.jpg.
+// It reads directly from the client's MPQ archives (in memory) when present,
+// otherwise from loose <baseDir>/BlizzardInterfaceArt/WorldMap +
+// DBFilesClient/WorldMapOverlay.dbc. Output only ever goes to data/maps.
 func (a *App) RunMapImport(baseDir string) ImportReport {
-	worldMap := filepath.Join(baseDir, "BlizzardInterfaceArt", "WorldMap")
-	overlay := filepath.Join(baseDir, "DBFilesClient", "WorldMapOverlay.dbc")
 	out := filepath.Join(a.DataDir, "maps")
-	res, err := datatools.GenerateZoneMaps(worldMap, overlay, out, nil)
+	var (
+		res    *datatools.MapGenResult
+		err    error
+		source string
+	)
+	if src, ok := openClientMPQ(baseDir); ok {
+		defer src.Close()
+		source = "client MPQs"
+		res, err = datatools.GenerateZoneMapsFrom(src, out, nil)
+	} else {
+		worldMap := filepath.Join(baseDir, "BlizzardInterfaceArt", "WorldMap")
+		overlay := filepath.Join(baseDir, "DBFilesClient", "WorldMapOverlay.dbc")
+		source = "loose folder"
+		res, err = datatools.GenerateZoneMaps(worldMap, overlay, out, nil)
+	}
 	if err != nil {
-		return ImportReport{Title: "Map generation failed", Lines: []string{err.Error(), "looked in: " + worldMap}}
+		return ImportReport{Title: "Map generation failed", Lines: []string{err.Error(), "source: " + source}}
 	}
 	rep := ImportReport{Success: true, Title: "Maps generated",
-		Lines: []string{fmt.Sprintf("%d zone maps written to data/maps", res.Generated)}}
+		Lines: []string{fmt.Sprintf("%d zone maps written to data/maps (from %s)", res.Generated, source)}}
 	if res.Skipped > 0 {
 		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped", res.Skipped))
 	}
 	return rep
 }
 
-// RunIconImport extracts client icon art from <baseDir>/BlizzardInterfaceArt/Icons
-// into data/icons/<name>.jpg (lowercased), so icons resolve locally without
-// downloading.
+// RunIconImport decodes client icon art into data/icons/<name>.jpg (lowercased).
+// It reads directly from the client's MPQ archives (in memory) when present,
+// otherwise from loose <baseDir>/BlizzardInterfaceArt/Icons.
 func (a *App) RunIconImport(baseDir string) ImportReport {
-	iconsDir := filepath.Join(baseDir, "BlizzardInterfaceArt", "Icons")
 	out := filepath.Join(a.DataDir, "icons")
-	res, err := datatools.GenerateIcons(iconsDir, out, nil)
+	var (
+		res    *datatools.IconGenResult
+		err    error
+		source string
+	)
+	if src, ok := openClientMPQ(baseDir); ok {
+		defer src.Close()
+		source = "client MPQs"
+		res, err = datatools.GenerateIconsFrom(src, out, nil)
+	} else {
+		iconsDir := filepath.Join(baseDir, "BlizzardInterfaceArt", "Icons")
+		source = "loose folder"
+		res, err = datatools.GenerateIcons(iconsDir, out, nil)
+	}
 	if err != nil {
-		return ImportReport{Title: "Icon import failed", Lines: []string{err.Error(), "looked in: " + iconsDir}}
+		return ImportReport{Title: "Icon import failed", Lines: []string{err.Error(), "source: " + source}}
 	}
 	rep := ImportReport{Success: true, Title: "Icons extracted",
-		Lines: []string{fmt.Sprintf("%d icons written to data/icons", res.Generated)}}
+		Lines: []string{fmt.Sprintf("%d icons written to data/icons (from %s)", res.Generated, source)}}
 	if res.Skipped > 0 {
 		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped (unsupported format)", res.Skipped))
 	}
 	return rep
 }
 
-// RunDbcImport regenerates data/*.json from the client DBCs in
-// <baseDir>/DBFilesClient and re-applies the JSON-fed reference tables (zones,
-// skills, quest sorts, factions, item sets, icons, spell backfill) to the live
-// DB. It does NOT touch the MySQL-sourced templates.
+// RunDbcImport regenerates data/*.json from the client DBCs and re-applies the
+// JSON-fed reference tables (zones, skills, quest sorts, factions, item sets,
+// icons, spell backfill) to the live DB. DBCs are read directly from the
+// client's MPQ archives (in memory) when present, otherwise from loose
+// <baseDir>/DBFilesClient. It does NOT touch the MySQL-sourced templates.
 func (a *App) RunDbcImport(baseDir string) ImportReport {
-	dbcDir := filepath.Join(baseDir, "DBFilesClient")
-	if err := datatools.GenerateDBCJSON(dbcDir, a.DataDir); err != nil {
-		return ImportReport{Title: "DBC regen failed", Lines: []string{err.Error(), "looked in: " + dbcDir}}
+	var err error
+	if src, ok := openClientMPQ(baseDir); ok {
+		defer src.Close()
+		err = datatools.GenerateDBCJSONFrom(src, a.DataDir)
+	} else {
+		dbcDir := filepath.Join(baseDir, "DBFilesClient")
+		err = datatools.GenerateDBCJSON(dbcDir, a.DataDir)
+	}
+	if err != nil {
+		return ImportReport{Title: "DBC regen failed", Lines: []string{err.Error()}}
 	}
 
 	var lines []string

@@ -19,35 +19,39 @@ type IconGenResult struct {
 // icons up (by lowercased name). DXT1/DXT3/DXT5 are supported; the handful of
 // palettized icons are skipped.
 func GenerateIcons(iconsDir, outDir string, progress func(name string, i, total int)) (*IconGenResult, error) {
-	ents, err := os.ReadDir(iconsDir)
+	return GenerateIconsFrom(NewDirSourceIcons(iconsDir), outDir, progress)
+}
+
+// GenerateIconsFrom decodes every icon BLP from any ClientFiles source (loose
+// folder or in-memory MPQ) into outDir/<lowercase-name>.jpg.
+func GenerateIconsFrom(cf ClientFiles, outDir string, progress func(name string, i, total int)) (*IconGenResult, error) {
+	names, err := cf.ListIcons()
 	if err != nil {
-		return nil, fmt.Errorf("read Icons dir: %w", err)
+		return nil, fmt.Errorf("list icons: %w", err)
 	}
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return nil, err
 	}
 
-	var blps []string
-	for _, e := range ents {
-		if !e.IsDir() && strings.EqualFold(filepath.Ext(e.Name()), ".blp") {
-			blps = append(blps, e.Name())
-		}
-	}
-
 	res := &IconGenResult{}
-	for i, fn := range blps {
+	for i, base := range names {
 		if progress != nil {
-			progress(fn, i+1, len(blps))
+			progress(base, i+1, len(names))
 		}
-		img, err := decodeBLP2(filepath.Join(iconsDir, fn))
+		blp, err := cf.ReadIcon(base)
+		if err != nil {
+			res.Skipped++
+			continue
+		}
+		img, err := decodeBLP2Bytes(blp)
 		if err != nil {
 			res.Skipped++
 			if len(res.Warnings) < 20 {
-				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v", fn, err))
+				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v", base, err))
 			}
 			continue
 		}
-		name := strings.ToLower(strings.TrimSuffix(fn, filepath.Ext(fn)))
+		name := strings.ToLower(base)
 		if err := writeJPEG(filepath.Join(outDir, name+".jpg"), img); err != nil {
 			res.Skipped++
 			continue

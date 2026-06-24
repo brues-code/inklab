@@ -28,8 +28,14 @@ func openDBC(path string) (*DBC, error) {
 	if err != nil {
 		return nil, err
 	}
+	return openDBCBytes(b, path)
+}
+
+// openDBCBytes parses a WDBC blob already in memory (e.g. read from an MPQ).
+// label is used only in error messages.
+func openDBCBytes(b []byte, label string) (*DBC, error) {
 	if len(b) < 20 || string(b[0:4]) != "WDBC" {
-		return nil, fmt.Errorf("%s: not a WDBC file", path)
+		return nil, fmt.Errorf("%s: not a WDBC file", label)
 	}
 	rc := int(binary.LittleEndian.Uint32(b[4:8]))
 	fc := int(binary.LittleEndian.Uint32(b[8:12]))
@@ -38,9 +44,18 @@ func openDBC(path string) (*DBC, error) {
 	recordsOff := 20
 	stringsOff := recordsOff + rc*rs
 	if stringsOff+ss > len(b) {
-		return nil, fmt.Errorf("%s: truncated", path)
+		return nil, fmt.Errorf("%s: truncated", label)
 	}
 	return &DBC{RecordCount: rc, FieldCount: fc, RecordSize: rs, data: b, recordsOff: recordsOff, stringsOff: stringsOff}, nil
+}
+
+// openDBCFrom reads a DBC from a ClientFiles source by bare name.
+func openDBCFrom(cf ClientFiles, name string) (*DBC, error) {
+	b, err := cf.ReadDBC(name)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
+	return openDBCBytes(b, name)
 }
 
 func (d *DBC) off(rec, field int) int { return d.recordsOff + rec*d.RecordSize + field*4 }
@@ -68,7 +83,13 @@ func (d *DBC) Str(rec, field int) string {
 // GenerateDBCJSON regenerates every data/*.json file InkLab imports from the
 // client DBCs in dbcDir, writing into dataDir.
 func GenerateDBCJSON(dbcDir, dataDir string) error {
-	if err := writeFactions(dbcDir, filepath.Join(dataDir, "factions.json")); err != nil {
+	return GenerateDBCJSONFrom(NewDirSourceDBC(dbcDir), dataDir)
+}
+
+// GenerateDBCJSONFrom regenerates the data/*.json files from any ClientFiles
+// source (loose folder or in-memory MPQ), writing into dataDir.
+func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
+	if err := writeFactions(cf, filepath.Join(dataDir, "factions.json")); err != nil {
 		return fmt.Errorf("factions: %w", err)
 	}
 	jobs := []struct{ name, file string }{
@@ -81,31 +102,31 @@ func GenerateDBCJSON(dbcDir, dataDir string) error {
 		{"spells", "spells_enhanced.json"},
 	}
 	for _, j := range jobs {
-		if err := runGen(j.name, dbcDir, filepath.Join(dataDir, j.file)); err != nil {
+		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
 			return fmt.Errorf("%s: %w", j.name, err)
 		}
 	}
 	return nil
 }
 
-func runGen(name, dir, out string) error {
+func runGen(name string, cf ClientFiles, out string) error {
 	var v interface{}
 	var err error
 	switch name {
 	case "itemsets":
-		v, err = genItemSets(dir)
+		v, err = genItemSets(cf)
 	case "skills":
-		v, err = genSkills(dir)
+		v, err = genSkills(cf)
 	case "sla":
-		v, err = genSLA(dir)
+		v, err = genSLA(cf)
 	case "zones":
-		v, err = genZones(dir)
+		v, err = genZones(cf)
 	case "questsorts":
-		v, err = genQuestSorts(dir)
+		v, err = genQuestSorts(cf)
 	case "icons":
-		v, err = genIcons(dir)
+		v, err = genIcons(cf)
 	case "spells":
-		v, err = genSpells(dir)
+		v, err = genSpells(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -128,8 +149,8 @@ func iconBase(p string) string {
 
 // ItemSet.dbc (45 fields): id(0), name[8](1-8), itemID[17](10-26),
 // setSpellID[8](27-34), setThreshold[8](35-42), reqSkill(43), reqSkillRank(44).
-func genItemSets(dir string) (interface{}, error) {
-	d, err := openDBC(filepath.Join(dir, "ItemSet.dbc"))
+func genItemSets(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "ItemSet.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +174,8 @@ func genItemSets(dir string) (interface{}, error) {
 	return out, nil
 }
 
-func genSkills(dir string) (interface{}, error) {
-	d, err := openDBC(filepath.Join(dir, "SkillLine.dbc"))
+func genSkills(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "SkillLine.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +188,8 @@ func genSkills(dir string) (interface{}, error) {
 	return out, nil
 }
 
-func genSLA(dir string) (interface{}, error) {
-	d, err := openDBC(filepath.Join(dir, "SkillLineAbility.dbc"))
+func genSLA(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "SkillLineAbility.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -184,8 +205,8 @@ func genSLA(dir string) (interface{}, error) {
 }
 
 // WorldMapArea.dbc: mapID(1), areaID(2), areaName(3), loc bounds(4-7).
-func genZones(dir string) (interface{}, error) {
-	maps, err := openDBC(filepath.Join(dir, "Map.dbc"))
+func genZones(cf ClientFiles) (interface{}, error) {
+	maps, err := openDBCFrom(cf, "Map.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +214,7 @@ func genZones(dir string) (interface{}, error) {
 	for r := 0; r < maps.RecordCount; r++ {
 		instByMap[maps.U32(r, 0)] = maps.U32(r, 2)
 	}
-	d, err := openDBC(filepath.Join(dir, "WorldMapArea.dbc"))
+	d, err := openDBCFrom(cf, "WorldMapArea.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -211,8 +232,8 @@ func genZones(dir string) (interface{}, error) {
 }
 
 // QuestSort.dbc: id(0), name[8](1-8).
-func genQuestSorts(dir string) (interface{}, error) {
-	d, err := openDBC(filepath.Join(dir, "QuestSort.dbc"))
+func genQuestSorts(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "QuestSort.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +245,8 @@ func genQuestSorts(dir string) (interface{}, error) {
 }
 
 // ItemDisplayInfo.dbc: id(0), inventoryIcon1(5). -> map displayID -> icon name.
-func genIcons(dir string) (interface{}, error) {
-	d, err := openDBC(filepath.Join(dir, "ItemDisplayInfo.dbc"))
+func genIcons(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "ItemDisplayInfo.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -243,8 +264,8 @@ func genIcons(dir string) (interface{}, error) {
 // Spell.dbc: id(0), durationIndex(30), effectDieSides[3](64-66),
 // effectBasePoints[3](76-78), spellIconID(117), name[8](120-127),
 // description[8](138-145). iconName via SpellIcon.dbc: id(0)->texturePath(1).
-func genSpells(dir string) (interface{}, error) {
-	icons, err := openDBC(filepath.Join(dir, "SpellIcon.dbc"))
+func genSpells(cf ClientFiles) (interface{}, error) {
+	icons, err := openDBCFrom(cf, "SpellIcon.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +273,7 @@ func genSpells(dir string) (interface{}, error) {
 	for r := 0; r < icons.RecordCount; r++ {
 		iconByID[icons.U32(r, 0)] = iconBase(icons.Str(r, 1))
 	}
-	d, err := openDBC(filepath.Join(dir, "Spell.dbc"))
+	d, err := openDBCFrom(cf, "Spell.dbc")
 	if err != nil {
 		return nil, err
 	}
@@ -309,8 +330,8 @@ func factionSide(id, parent uint32) int {
 	}
 }
 
-func writeFactions(dbcDir, outPath string) error {
-	d, err := openDBC(filepath.Join(dbcDir, "Faction.dbc"))
+func writeFactions(cf ClientFiles, outPath string) error {
+	d, err := openDBCFrom(cf, "Faction.dbc")
 	if err != nil {
 		return err
 	}

@@ -17,25 +17,25 @@ const IMPORTS = [
     id: "maps",
     name: "Zone Maps",
     fn: "RunMapImport",
-    sub: "BlizzardInterfaceArt\\WorldMap + DBFilesClient\\WorldMapOverlay.dbc",
+    sub: "Data\\*.MPQ (or loose BlizzardInterfaceArt\\WorldMap)",
     desc:
-      "Generate fully-revealed zone maps from the client world-map art into data/maps. These power the map in the NPC view (kept local, never shipped).",
+      "Generate fully-revealed zone maps from the client world-map art into data/maps. Read straight from the client's MPQ archives (in memory) when present. These power the map in the NPC view (kept local, never shipped).",
   },
   {
     id: "icons",
     name: "Icons",
     fn: "RunIconImport",
-    sub: "BlizzardInterfaceArt\\Icons",
+    sub: "Data\\*.MPQ (or loose BlizzardInterfaceArt\\Icons)",
     desc:
-      "Extract item/spell/ability icons from the client art into data/icons. Resolves icons locally without downloading from the web.",
+      "Decode item/spell/ability icons from the client art into data/icons. Read straight from the client's MPQ archives (in memory) when present. Resolves icons locally without downloading from the web.",
   },
   {
     id: "dbc",
     name: "DBC Reference Data",
     fn: "RunDbcImport",
-    sub: "DBFilesClient\\*.dbc",
+    sub: "Data\\*.MPQ (or loose DBFilesClient\\*.dbc)",
     desc:
-      "Regenerate reference data from the client DBCs (zones, skills, quest sorts, factions, item sets, icons, spell text) and re-apply it to the database. Does not touch creature/item/quest templates.",
+      "Regenerate reference data from the client DBCs (zones, skills, quest sorts, factions, item sets, icons, spell text) and re-apply it to the database. Read straight from the client's MPQ archives (in memory) when present. Does not touch creature/item/quest templates.",
   },
 ];
 
@@ -97,9 +97,11 @@ function ToolsPage() {
             placeholder={DEFAULT_BASE}
           />
           <p className="text-[11px] text-gray-600 mt-1">
-            Expects <span className="font-mono">WDB\</span>,{" "}
-            <span className="font-mono">DBFilesClient\</span>, and{" "}
-            <span className="font-mono">BlizzardInterfaceArt\</span> under this folder.
+            Reads <span className="font-mono">Data\*.MPQ</span> directly when present
+            (nothing is written back), plus <span className="font-mono">WDB\</span> for
+            the cache import; falls back to loose{" "}
+            <span className="font-mono">DBFilesClient\</span> /{" "}
+            <span className="font-mono">BlizzardInterfaceArt\</span> folders.
           </p>
         </div>
 

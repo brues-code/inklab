@@ -33,26 +33,35 @@ type overlay struct {
 // fully-revealed map rather than the unexplored base. overlayDBC may be empty
 // to skip overlays (base-only).
 func GenerateZoneMaps(worldMapDir, overlayDBC, outDir string, progress func(zone string, i, total int)) (*MapGenResult, error) {
-	entries, err := os.ReadDir(worldMapDir)
-	if err != nil {
-		return nil, fmt.Errorf("read WorldMap dir: %w", err)
+	dbcDir := ""
+	if overlayDBC != "" {
+		dbcDir = filepath.Dir(overlayDBC)
 	}
+	return GenerateZoneMapsFrom(NewDirSourceMaps(worldMapDir, dbcDir), outDir, progress)
+}
+
+// GenerateZoneMapsFrom stitches each WorldMap zone's base tiles + explored-area
+// overlays into data/maps/<zone>.jpg, reading from any ClientFiles source (loose
+// folder or in-memory MPQ).
+func GenerateZoneMapsFrom(cf ClientFiles, outDir string, progress func(zone string, i, total int)) (*MapGenResult, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return nil, err
 	}
 
 	overlays := map[string]overlay{}
-	if overlayDBC != "" {
-		overlays = parseOverlays(overlayDBC)
+	if b, err := cf.ReadDBC("WorldMapOverlay.dbc"); err == nil {
+		overlays = parseOverlaysBytes(b)
 	}
 
+	allZones, err := cf.ListZones()
+	if err != nil {
+		return nil, fmt.Errorf("list WorldMap zones: %w", err)
+	}
+	// Keep only zones that actually have a first base tile (skip overlay-only or
+	// chrome folders silently rather than warning).
 	var zones []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		z := e.Name()
-		if _, err := os.Stat(filepath.Join(worldMapDir, z, z+"1.blp")); err == nil {
+	for _, z := range allZones {
+		if _, err := cf.ReadZoneFile(z, z+"1.blp"); err == nil {
 			zones = append(zones, z)
 		}
 	}
@@ -62,7 +71,7 @@ func GenerateZoneMaps(worldMapDir, overlayDBC, outDir string, progress func(zone
 		if progress != nil {
 			progress(z, i+1, len(zones))
 		}
-		img, err := stitchZone(filepath.Join(worldMapDir, z), z, overlays)
+		img, err := stitchZone(cf, z, overlays)
 		if err != nil {
 			res.Skipped++
 			res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v", z, err))
@@ -82,11 +91,15 @@ var tileNumRe = regexp.MustCompile(`^(.+?)(\d+)\.blp$`)
 
 // stitchZone assembles the 12 (4x3) 256px base tiles into a 1024x768 image,
 // then alpha-composites each explored-area overlay at its map offset.
-func stitchZone(zoneDir, name string, overlays map[string]overlay) (*image.RGBA, error) {
+func stitchZone(cf ClientFiles, name string, overlays map[string]overlay) (*image.RGBA, error) {
 	canvas := image.NewRGBA(image.Rect(0, 0, 256*4, 256*3))
 	found := 0
 	for i := 0; i < 12; i++ {
-		tile, err := decodeBLP2(filepath.Join(zoneDir, fmt.Sprintf("%s%d.blp", name, i+1)))
+		b, err := cf.ReadZoneFile(name, fmt.Sprintf("%s%d.blp", name, i+1))
+		if err != nil {
+			continue
+		}
+		tile, err := decodeBLP2Bytes(b)
 		if err != nil {
 			continue
 		}
@@ -97,12 +110,11 @@ func stitchZone(zoneDir, name string, overlays map[string]overlay) (*image.RGBA,
 		return nil, fmt.Errorf("no decodable base tiles")
 	}
 
-	// Composite overlays. Collect unique overlay base names present in the dir.
-	files, _ := os.ReadDir(zoneDir)
+	// Composite overlays. Collect unique overlay base names present in the folder.
+	files, _ := cf.ListZoneFiles(name)
 	seen := map[string]bool{}
-	lowerName := strings.ToLower(name)
 	for _, f := range files {
-		m := tileNumRe.FindStringSubmatch(f.Name())
+		m := tileNumRe.FindStringSubmatch(f)
 		if m == nil {
 			continue // no trailing tile number (e.g. <Zone>Highlight.blp)
 		}
@@ -119,9 +131,8 @@ func stitchZone(zoneDir, name string, overlays map[string]overlay) (*image.RGBA,
 		if !ok {
 			continue // no placement info
 		}
-		compositeOverlay(canvas, zoneDir, base, ov)
+		compositeOverlay(canvas, cf, name, base, ov)
 	}
-	_ = lowerName
 
 	// The 4x3 256px tile grid is 1024x768, but the actual map content (and the
 	// in-game WorldMapDetailFrame) is 1002x668 — the extra right/bottom strips
@@ -143,7 +154,7 @@ const (
 // The read is capped to the DBC's cols*rows: some octo-custom zones ship more
 // physical tiles than their WorldMapOverlay dimensions describe, and reading
 // the extras would place them a row too low (bleeding into the next area).
-func compositeOverlay(canvas *image.RGBA, zoneDir, base string, ov overlay) {
+func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov overlay) {
 	cols := (ov.w + 255) / 256
 	rows := (ov.h + 255) / 256
 	if cols < 1 {
@@ -153,7 +164,11 @@ func compositeOverlay(canvas *image.RGBA, zoneDir, base string, ov overlay) {
 		rows = 1
 	}
 	for i := 1; i <= cols*rows; i++ {
-		tile, err := decodeBLP2(filepath.Join(zoneDir, fmt.Sprintf("%s%d.blp", base, i)))
+		b, err := cf.ReadZoneFile(zone, fmt.Sprintf("%s%d.blp", base, i))
+		if err != nil {
+			break
+		}
+		tile, err := decodeBLP2Bytes(b)
 		if err != nil {
 			break
 		}
@@ -163,11 +178,11 @@ func compositeOverlay(canvas *image.RGBA, zoneDir, base string, ov overlay) {
 	}
 }
 
-// parseOverlays reads WorldMapOverlay.dbc -> lowercased textureName -> placement.
-func parseOverlays(path string) map[string]overlay {
+// parseOverlaysBytes parses WorldMapOverlay.dbc bytes -> lowercased textureName
+// -> placement.
+func parseOverlaysBytes(b []byte) map[string]overlay {
 	out := map[string]overlay{}
-	b, err := os.ReadFile(path)
-	if err != nil || len(b) < 20 || string(b[0:4]) != "WDBC" {
+	if len(b) < 20 || string(b[0:4]) != "WDBC" {
 		return out
 	}
 	rc := int(binary.LittleEndian.Uint32(b[4:8]))
@@ -263,6 +278,11 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 	if err != nil {
 		return nil, err
 	}
+	return decodeBLP2Bytes(b)
+}
+
+// decodeBLP2Bytes decodes a BLP2 blob already in memory (e.g. read from an MPQ).
+func decodeBLP2Bytes(b []byte) (*image.RGBA, error) {
 	if len(b) < 0x94 || string(b[0:4]) != "BLP2" {
 		return nil, fmt.Errorf("not BLP2")
 	}
