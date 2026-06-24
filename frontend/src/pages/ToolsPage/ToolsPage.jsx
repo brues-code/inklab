@@ -120,7 +120,7 @@ function ToolsPage({ onNavigate }) {
     <PageLayout>
       <div className="max-w-3xl mx-auto p-6 space-y-6 overflow-y-auto h-full">
         <div>
-          <h2 className="text-xl text-wow-gold font-bold mb-1">Data Tools</h2>
+          <h2 className="text-xl text-wow-gold font-bold mb-1">Import</h2>
           <p className="text-gray-400 text-sm">
             Refresh InkLab's data from your local WoW client. Nothing is uploaded — each
             import reads the files under the folder below.

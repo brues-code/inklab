@@ -65,7 +65,7 @@ function App() {
                             active={activeTab === 'tools'}
                             onClick={() => setActiveTab('tools')}
                         >
-                            Tools
+                            Import
                         </TabButton>
                         <TabButton
                             active={activeTab === 'settings'}

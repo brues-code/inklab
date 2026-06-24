@@ -43,7 +43,7 @@ export function DataStatusBanner({ onGoToTools }) {
                     onClick={() => onGoToTools?.()}
                     className="font-semibold underline hover:no-underline"
                 >
-                    Open Tools
+                    Open Import
                 </button>
                 <button
                     onClick={() => setDismissed(true)}
