@@ -4,8 +4,10 @@
 // overlay: re-run it over time as the cache grows to patch in newer data and
 // server-new entries the (frozen) tw_world dump never had.
 //
-// Supports itemcache.wdb (-> item_template) and questcache.wdb (->
-// quest_template). Existing rows are UPDATEd; missing ones are INSERTed.
+// Supports itemcache.wdb (-> item_template), questcache.wdb (->
+// quest_template), creaturecache.wdb (-> creature_template) and
+// gameobjectcache.wdb (-> gameobject_template). Existing rows are UPDATEd;
+// missing ones are INSERTed.
 //
 // Usage:
 //
@@ -49,8 +51,12 @@ func main() {
 		cols, rows = decodeItems(recs)
 	case "TSQW": // questcache -> quest_template
 		cols, rows = decodeQuests(recs)
+	case "BOMW": // creaturecache -> creature_template
+		cols, rows = decodeCreatures(recs)
+	case "BOGW": // gameobjectcache -> gameobject_template
+		cols, rows = decodeGameObjects(recs)
 	default:
-		fmt.Fprintf(os.Stderr, "unsupported cache magic %q (have BDIW item / TSQW quest)\n", magic)
+		fmt.Fprintf(os.Stderr, "unsupported cache magic %q (have BDIW item / TSQW quest / BOMW creature / BOGW gameobject)\n", magic)
 		os.Exit(1)
 	}
 
@@ -73,10 +79,17 @@ func main() {
 			}
 			return "-"
 		}
-		if magic == "TSQW" {
+		switch magic {
+		case "TSQW":
 			fmt.Printf("  quest %d: level=%v zone=%v title=%q reqItem1=%v objText1=%q\n",
 				e, get("QuestLevel"), get("ZoneOrSort"), get("Title"), get("ReqItemId1"), get("ObjectiveText1"))
-		} else {
+		case "BOMW":
+			fmt.Printf("  creature %d: %q sub=%q type=%v family=%v rank=%v display=%v\n",
+				e, get("name"), get("subname"), get("type"), get("beast_family"), get("rank"), get("display_id1"))
+		case "BOGW":
+			fmt.Printf("  gameobject %d: %q type=%v display=%v data0=%v\n",
+				e, get("name"), get("type"), get("displayId"), get("data0"))
+		default:
 			fmt.Printf("  item %d: %q class=%v sub=%v q=%v\n", e, get("name"), get("class"), get("subclass"), get("quality"))
 		}
 		shown++
@@ -88,10 +101,12 @@ func main() {
 		fmt.Println("(dry run — pass a db path to apply)")
 		return
 	}
-	table := "item_template"
-	if magic == "TSQW" {
-		table = "quest_template"
-	}
+	table := map[string]string{
+		"BDIW": "item_template",
+		"TSQW": "quest_template",
+		"BOMW": "creature_template",
+		"BOGW": "gameobject_template",
+	}[magic]
 	upd, ins, err := patch(os.Args[2], table, "entry", cols, rows)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "patch error:", err)
@@ -213,6 +228,76 @@ func decodeQuests(recs []record) ([]string, [][]interface{}) {
 	return cols, rows
 }
 
+// --- creaturecache: name[0..3], subName, then 7x u32
+// (TypeFlags, Type, Family, Rank, unk0, PetSpellDataId, DisplayId) + civilian u16.
+// Only one display id is delivered (display_id1). ---
+func decodeCreatures(recs []record) ([]string, [][]interface{}) {
+	cols := []string{"name", "subname", "type_flags", "type", "beast_family",
+		"rank", "pet_spell_list_id", "display_id1", "civilian", "entry"}
+	var rows [][]interface{}
+	for _, r := range recs {
+		blk := r.blk
+		o := 0
+		var name, sub string
+		name, o = cstr(blk, o)
+		for i := 0; i < 3; i++ { // name[1..3] (server fills all four the same)
+			_, o = cstr(blk, o)
+		}
+		sub, o = cstr(blk, o)
+		if o+30 > len(blk) {
+			continue
+		}
+		rows = append(rows, []interface{}{
+			name, sub,
+			u32(blk, o),       // TypeFlags
+			u32(blk, o+4),     // Type
+			u32(blk, o+8),     // Family
+			u32(blk, o+12),    // Rank
+			u32(blk, o+20),    // PetSpellDataId (o+16 is unk0)
+			u32(blk, o+24),    // DisplayId
+			u16(blk, o+28),    // civilian
+			r.entry,
+		})
+	}
+	return cols, rows
+}
+
+// --- gameobjectcache: type u32, displayId u32, name[0..3], castBarCaption,
+// then 24x u32 data[]. This build carries no trailing size float. ---
+func decodeGameObjects(recs []record) ([]string, [][]interface{}) {
+	cols := []string{"name", "type", "displayId"}
+	for i := 0; i < 24; i++ {
+		cols = append(cols, fmt.Sprintf("data%d", i))
+	}
+	cols = append(cols, "entry")
+	var rows [][]interface{}
+	for _, r := range recs {
+		blk := r.blk
+		if len(blk) < 8 {
+			continue
+		}
+		goType := u32(blk, 0)
+		display := u32(blk, 4)
+		o := 8
+		var name string
+		name, o = cstr(blk, o)
+		for i := 0; i < 3; i++ { // name[1..3]
+			_, o = cstr(blk, o)
+		}
+		_, o = cstr(blk, o) // castBarCaption
+		if o+24*4 > len(blk) {
+			continue
+		}
+		row := []interface{}{name, goType, display}
+		for i := 0; i < 24; i++ {
+			row = append(row, u32(blk, o+i*4))
+		}
+		row = append(row, r.entry)
+		rows = append(rows, row)
+	}
+	return cols, rows
+}
+
 // patch UPDATEs each row by keyCol, INSERTing when no row matched.
 func patch(dbPath, table, keyCol string, cols []string, rows [][]interface{}) (upd, ins int, err error) {
 	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000")
@@ -270,6 +355,12 @@ func u32(b []byte, o int) uint32 {
 		return 0
 	}
 	return binary.LittleEndian.Uint32(b[o : o+4])
+}
+func u16(b []byte, o int) uint32 {
+	if o+2 > len(b) {
+		return 0
+	}
+	return uint32(binary.LittleEndian.Uint16(b[o : o+2]))
 }
 func f32(b []byte, o int) float64 { return float64(math.Float32frombits(u32(b, o))) }
 func cstr(b []byte, o int) (string, int) {
