@@ -124,6 +124,8 @@ export function RunCacheImport(arg1:string):Promise<main.ImportReport>;
 
 export function RunDbcImport(arg1:string):Promise<main.ImportReport>;
 
+export function RunIconImport(arg1:string):Promise<main.ImportReport>;
+
 export function RunMapImport(arg1:string):Promise<main.ImportReport>;
 
 export function SearchCreatures(arg1:string):Promise<Array<models.Creature>>;

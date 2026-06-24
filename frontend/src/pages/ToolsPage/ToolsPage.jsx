@@ -22,6 +22,14 @@ const IMPORTS = [
       "Generate fully-revealed zone maps from the client world-map art into data/maps. These power the map in the NPC view (kept local, never shipped).",
   },
   {
+    id: "icons",
+    name: "Icons",
+    fn: "RunIconImport",
+    sub: "BlizzardInterfaceArt\\Icons",
+    desc:
+      "Extract item/spell/ability icons from the client art into data/icons. Resolves icons locally without downloading from the web.",
+  },
+  {
     id: "dbc",
     name: "DBC Reference Data",
     fn: "RunDbcImport",

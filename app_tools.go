@@ -56,6 +56,24 @@ func (a *App) RunMapImport(baseDir string) ImportReport {
 	return rep
 }
 
+// RunIconImport extracts client icon art from <baseDir>/BlizzardInterfaceArt/Icons
+// into data/icons/<name>.jpg (lowercased), so icons resolve locally without
+// downloading.
+func (a *App) RunIconImport(baseDir string) ImportReport {
+	iconsDir := filepath.Join(baseDir, "BlizzardInterfaceArt", "Icons")
+	out := filepath.Join(a.DataDir, "icons")
+	res, err := datatools.GenerateIcons(iconsDir, out, nil)
+	if err != nil {
+		return ImportReport{Title: "Icon import failed", Lines: []string{err.Error(), "looked in: " + iconsDir}}
+	}
+	rep := ImportReport{Success: true, Title: "Icons extracted",
+		Lines: []string{fmt.Sprintf("%d icons written to data/icons", res.Generated)}}
+	if res.Skipped > 0 {
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped (unsupported format)", res.Skipped))
+	}
+	return rep
+}
+
 // RunDbcImport regenerates data/*.json from the client DBCs in
 // <baseDir>/DBFilesClient and re-applies the JSON-fed reference tables (zones,
 // skills, quest sorts, factions, item sets, icons, spell backfill) to the live

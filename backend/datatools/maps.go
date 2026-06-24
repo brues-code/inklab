@@ -266,19 +266,24 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 	if len(b) < 0x94 || string(b[0:4]) != "BLP2" {
 		return nil, fmt.Errorf("not BLP2")
 	}
-	enc, alphaEnc := b[8], b[10]
+	enc, alphaDepth, alphaEnc := b[8], b[9], b[10]
 	w := int(binary.LittleEndian.Uint32(b[12:16]))
 	h := int(binary.LittleEndian.Uint32(b[16:20]))
 	mipOff := int(binary.LittleEndian.Uint32(b[20:24]))
-	if enc != 2 || (alphaEnc != 0 && alphaEnc != 1) {
-		return nil, fmt.Errorf("unsupported enc=%d alphaEnc=%d", enc, alphaEnc)
-	}
 	if mipOff <= 0 || mipOff > len(b) {
 		return nil, fmt.Errorf("bad mip offset")
 	}
+	// enc 1 = palettized; enc 2 = DXT (alphaEnc 0=DXT1, 1=DXT3, 7=DXT5).
+	if enc == 1 {
+		return decodePalettized(b, w, h, mipOff, alphaDepth)
+	}
+	if enc != 2 || (alphaEnc != 0 && alphaEnc != 1 && alphaEnc != 7) {
+		return nil, fmt.Errorf("unsupported enc=%d alphaEnc=%d", enc, alphaEnc)
+	}
 	dxt3 := alphaEnc == 1
+	dxt5 := alphaEnc == 7
 	blockBytes := 8
-	if dxt3 {
+	if dxt3 || dxt5 {
 		blockBytes = 16
 	}
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -291,14 +296,17 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 			}
 			var alpha [16]uint8
 			colorBlock := data[bi : bi+8]
-			if dxt3 {
+			switch {
+			case dxt3:
 				ab := data[bi : bi+8]
 				for p := 0; p < 16; p++ {
-					nib := (ab[p/2] >> uint(4*(p&1))) & 0xF
-					alpha[p] = nib * 17
+					alpha[p] = ((ab[p/2] >> uint(4*(p&1))) & 0xF) * 17
 				}
 				colorBlock = data[bi+8 : bi+16]
-			} else {
+			case dxt5:
+				dxt5Alpha(data[bi:bi+8], &alpha)
+				colorBlock = data[bi+8 : bi+16]
+			default:
 				for p := range alpha {
 					alpha[p] = 255
 				}
@@ -310,7 +318,8 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 			var pal [4]color.RGBA
 			pal[0] = rgb565(c0)
 			pal[1] = rgb565(c1)
-			if dxt3 || c0 > c1 {
+			alphaMode := dxt3 || dxt5
+			if alphaMode || c0 > c1 {
 				pal[2] = lerp(pal[0], pal[1], 2, 1)
 				pal[3] = lerp(pal[0], pal[1], 1, 2)
 			} else {
@@ -324,8 +333,8 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 					ci := (idx >> uint(2*p)) & 3
 					c := pal[ci]
 					c.A = alpha[p]
-					if ci == 3 && !dxt3 && c0 <= c1 {
-						c.A = 0 // DXT1 transparent index
+					if ci == 3 && !alphaMode && c0 <= c1 {
+						c.A = 0 // DXT1 1-bit transparent index
 					}
 					img.SetRGBA(bx+px, by+py, c)
 				}
@@ -333,6 +342,54 @@ func decodeBLP2(path string) (*image.RGBA, error) {
 		}
 	}
 	return img, nil
+}
+
+// decodePalettized decodes a BLP2 enc=1 image: a 256-entry BGRA palette at
+// offset 0x94, then mip data of 1-byte palette indices, optionally followed by
+// an 8-bit alpha plane (alphaDepth==8).
+func decodePalettized(b []byte, w, h, mipOff int, alphaDepth byte) (*image.RGBA, error) {
+	const palOff = 0x94
+	if palOff+256*4 > len(b) {
+		return nil, fmt.Errorf("palette out of range")
+	}
+	pixels := w * h
+	if mipOff+pixels > len(b) {
+		return nil, fmt.Errorf("index data out of range")
+	}
+	hasAlpha := alphaDepth == 8 && mipOff+pixels*2 <= len(b)
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for i := 0; i < pixels; i++ {
+		idx := int(b[mipOff+i])
+		p := palOff + idx*4
+		a := uint8(255)
+		if hasAlpha {
+			a = b[mipOff+pixels+i]
+		}
+		img.SetRGBA(i%w, i/w, color.RGBA{b[p+2], b[p+1], b[p], a}) // BGRA -> RGBA
+	}
+	return img, nil
+}
+
+// dxt5Alpha decodes a DXT5 alpha block (8 bytes: a0, a1, then 16x 3-bit indices).
+func dxt5Alpha(blk []byte, out *[16]uint8) {
+	a0, a1 := int(blk[0]), int(blk[1])
+	var av [8]int
+	av[0], av[1] = a0, a1
+	if a0 > a1 {
+		for i := 1; i < 7; i++ {
+			av[i+1] = ((7-i)*a0 + i*a1) / 7
+		}
+	} else {
+		for i := 1; i < 5; i++ {
+			av[i+1] = ((5-i)*a0 + i*a1) / 5
+		}
+		av[6], av[7] = 0, 255
+	}
+	bits := uint64(blk[2]) | uint64(blk[3])<<8 | uint64(blk[4])<<16 |
+		uint64(blk[5])<<24 | uint64(blk[6])<<32 | uint64(blk[7])<<40
+	for p := 0; p < 16; p++ {
+		out[p] = uint8(av[(bits>>uint(3*p))&7])
+	}
 }
 
 func rgb565(v uint16) color.RGBA {

@@ -242,6 +242,10 @@ export function RunDbcImport(arg1) {
   return window['go']['main']['App']['RunDbcImport'](arg1);
 }
 
+export function RunIconImport(arg1) {
+  return window['go']['main']['App']['RunIconImport'](arg1);
+}
+
 export function RunMapImport(arg1) {
   return window['go']['main']['App']['RunMapImport'](arg1);
 }
