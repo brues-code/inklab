@@ -107,10 +107,10 @@ func (r *SpellRepository) GetSpellSkillCategories() ([]*models.SpellSkillCategor
 func (r *SpellRepository) GetSpellSkillsByCategory(categoryID int) ([]*models.SpellSkill, error) {
 	rows, err := r.db.Query(`
 		SELECT s.id, s.category_id, s.name,
-		       (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) as spell_count
+		       (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) as spell_count
 		FROM spell_skills s
 		WHERE s.category_id = ?
-		       AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
+		       AND (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) > 0
 		ORDER BY s.name
 	`, categoryID)
 	if err != nil {
@@ -149,7 +149,7 @@ func (r *SpellRepository) GetSpellClasses() ([]*models.SpellClass, error) {
 		r.db.QueryRow(`
 			SELECT COUNT(*) FROM spell_skills s
 			WHERE s.category_id = 7 AND s.class_id = ?
-				AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
+				AND (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) > 0
 		`, c.ID).Scan(&n)
 		if n > 0 {
 			out = append(out, &models.SpellClass{ID: c.ID, Name: c.Name, SkillCount: n})
@@ -162,10 +162,10 @@ func (r *SpellRepository) GetSpellClasses() ([]*models.SpellClass, error) {
 func (r *SpellRepository) GetSpellSkillsByClass(classID int) ([]*models.SpellSkill, error) {
 	rows, err := r.db.Query(`
 		SELECT s.id, s.category_id, s.name,
-		       (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) as spell_count
+		       (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) as spell_count
 		FROM spell_skills s
 		WHERE s.category_id = 7 AND s.class_id = ?
-		       AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
+		       AND (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) > 0
 		ORDER BY s.name
 	`, classID)
 	if err != nil {
