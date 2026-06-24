@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
-import { useNpcModel, useNpcMap } from "../../../services/useImage";
+import { useNpcModel, useZoneMap } from "../../../services/useImage";
 import { evictNpcImages } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
@@ -24,9 +24,10 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [imgReload, setImgReload] = useState(0);
   const [refreshingImages, setRefreshingImages] = useState(false);
 
-  // Use unified image hooks for model and map
+  // Model is fetched from octo; the map is a locally-generated zone map keyed
+  // by the NPC's resolved zone name (data/maps/<zone>.jpg).
   const modelImage = useNpcModel(entry, detail?.modelImageUrl, imgReload);
-  const mapImage = useNpcMap(entry, detail?.mapUrl, imgReload);
+  const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
   useEffect(() => {
     setLoading(true);
@@ -207,18 +208,11 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     maxWidth: "488px",
                     maxHeight: "325px",
                   }}
-                  onClick={() => (mapImage.src ? setShowMapModal(true) : handleRefreshImages())}
+                  onClick={() => mapImage.src && setShowMapModal(true)}
                 >
                   {!mapImage.src && !mapImage.loading && (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm">
-                      {refreshingImages ? (
-                        <span className="animate-pulse">Fetching…</span>
-                      ) : (
-                        <>
-                          <span>No Map Data</span>
-                          <span className="mt-1 text-[10px] text-gray-600">click to fetch</span>
-                        </>
-                      )}
+                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                      No Map Data
                     </div>
                   )}
                   {mapImage.loading && (

@@ -32,6 +32,10 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	case "npc_model", "npc_map":
 		basePath = filepath.Join(a.DataDir, "npc_images")
 		extensions = []string{".jpg", ".png", ".jpeg"}
+	case "zone_map":
+		// Locally-generated zone maps keyed by texture-folder name (= zone name).
+		basePath = filepath.Join(a.DataDir, "maps")
+		extensions = []string{".jpg", ".png"}
 	default:
 		return &ImageResult{Error: "unknown image type: " + imageType}
 	}

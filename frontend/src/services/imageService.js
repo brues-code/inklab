@@ -94,6 +94,17 @@ export const loadNpcMap = async (npcId, remoteUrl) => {
 };
 
 /**
+ * Load a locally-generated zone map by zone name (texture-folder name).
+ * Local-only: there is no remote fallback.
+ * @param {string} zoneName - e.g. "Elwynn", "EasternPlaguelands"
+ * @returns {Promise<string|null>} - data URL or null
+ */
+export const loadZoneMap = async (zoneName) => {
+    if (!zoneName) return null;
+    return loadImage('zone_map', zoneName, null);
+};
+
+/**
  * Clear image cache (useful for forcing refresh)
  */
 export const clearImageCache = () => {

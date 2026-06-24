@@ -2,7 +2,7 @@
  * React Hook for loading images with the unified image service
  */
 import { useState, useEffect } from 'react';
-import { loadImage, loadIcon, loadNpcModel, loadNpcMap } from './imageService';
+import { loadImage, loadIcon, loadNpcModel, loadNpcMap, loadZoneMap } from './imageService';
 
 /**
  * Hook for loading a single image
@@ -130,6 +130,38 @@ export const useNpcModel = (npcId, remoteUrl, reloadKey = 0) => {
  * @param {string} remoteUrl - Remote URL from Wowhead
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
+/**
+ * Hook for loading a locally-generated zone map by zone name.
+ * @param {string} zoneName - texture-folder name (e.g. "Elwynn")
+ * @param {number} reloadKey - bump to force a reload
+ * @returns {{ src: string | null, loading: boolean, error: boolean }}
+ */
+export const useZoneMap = (zoneName, reloadKey = 0) => {
+    const [src, setSrc] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        if (!zoneName) {
+            setSrc(null);
+            setLoading(false);
+            setError(true);
+            return;
+        }
+        setLoading(true);
+        setError(false);
+        loadZoneMap(zoneName)
+            .then(result => {
+                if (result) setSrc(result);
+                else { setSrc(null); setError(true); }
+            })
+            .catch(() => { setSrc(null); setError(true); })
+            .finally(() => setLoading(false));
+    }, [zoneName, reloadKey]);
+
+    return { src, loading, error };
+};
+
 export const useNpcMap = (npcId, remoteUrl, reloadKey = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
