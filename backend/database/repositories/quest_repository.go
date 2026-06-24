@@ -568,8 +568,17 @@ func (r *QuestRepository) UpdateQuestFromScraper(data *parsers.ScrapedQuestData)
 	return err
 }
 
-// questGenderRe matches WoW gender escapes: $GmaleText:femaleText; (and $g).
-var questGenderRe = regexp.MustCompile(`\$[Gg]([^:]*):([^;]*);`)
+// WoW gender escapes: $GmaleText:femaleText; (and $g). Most quest text
+// terminates them with ';', but some omit it and rely on the following
+// punctuation (e.g. "$Gboy:girl,"). Surrounding spaces also occur
+// ("$g lad : lass;"). We resolve to the male form (viewer gender is unknown).
+var (
+	// Standard, ';'-terminated form (consumes the ';').
+	questGenderRe = regexp.MustCompile(`\$[Gg]\s*([^:;]*?)\s*:[^;]*;`)
+	// Fallback for the ';'-less form: single words, stop at the first
+	// non-letter so trailing punctuation/text is preserved.
+	questGenderNoSemiRe = regexp.MustCompile(`\$[Gg]\s*([A-Za-z]+)\s*:\s*[A-Za-z']+`)
+)
 
 // cleanQuestEscapes converts WoW quest text escape codes into plain readable
 // text. The client substitutes these at display time; our stored text keeps
@@ -583,7 +592,8 @@ func cleanQuestEscapes(s string) string {
 	if s == "" {
 		return s
 	}
-	s = questGenderRe.ReplaceAllString(s, "$1")
+	s = questGenderRe.ReplaceAllString(s, "${1}")
+	s = questGenderNoSemiRe.ReplaceAllString(s, "${1}")
 	s = strings.ReplaceAll(s, "$B", "\n")
 	s = strings.ReplaceAll(s, "$b", "\n")
 	s = strings.ReplaceAll(s, "$N", "you")
