@@ -182,6 +182,13 @@ func (m *mpqSource) read(path string) ([]byte, error) {
 
 func (m *mpqSource) loadList() {
 	m.listOnce.Do(func() {
+		// The mpq lib prints non-fatal "(listfile)" scan warnings via
+		// fmt.Println for the few archives whose listfile sector table it can't
+		// fully read. Enumeration still succeeds from the other archives, so
+		// silence that stdout noise for the duration of the scan.
+		restore := silenceStdout()
+		defer restore()
+
 		list, err := m.set.List()
 		if err != nil {
 			return
@@ -191,6 +198,22 @@ func (m *mpqSource) loadList() {
 			m.entries = append(m.entries, list.Path())
 		}
 	})
+}
+
+// silenceStdout temporarily redirects os.Stdout to the null device, returning a
+// function that restores it. Used to suppress a dependency's unconditional
+// fmt.Println diagnostics during a tightly-scoped call.
+func silenceStdout() func() {
+	old := os.Stdout
+	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		return func() {}
+	}
+	os.Stdout = devnull
+	return func() {
+		os.Stdout = old
+		_ = devnull.Close()
+	}
 }
 
 func (m *mpqSource) ReadDBC(name string) ([]byte, error) {
