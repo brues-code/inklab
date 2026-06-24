@@ -41,7 +41,7 @@ func (r *SpellRepository) SearchSpells(query string) ([]*models.Spell, error) {
 	// Check if query is a number (ID search)
 	if id, parseErr := strconv.Atoi(query); parseErr == nil && id > 0 {
 		rows, err = r.db.Query(`
-			SELECT sp.entry, sp.name, sp.description, COALESCE(si.icon_name, ''),
+			SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
 			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
 			FROM spell_template sp
 			LEFT JOIN spell_icons si ON sp.spellIconId = si.id
@@ -50,7 +50,7 @@ func (r *SpellRepository) SearchSpells(query string) ([]*models.Spell, error) {
 	} else {
 		// Text search by name
 		rows, err = r.db.Query(`
-			SELECT sp.entry, sp.name, sp.description, COALESCE(si.icon_name, ''),
+			SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
 			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
 			FROM spell_template sp
 			LEFT JOIN spell_icons si ON sp.spellIconId = si.id
@@ -195,7 +195,7 @@ func (r *SpellRepository) GetSpellsBySkill(skillID int, nameFilter string) ([]*m
 	}
 
 	query := fmt.Sprintf(`
-		SELECT sp.entry, sp.name, sp.description, COALESCE(si.icon_name, ''),
+		SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
 		       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
 		FROM spell_template sp
 		INNER JOIN spell_skill_spells ss ON ss.spell_id = sp.entry
@@ -232,7 +232,7 @@ func (r *SpellRepository) GetSpellByID(entry int) (*models.Spell, error) {
 	s := &models.Spell{}
 	var desc *string
 	err := r.db.QueryRow(`
-		SELECT sp.entry, sp.name, sp.description, COALESCE(si.icon_name, '')
+		SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, '')
 		FROM spell_template sp
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 		WHERE sp.entry = ?
@@ -270,7 +270,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	query := `
 		SELECT 
 			sp.entry, sp.name, sp.description, sp.durationIndex, sp.rangeIndex, 
-			sp.manaCost, sp.castingTimeIndex, sp.school, sp.spellLevel, COALESCE(si.icon_name, ''),
+			sp.manaCost, sp.castingTimeIndex, sp.school, sp.spellLevel, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
             sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
             sp.effectDieSides1, sp.effectDieSides2, sp.effectDieSides3,
             sp.effectBaseDice1, sp.effectBaseDice2, sp.effectBaseDice3
