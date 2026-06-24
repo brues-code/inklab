@@ -5,6 +5,8 @@ type ZoneEntry struct {
 	AreaID int    `json:"areatableID"`
 	MapID  int    `json:"mapID"`
 	Name   string `json:"name_loc0"`
+	// InstanceType from Map.dbc: 0 continent, 1 dungeon, 2 raid, 3 battleground.
+	InstanceType int `json:"instanceType"`
 }
 
 // QuestSortEntry represents a QuestSort.dbc category for JSON import. Quests

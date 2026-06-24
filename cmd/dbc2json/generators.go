@@ -127,17 +127,30 @@ func genSLA(dir string) (interface{}, error) {
 // WorldMapArea.dbc (1.12, 8 fields): id(0), mapID(1), areaID(2),
 // areaName(3), locLeft(4), locRight(5), locTop(6), locBottom(7).
 // NOTE: x/y bound field order is verified against the committed JSON.
+// instanceType is resolved from Map.dbc field 2 (0 continent, 1 dungeon,
+// 2 raid, 3 battleground) so quests can be grouped beyond just continents.
 func genZones(dir string) (interface{}, error) {
+	maps, err := Open(filepath.Join(dir, "Map.dbc"))
+	if err != nil {
+		return nil, err
+	}
+	instByMap := make(map[uint32]uint32, maps.RecordCount)
+	for r := 0; r < maps.RecordCount; r++ {
+		instByMap[maps.Uint32(r, 0)] = maps.Uint32(r, 2)
+	}
+
 	d, err := Open(filepath.Join(dir, "WorldMapArea.dbc"))
 	if err != nil {
 		return nil, err
 	}
 	out := make([]map[string]interface{}, 0, d.RecordCount)
 	for r := 0; r < d.RecordCount; r++ {
+		mapID := d.Uint32(r, 1)
 		out = append(out, map[string]interface{}{
-			"mapID":       d.Uint32(r, 1),
-			"areatableID": d.Uint32(r, 2),
-			"name_loc0":   d.Str(r, 3),
+			"mapID":        mapID,
+			"instanceType": instByMap[mapID],
+			"areatableID":  d.Uint32(r, 2),
+			"name_loc0":    d.Str(r, 3),
 			// WoW's coordinate system: x is the top/bottom axis, y is the
 			// right/left axis; min/max line up with the reversed loc fields.
 			"x_min": d.Float32(r, 7), // locBottom

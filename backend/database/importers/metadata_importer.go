@@ -136,17 +136,32 @@ func (m *MetadataImporter) importQuestZones(dataDir string) error {
 	defer stmt.Close()
 
 	for _, z := range zones {
-		groupID := 7 // Misc default
-		if z.MapID == 0 {
-			groupID = 0 // Eastern Kingdoms
-		} else if z.MapID == 1 {
-			groupID = 1 // Kalimdor
-		} else {
-			groupID = 2 // Dungeons
-		}
-		stmt.Exec(z.AreaID, groupID, z.Name)
+		stmt.Exec(z.AreaID, zoneGroup(z), z.Name)
 	}
 	return tx.Commit()
+}
+
+// zoneGroup maps a zone to a quest_category_group id, using Map.dbc instance
+// type so raids and battlegrounds land in their own groups instead of all
+// non-continent zones falling into Dungeons.
+func zoneGroup(z models.ZoneEntry) int {
+	switch z.InstanceType {
+	case 1:
+		return 2 // Dungeons
+	case 2:
+		return 3 // Raids
+	case 3:
+		return 6 // Battlegrounds
+	}
+	// instanceType 0 (continent / world): split by map.
+	switch z.MapID {
+	case 0:
+		return 0 // Eastern Kingdoms
+	case 1:
+		return 1 // Kalimdor
+	default:
+		return 7 // Misc
+	}
 }
 
 // questSortGroup maps a QuestSort.dbc name to a quest_category_group id:
