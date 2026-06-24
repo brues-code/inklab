@@ -47,3 +47,6 @@ data/.dbversion
 *.bak
 tmp/
 .agent/
+
+# Locally-generated zone maps (from client art; not shipped)
+data/maps/
