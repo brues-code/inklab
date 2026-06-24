@@ -33,9 +33,10 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 		basePath = filepath.Join(a.DataDir, "npc_images")
 		extensions = []string{".jpg", ".png", ".jpeg"}
 	case "zone_map":
-		// Locally-generated zone maps keyed by texture-folder name (= zone name).
-		basePath = filepath.Join(a.DataDir, "maps")
-		extensions = []string{".jpg", ".png"}
+		// Zone maps are keyed by texture-folder name (e.g. "UngoroCrater") but
+		// the stored zone name may differ in spacing/punctuation ("Ungoro
+		// Crater", "Zul'Gurub"). Match on a normalized key.
+		return a.findZoneMap(name)
 	default:
 		return &ImageResult{Error: "unknown image type: " + imageType}
 	}
@@ -57,6 +58,58 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	}
 
 	return &ImageResult{Error: "file not found: " + name}
+}
+
+// normKey reduces a name to lowercase alphanumerics for loose matching, so
+// "Ungoro Crater" and "Zul'Gurub" match the "UngoroCrater"/"ZulGurub" folders.
+func normKey(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// findZoneMap resolves a zone name to data/maps/<file>, trying an exact match
+// first then a normalized scan of the maps directory.
+func (a *App) findZoneMap(name string) *ImageResult {
+	dir := filepath.Join(a.DataDir, "maps")
+	read := func(path, ext string) *ImageResult {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		mime := "image/jpeg"
+		if ext == ".png" {
+			mime = "image/png"
+		}
+		return &ImageResult{Data: base64.StdEncoding.EncodeToString(data), MimeType: mime, Source: "local"}
+	}
+	for _, ext := range []string{".jpg", ".png"} {
+		if r := read(filepath.Join(dir, name+ext), ext); r != nil {
+			return r
+		}
+	}
+	target := normKey(name)
+	if target != "" {
+		if ents, err := os.ReadDir(dir); err == nil {
+			for _, e := range ents {
+				fn := e.Name()
+				ext := filepath.Ext(fn)
+				if ext != ".jpg" && ext != ".png" {
+					continue
+				}
+				if normKey(strings.TrimSuffix(fn, ext)) == target {
+					if r := read(filepath.Join(dir, fn), ext); r != nil {
+						return r
+					}
+				}
+			}
+		}
+	}
+	return &ImageResult{Error: "zone map not found: " + name}
 }
 
 // FetchRemoteImage fetches an image from a remote URL and returns it as base64
