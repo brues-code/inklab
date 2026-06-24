@@ -144,9 +144,33 @@ func records(b []byte) []record {
 // requiredCityRank, requiredRepFaction, requiredRepRank, maxCount, stackable,
 // containerSlots (index 19, o+76). ---
 func decodeItems(recs []record) ([]string, [][]interface{}) {
+	// Numeric field layout (index from the displayId field, after the 4 names):
+	//  0 displayId 1 quality 2 flags 3 buyPrice 4 sellPrice 5 invType
+	//  6 allowableClass 7 allowableRace 8 itemLevel 9 requiredLevel
+	//  10..16 required{Skill,SkillRank,Spell,HonorRank,CityRank,RepFaction,RepRank}
+	//  17 maxCount 18 stackable 19 containerSlots
+	//  20..39 stats (10x type,value)  40..54 damage (5x min,max,type as float,float,u32)
+	//  55 armor 56..61 resistances 62 delay 63 ammoType 64 rangedModRange(float)
+	//  65..94 spells (5x id,trigger,charges,cooldown,category,categoryCooldown)
+	//  95 bonding, then the description string and post-string fields we skip.
 	cols := []string{"name", "class", "subclass", "display_id", "quality", "flags",
 		"buy_price", "sell_price", "inventory_type", "allowable_class", "allowable_race",
-		"item_level", "required_level", "container_slots", "entry"}
+		"item_level", "required_level"}
+	for i := 1; i <= 10; i++ {
+		cols = append(cols, fmt.Sprintf("stat_type%d", i), fmt.Sprintf("stat_value%d", i))
+	}
+	for i := 1; i <= 5; i++ {
+		cols = append(cols, fmt.Sprintf("dmg_min%d", i), fmt.Sprintf("dmg_max%d", i), fmt.Sprintf("dmg_type%d", i))
+	}
+	cols = append(cols, "armor", "holy_res", "fire_res", "nature_res", "frost_res", "shadow_res", "arcane_res",
+		"delay", "ammo_type", "range_mod")
+	for i := 1; i <= 5; i++ {
+		cols = append(cols, fmt.Sprintf("spellid_%d", i), fmt.Sprintf("spelltrigger_%d", i),
+			fmt.Sprintf("spellcharges_%d", i), fmt.Sprintf("spellcooldown_%d", i),
+			fmt.Sprintf("spellcategory_%d", i), fmt.Sprintf("spellcategorycooldown_%d", i))
+	}
+	cols = append(cols, "bonding", "container_slots", "entry")
+
 	var rows [][]interface{}
 	for _, r := range recs {
 		blk := r.blk
@@ -161,9 +185,25 @@ func decodeItems(recs []record) ([]string, [][]interface{}) {
 		for i := 0; i < 3; i++ {
 			_, o = cstr(blk, o)
 		}
-		rows = append(rows, []interface{}{name, class, sub, u32(blk, o), u32(blk, o+4), u32(blk, o+8),
-			u32(blk, o+12), u32(blk, o+16), u32(blk, o+20), int32(u32(blk, o+24)), int32(u32(blk, o+28)),
-			u32(blk, o+32), u32(blk, o+36), u32(blk, o+76), r.entry})
+		// field helpers (index relative to the first numeric field at o)
+		fu := func(f int) interface{} { return u32(blk, o+f*4) }
+		fi := func(f int) interface{} { return int32(u32(blk, o+f*4)) }
+		ff := func(f int) interface{} { return f32(blk, o+f*4) }
+
+		row := []interface{}{name, class, sub, fu(0), fu(1), fu(2), fu(3), fu(4), fu(5), fi(6), fi(7), fu(8), fu(9)}
+		for i := 0; i < 10; i++ { // stats
+			row = append(row, fu(20+i*2), fi(21+i*2))
+		}
+		for i := 0; i < 5; i++ { // damage
+			row = append(row, ff(40+i*3), ff(41+i*3), fu(42+i*3))
+		}
+		row = append(row, fu(55), fu(56), fu(57), fu(58), fu(59), fu(60), fu(61), fu(62), fu(63), ff(64))
+		for i := 0; i < 5; i++ { // spells (ppmRate is not in the query, left untouched)
+			b := 65 + i*6
+			row = append(row, fu(b), fu(b+1), fi(b+2), fi(b+3), fu(b+4), fi(b+5))
+		}
+		row = append(row, fu(95), fu(19), r.entry)
+		rows = append(rows, row)
 	}
 	return cols, rows
 }
