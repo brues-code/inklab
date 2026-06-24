@@ -62,10 +62,20 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 
 // normKey reduces a name to lowercase alphanumerics for loose matching, so
 // "Ungoro Crater" and "Zul'Gurub" match the "UngoroCrater"/"ZulGurub" folders.
+// Parenthetical suffixes are dropped so scraped names like "The Deadmines
+// (Dungeon)" still match the "TheDeadmines" map file.
 func normKey(s string) string {
 	var b strings.Builder
+	depth := 0
 	for _, r := range strings.ToLower(s) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		switch {
+		case r == '(' || r == '[':
+			depth++
+		case r == ')' || r == ']':
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && ((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')):
 			b.WriteRune(r)
 		}
 	}
