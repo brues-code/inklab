@@ -71,7 +71,7 @@ function App() {
                             active={activeTab === 'settings'}
                             onClick={() => setActiveTab('settings')}
                         >
-                            Settings
+                            Sync
                         </TabButton>
                     </nav>
                 </div>
