@@ -58,9 +58,22 @@ func (a *App) RunCacheImport(baseDir string) ImportReport {
 	for _, r := range results {
 		if r.Error != "" {
 			rep.Lines = append(rep.Lines, fmt.Sprintf("%s — error: %s", r.File, r.Error))
-		} else {
-			rep.Lines = append(rep.Lines, fmt.Sprintf("%s → %s: %d updated, %d new (%d records)",
-				r.File, r.Table, r.Updated, r.Inserted, r.Records))
+			continue
+		}
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%s → %s: %d updated, %d new (%d records)",
+			r.File, r.Table, r.Updated, r.Inserted, r.Records))
+		// List the actual new entries so you can see exactly what was added.
+		const maxShown = 25
+		for i, e := range r.NewEntries {
+			if i >= maxShown {
+				rep.Lines = append(rep.Lines, fmt.Sprintf("    … and %d more", len(r.NewEntries)-maxShown))
+				break
+			}
+			name := e.Name
+			if name == "" {
+				name = "(unnamed)"
+			}
+			rep.Lines = append(rep.Lines, fmt.Sprintf("    + [%d] %s", e.ID, name))
 		}
 	}
 	return rep

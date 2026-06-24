@@ -13,12 +13,19 @@ import (
 
 // CacheResult reports the outcome of patching one WDB cache file.
 type CacheResult struct {
-	File     string `json:"file"`
-	Table    string `json:"table"`
-	Records  int    `json:"records"`
-	Updated  int    `json:"updated"`
-	Inserted int    `json:"inserted"`
-	Error    string `json:"error,omitempty"`
+	File       string         `json:"file"`
+	Table      string         `json:"table"`
+	Records    int            `json:"records"`
+	Updated    int            `json:"updated"`
+	Inserted   int            `json:"inserted"`
+	NewEntries []ChangedEntry `json:"newEntries,omitempty"` // the inserted rows (entry + name)
+	Error      string         `json:"error,omitempty"`
+}
+
+// ChangedEntry identifies a row added or updated by an import.
+type ChangedEntry struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // wdbFiles maps the standard cache filenames to nothing in particular; we key
@@ -84,12 +91,12 @@ func PatchCacheFile(cachePath, dbPath string) CacheResult {
 		cols, rows = decodeGameObjects(recs)
 	}
 
-	upd, ins, err := patch(dbPath, table, "entry", cols, rows)
+	upd, ins, newEntries, err := patch(dbPath, table, "entry", cols, rows)
 	if err != nil {
 		res.Error = err.Error()
 		return res
 	}
-	res.Updated, res.Inserted = upd, ins
+	res.Updated, res.Inserted, res.NewEntries = upd, ins, newEntries
 	return res
 }
 
@@ -311,16 +318,18 @@ func decodeGameObjects(recs []record) ([]string, [][]interface{}) {
 	return cols, rows
 }
 
-// patch UPDATEs each row by keyCol, INSERTing when no row matched.
-func patch(dbPath, table, keyCol string, cols []string, rows [][]interface{}) (upd, ins int, err error) {
+// patch UPDATEs each row by keyCol, INSERTing when no row matched. It also
+// returns the rows that were newly inserted (entry id + name), so callers can
+// report exactly what new data an import added.
+func patch(dbPath, table, keyCol string, cols []string, rows [][]interface{}) (upd, ins int, newEntries []ChangedEntry, err error) {
 	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000")
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	defer db.Close()
 	tx, err := db.Begin()
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	defer tx.Rollback()
 
@@ -339,12 +348,12 @@ func patch(dbPath, table, keyCol string, cols []string, rows [][]interface{}) (u
 	}
 	updStmt, err := tx.Prepare(fmt.Sprintf("UPDATE %s SET %s WHERE %s=?", table, setList, keyCol))
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	defer updStmt.Close()
 	insStmt, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, insCols, insPlace))
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	defer insStmt.Close()
 
@@ -357,9 +366,37 @@ func patch(dbPath, table, keyCol string, cols []string, rows [][]interface{}) (u
 			upd++
 		} else if _, err := insStmt.Exec(row...); err == nil {
 			ins++
+			// row layout (from the decoders): name is first, entry/key is last.
+			ce := ChangedEntry{}
+			if len(row) > 0 {
+				if id, ok := toInt64(row[len(row)-1]); ok {
+					ce.ID = id
+				}
+				if s, ok := row[0].(string); ok {
+					ce.Name = s
+				}
+			}
+			newEntries = append(newEntries, ce)
 		}
 	}
-	return upd, ins, tx.Commit()
+	return upd, ins, newEntries, tx.Commit()
+}
+
+// toInt64 coerces the integer-ish values the decoders produce (uint32, int,
+// int64) to int64 for reporting.
+func toInt64(v interface{}) (int64, bool) {
+	switch n := v.(type) {
+	case uint32:
+		return int64(n), true
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	case int32:
+		return int64(n), true
+	default:
+		return 0, false
+	}
 }
 
 func u32(b []byte, o int) uint32 {
