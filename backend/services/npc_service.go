@@ -822,19 +822,19 @@ func (s *NpcService) syncNpcImages(entry int) error {
 		fmt.Printf("Warning: Failed to create npc_images directory: %v\n", err)
 	}
 
-	// Download model image using Hash-based filename for deduplication
+	// Download model/map images under the canonical model_<id>/map_<id> names
+	// the on-demand image service reads, so there's a single clean file per NPC.
 	localModelPath := ""
 	if scrapedData.ModelImageURL != "" {
-		localModelPath = s.downloadImage(scrapedData.ModelImageURL, npcImagesDir, "")
+		localModelPath = s.downloadImage(scrapedData.ModelImageURL, npcImagesDir, fmt.Sprintf("model_%d", entry))
 		if localModelPath != "" {
 			fmt.Printf("[DEBUG] Model image synced: %s\n", localModelPath)
 		}
 	}
 
-	// Download map image using Hash-based filename for deduplication
 	localMapPath := ""
 	if scrapedData.MapURL != "" {
-		localMapPath = s.downloadImage(scrapedData.MapURL, npcImagesDir, "")
+		localMapPath = s.downloadImage(scrapedData.MapURL, npcImagesDir, fmt.Sprintf("map_%d", entry))
 		if localMapPath != "" {
 			fmt.Printf("[DEBUG] Map image synced: %s\n", localMapPath)
 		}
@@ -1010,15 +1010,13 @@ func (s *NpcService) GetNpcDetailsContext(ctx context.Context, entry int) (*NpcF
 	return s.GetNpcDetails(entry)
 }
 
-// downloadImage downloads an image from URL and saves it locally using MD5 hash of URL as filename for deduplication
-func (s *NpcService) downloadImage(url string, dir string, _ string) string {
+// downloadImage downloads an image from URL and saves it locally. When name is
+// given it's used as the base filename (the on-demand image service reads NPC
+// images as model_<id>/map_<id>); otherwise an MD5 hash of the URL is used.
+func (s *NpcService) downloadImage(url string, dir string, name string) string {
 	if url == "" {
 		return ""
 	}
-
-	// Compute MD5 hash of URL for deduplication
-	hash := md5.Sum([]byte(url))
-	hashName := hex.EncodeToString(hash[:])
 
 	// Determine file extension from URL
 	ext := ".jpg"
@@ -1030,7 +1028,13 @@ func (s *NpcService) downloadImage(url string, dir string, _ string) string {
 		ext = ".webp"
 	}
 
-	localPath := filepath.Join(dir, hashName+ext)
+	base := name
+	if base == "" {
+		hash := md5.Sum([]byte(url))
+		base = hex.EncodeToString(hash[:])
+	}
+
+	localPath := filepath.Join(dir, base+ext)
 
 	// Skip if file already exists (DEDUPLICATION)
 	if _, err := os.Stat(localPath); err == nil {

@@ -52,3 +52,5 @@ tmp/
 data/maps/
 # Icons — extracted locally from client art / downloaded at runtime (not shipped)
 data/icons/
+# NPC model/map images — built locally by syncing/scraping octowow.st (not shipped)
+data/npc_images/

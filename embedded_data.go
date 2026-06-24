@@ -1,9 +1,8 @@
 package main
 
 import (
-	"embed"
+	_ "embed" // for //go:embed on embeddedDB
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -38,9 +37,9 @@ func writeExtractedDBVersion(dataDir string, v int) {
 
 // Icons are not embedded — they're extracted locally from the client art via
 // the Tools tab, or downloaded on demand by the icon service.
-
-//go:embed data/npc_images/*
-var embeddedNpcImages embed.FS
+//
+// NPC model/map images are not embedded either — users build their own cache by
+// syncing NPCs (scraped from octowow.st), or share a data/npc_images folder.
 
 // InitializeData ensures data directory exists and extracts embedded database on first run
 // Icons are NOT embedded - they remain external and can be updated independently
@@ -112,61 +111,12 @@ func InitializeData() (string, bool, error) {
 	// Icons live in data/icons (extracted from client art via the Tools tab, or
 	// downloaded on demand). Nothing to extract from the binary.
 
-	// Extract NPC images if directory is empty
+	// NPC images are built locally (synced/scraped from octowow.st) — just make
+	// sure the directory exists for the sync to write into.
 	npcImagesDir := filepath.Join(dataDir, "npc_images")
 	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
 		log.Printf("Warning: Failed to create npc_images directory: %v", err)
-	} else {
-		npcEntries, _ := os.ReadDir(npcImagesDir)
-		if len(npcEntries) < 5 { // Only extract if very few images exist
-			log.Println("Extracting embedded NPC images...")
-			extractAssets(embeddedNpcImages, "data/npc_images", npcImagesDir)
-		}
 	}
 
 	return dataDir, isDevMode, nil
-}
-
-// extractAssets extracts files from an embedded FS to a destination directory
-func extractAssets(embedFs embed.FS, srcDir string, destDir string) error {
-	count := 0
-	err := fs.WalkDir(embedFs, srcDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-
-		// Read from embedded FS
-		content, err := embedFs.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		// Write to the correct dataDir location
-		relPath, _ := filepath.Rel(srcDir, path)
-		localPath := filepath.Join(destDir, relPath)
-
-		// Create parent directory if needed (e.g. for nested resources)
-		if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
-			return err
-		}
-
-		// Only write if file doesn't exist (preserve user updates)
-		if _, err := os.Stat(localPath); os.IsNotExist(err) {
-			if err := os.WriteFile(localPath, content, 0644); err != nil {
-				return err
-			}
-			count++
-			if count%100 == 0 {
-				log.Printf("  Extracted %d files...", count)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		log.Printf("Error extracting assets: %v", err)
-		return err
-	}
-	log.Printf("✓ Extracted %d files to %s", count, destDir)
-	return nil
 }
