@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"inklab/backend/database"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -25,6 +27,20 @@ type NpcService struct {
 	creatureRepo  *database.CreatureRepository
 	dataDir       string // Path to data directory for storing images
 	stopRequested atomic.Bool
+
+	zonesOnce  sync.Once
+	zoneBounds []zoneBound
+}
+
+// zoneBound mirrors an entry in data/zones.json (client WorldMapArea-derived).
+// Bounds are in world coordinates; name_loc0 matches the data/maps file name.
+type zoneBound struct {
+	MapID int     `json:"mapID"`
+	Name  string  `json:"name_loc0"`
+	XMax  float64 `json:"x_max"`
+	XMin  float64 `json:"x_min"`
+	YMax  float64 `json:"y_max"`
+	YMin  float64 `json:"y_min"`
 }
 
 func NewNpcService(sqlite *sql.DB, mysql *database.MySQLConnection, scraper *ScraperService, itemRepo *database.ItemRepository, creatureRepo *database.CreatureRepository, dataDir string) *NpcService {
@@ -467,10 +483,76 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 	}
 }
 
+// loadZoneBounds lazily reads data/zones.json (client WorldMapArea-derived).
+// This is the complete, authoritative geometry — it includes Mount Hyjal and
+// the custom octo zones that the live aowow_zones import is missing.
+func (s *NpcService) loadZoneBounds() {
+	s.zonesOnce.Do(func() {
+		b, err := os.ReadFile(filepath.Join(s.dataDir, "zones.json"))
+		if err != nil {
+			fmt.Printf("[NpcService] could not read zones.json for coord conversion: %v\n", err)
+			return
+		}
+		if err := json.Unmarshal(b, &s.zoneBounds); err != nil {
+			fmt.Printf("[NpcService] could not parse zones.json: %v\n", err)
+		}
+	})
+}
+
+// zoneFromJSON finds the smallest-area zone in zones.json that contains the
+// world point on the given map, and converts to 0-100 map percentage. Returns
+// the matched zone's name, coords, its world area (for specificity comparison),
+// and whether a match was found.
+func (s *NpcService) zoneFromJSON(mapId int, worldX, worldY float64) (name string, mapX, mapY, area float64, ok bool) {
+	s.loadZoneBounds()
+	bestArea := math.MaxFloat64
+	var best *zoneBound
+	for i := range s.zoneBounds {
+		z := &s.zoneBounds[i]
+		if z.MapID != mapId || z.Name == "" {
+			continue
+		}
+		if z.XMin == 0 && z.XMax == 0 { // instance / no bounds
+			continue
+		}
+		if z.XMin < worldX && z.XMax > worldX && z.YMin < worldY && z.YMax > worldY {
+			a := (z.XMax - z.XMin) * (z.YMax - z.YMin)
+			if a > 0 && a < bestArea {
+				bestArea = a
+				best = z
+			}
+		}
+	}
+	if best == nil {
+		return "", 0, 0, 0, false
+	}
+	mapX = clampPct((best.YMax - worldY) / (best.YMax - best.YMin) * 100)
+	mapY = clampPct((best.XMax - worldX) / (best.XMax - best.XMin) * 100)
+	return best.Name, mapX, mapY, bestArea, true
+}
+
+func clampPct(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
+}
+
 // convertWorldToMapCoords converts world coordinates to map percentage coordinates (0-100)
 // Using the aowow_zones table boundaries similar to the PHP coord_db2wow function
 func (s *NpcService) convertWorldToMapCoords(mapId, zoneId int, worldX, worldY float64) (zoneName string, mapX, mapY float64) {
+	// Primary geometry source: client-authoritative zones.json. It contains
+	// zones the live aowow_zones import lacks (Mount Hyjal, custom octo zones),
+	// so we prefer it when it finds a more-specific (smaller) zone than MySQL.
+	jName, jX, jY, jArea, jOk := s.zoneFromJSON(mapId, worldX, worldY)
+
 	if s.mysql == nil {
+		if jOk {
+			return jName, jX, jY
+		}
 		return s.getZoneNameFromID(zoneId, mapId), 0, 0
 	}
 
@@ -484,10 +566,10 @@ func (s *NpcService) convertWorldToMapCoords(mapId, zoneId int, worldX, worldY f
 	// Find the most specific zone by selecting the smallest area that contains the coordinates
 	// This ensures we get "Tanaris" instead of "Kalimdor" when both match
 	err := s.mysql.DB().QueryRow(`
-		SELECT name_loc0, x_min, x_max, y_min, y_max 
-		FROM aowow.aowow_zones 
-		WHERE mapID = ? 
-		  AND x_min < ? AND x_max > ? 
+		SELECT name_loc0, x_min, x_max, y_min, y_max
+		FROM aowow.aowow_zones
+		WHERE mapID = ?
+		  AND x_min < ? AND x_max > ?
 		  AND y_min < ? AND y_max > ?
 		  AND x_min != 0 AND x_max != 0
 		ORDER BY (x_max - x_min) * (y_max - y_min) ASC
@@ -495,28 +577,31 @@ func (s *NpcService) convertWorldToMapCoords(mapId, zoneId int, worldX, worldY f
 	`, mapId, worldX, worldX, worldY, worldY).Scan(&name, &xMin, &xMax, &yMin, &yMax)
 
 	if err == nil && name != "" && (xMax-xMin) > 0 && (yMax-yMin) > 0 {
+		mArea := (xMax - xMin) * (yMax - yMin)
+
+		// Prefer the JSON match when it found a meaningfully more-specific zone
+		// than MySQL — e.g. a Mount Hyjal spawn that MySQL snaps to the much
+		// larger Felwood box. The 0.9 factor keeps MySQL's nicer display names
+		// when both resolve to the same zone (bounds may jitter slightly).
+		if jOk && jArea < mArea*0.9 {
+			return jName, jX, jY
+		}
+
 		// Convert coordinates
 		// WoW World (MySQL) -> Map Percentage (0-100)
 		// Standard Formula:
 		// MapX = (y_max - worldY) / (y_max - y_min) * 100
 		// MapY = (x_max - worldX) / (x_max - x_min) * 100
 
-		mapX = (yMax - worldY) / (yMax - yMin) * 100
-		mapY = (xMax - worldX) / (xMax - xMin) * 100
-
-		// Clamp to valid range
-		if mapX < 0 {
-			mapX = 0
-		} else if mapX > 100 {
-			mapX = 100
-		}
-		if mapY < 0 {
-			mapY = 0
-		} else if mapY > 100 {
-			mapY = 100
-		}
+		mapX = clampPct((yMax - worldY) / (yMax - yMin) * 100)
+		mapY = clampPct((xMax - worldX) / (xMax - xMin) * 100)
 
 		return name, mapX, mapY
+	}
+
+	// MySQL found no bounded match — fall back to the JSON geometry if it had one.
+	if jOk {
+		return jName, jX, jY
 	}
 
 	// Fallback: Try to get zone info for instances (zones with 0,0,0,0 boundaries)
