@@ -169,7 +169,10 @@ func decodeItems(recs []record) ([]string, [][]interface{}) {
 			fmt.Sprintf("spellcharges_%d", i), fmt.Sprintf("spellcooldown_%d", i),
 			fmt.Sprintf("spellcategory_%d", i), fmt.Sprintf("spellcategorycooldown_%d", i))
 	}
-	cols = append(cols, "bonding", "container_slots", "entry")
+	cols = append(cols, "bonding", "description",
+		"page_text", "page_language", "page_material", "start_quest", "lock_id",
+		"material", "sheath", "random_property", "block", "set_id", "max_durability",
+		"area_bound", "map_bound", "bag_family", "container_slots", "entry")
 
 	var rows [][]interface{}
 	for _, r := range recs {
@@ -202,7 +205,15 @@ func decodeItems(recs []record) ([]string, [][]interface{}) {
 			b := 65 + i*6
 			row = append(row, fu(b), fu(b+1), fi(b+2), fi(b+3), fu(b+4), fi(b+5))
 		}
-		row = append(row, fu(95), fu(19), r.entry)
+		// bonding (95), then the description string, then the post-string fields:
+		// pageText, languageID, pageMaterial, startQuest, lockID, material, sheath,
+		// randomProperty, block, itemSet, maxDurability, area, map, bagFamily.
+		desc, p := cstr(blk, o+96*4)
+		pp := func(k int) interface{} { return u32(blk, p+k*4) }
+		ppi := func(k int) interface{} { return int32(u32(blk, p+k*4)) }
+		row = append(row, fu(95), desc,
+			pp(0), pp(1), pp(2), pp(3), pp(4), ppi(5), pp(6), ppi(7), pp(8), pp(9), pp(10),
+			pp(11), pp(12), pp(13), fu(19), r.entry)
 		rows = append(rows, row)
 	}
 	return cols, rows
