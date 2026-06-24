@@ -19,15 +19,18 @@ jobs:
         include:
           - os: windows-latest
             platform: windows/amd64
-            artifact: InkLab-Windows.zip
+            artifact_base: InkLab-Windows
+            artifact_ext: zip
             build_tags: ""
           - os: ubuntu-latest
             platform: linux/amd64
-            artifact: InkLab-Linux.tar.gz
+            artifact_base: InkLab-Linux
+            artifact_ext: tar.gz
             build_tags: "-tags webkit2_41"
           - os: macos-latest
             platform: darwin/universal
-            artifact: InkLab-macOS.zip
+            artifact_base: InkLab-macOS
+            artifact_ext: zip
             build_tags: ""
 
     runs-on: ${{ matrix.os }}
@@ -90,7 +93,7 @@ jobs:
           if (Test-Path "data/npc_images") {
             Copy-Item "data/npc_images/*" -Destination "dist/data/npc_images/" -Recurse
           }
-          Compress-Archive -Path "dist/*" -DestinationPath "InkLab-Windows.zip"
+          Compress-Archive -Path "dist/*" -DestinationPath "InkLab-Windows-${{ github.ref_name }}.zip"
 
       # --- Linux Packaging ---
       - name: Package Linux
@@ -108,7 +111,7 @@ jobs:
             cp -r data/npc_images/* dist/data/npc_images/
           fi
           cd dist
-          tar -czvf ../InkLab-Linux.tar.gz *
+          tar -czvf "../InkLab-Linux-${{ github.ref_name }}.tar.gz" *
           cd ..
 
       # --- macOS Packaging ---
@@ -129,12 +132,12 @@ jobs:
 
           cd build/bin
           ditto -c -k --sequesterRsrc --keepParent InkLab.app InkLab.app.zip
-          mv InkLab.app.zip ../../InkLab-macOS.zip
+          mv InkLab.app.zip "../../InkLab-macOS-${{ github.ref_name }}.zip"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.artifact }}
+          files: ${{ matrix.artifact_base }}-${{ github.ref_name }}.${{ matrix.artifact_ext }}
           draft: false
           prerelease: false
           generate_release_notes: true
