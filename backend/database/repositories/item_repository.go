@@ -521,6 +521,21 @@ func (r *ItemRepository) GetItemSets() ([]*models.ItemSetBrowse, error) {
 	}
 	defer rows.Close()
 
+	// Set of item entries that actually exist, so counts and visibility reflect
+	// only displayable pieces. Some sets (octo placeholders / future content)
+	// reference item ids that exist nowhere in our data; those would otherwise
+	// show as a bare "0 items" entry.
+	exists := map[int]bool{}
+	if er, e := r.db.Query("SELECT entry FROM item_template"); e == nil {
+		for er.Next() {
+			var id int
+			if er.Scan(&id) == nil {
+				exists[id] = true
+			}
+		}
+		er.Close()
+	}
+
 	var sets []*models.ItemSetBrowse
 	for rows.Next() {
 		set := &models.ItemSetBrowse{}
@@ -535,13 +550,18 @@ func (r *ItemRepository) GetItemSets() ([]*models.ItemSetBrowse, error) {
 			continue
 		}
 
-		// Filter out zero item IDs
+		// Keep only item IDs that resolve to a real item.
 		for _, itemID := range items {
-			if itemID > 0 {
+			if itemID > 0 && exists[itemID] {
 				set.ItemIDs = append(set.ItemIDs, itemID)
 			}
 		}
 		set.ItemCount = len(set.ItemIDs)
+
+		// Hide sets with no displayable pieces (they reappear once cached).
+		if set.ItemCount == 0 {
+			continue
+		}
 
 		sets = append(sets, set)
 	}
