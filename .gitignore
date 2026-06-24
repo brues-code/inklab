@@ -52,5 +52,8 @@ tmp/
 data/maps/
 # Icons — extracted locally from client art / downloaded at runtime (not shipped)
 data/icons/
+# Reference JSON generated from the client DBCs (regenerated via the Import tab;
+# the applied result already lives in the embedded inklab.db)
+data/*.json
 # NPC model/map images — built locally by syncing/scraping octowow.st (not shipped)
 data/npc_images/
