@@ -39,12 +39,30 @@ const IMPORTS = [
   },
 ];
 
-function ToolsPage() {
+function ToolsPage({ onNavigate }) {
   const [base, setBase] = useState(
     () => localStorage.getItem("toolsBasePath") || DEFAULT_BASE
   );
   const [running, setRunning] = useState(null);
   const [reports, setReports] = useState({});
+  const [whatsNew, setWhatsNew] = useState(null);
+  const [wnLoading, setWnLoading] = useState(false);
+
+  const loadWhatsNew = async () => {
+    const app = window?.go?.main?.App;
+    if (!app?.WhatsNew) {
+      setWhatsNew({ error: "Binding not found (dev build?)" });
+      return;
+    }
+    setWnLoading(true);
+    try {
+      setWhatsNew(await app.WhatsNew());
+    } catch (e) {
+      setWhatsNew({ error: String(e) });
+    } finally {
+      setWnLoading(false);
+    }
+  };
 
   const saveBase = (v) => {
     setBase(v);
@@ -103,6 +121,79 @@ function ToolsPage() {
             <span className="font-mono">DBFilesClient\</span> /{" "}
             <span className="font-mono">BlizzardInterfaceArt\</span> folders.
           </p>
+        </div>
+
+        {/* What's New — diff of the live DB vs the last committed baseline */}
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-white font-semibold">What's New</h3>
+              <p className="text-gray-400 text-sm mt-1">
+                Rows added or changed in the database since the last committed
+                baseline — e.g. items, NPCs and objects your imports pulled in.
+                Click an entry to open it.
+              </p>
+              {whatsNew?.baseline && (
+                <p className="text-[11px] text-gray-600 mt-1">vs {whatsNew.baseline}</p>
+              )}
+            </div>
+            <button
+              onClick={loadWhatsNew}
+              disabled={wnLoading}
+              className="shrink-0 bg-wow-gold/90 hover:bg-wow-gold text-black font-bold px-5 py-2 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {wnLoading ? "Checking…" : "Check"}
+            </button>
+          </div>
+
+          {whatsNew?.error && (
+            <div className="mt-3 rounded border border-red-500/30 bg-red-500/5 p-3 text-red-400 text-sm">
+              {whatsNew.error}
+            </div>
+          )}
+
+          {whatsNew && !whatsNew.error && (
+            <div className="mt-3 space-y-3">
+              {!whatsNew.groups?.length && (
+                <div className="text-gray-500 text-sm italic">
+                  No changes since the baseline.
+                </div>
+              )}
+              {whatsNew.groups?.map((g) => (
+                <div key={g.type} className="rounded border border-gray-700/50 bg-black/20 p-3">
+                  <div className="text-sm font-bold text-gray-200 mb-2">
+                    {g.label}{" "}
+                    <span className="text-green-400 font-normal">+{g.added} added</span>
+                    {g.changed > 0 && (
+                      <span className="text-blue-400 font-normal"> • {g.changed} changed</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.entries?.map((e) => (
+                      <button
+                        key={`${e.type}-${e.id}`}
+                        onClick={() => onNavigate?.(e.type, e.id)}
+                        title={`${e.change} — open ${e.type} ${e.id}`}
+                        className={`px-2 py-1 rounded text-xs border transition-colors text-left ${
+                          e.change === "added"
+                            ? "border-green-600/40 bg-green-600/10 hover:bg-green-600/20 text-green-200"
+                            : "border-blue-600/40 bg-blue-600/10 hover:bg-blue-600/20 text-blue-200"
+                        }`}
+                      >
+                        <span className="text-gray-500 font-mono">[{e.id}]</span>{" "}
+                        {e.name || "(unnamed)"}
+                      </button>
+                    ))}
+                    {(g.added + g.changed) > g.entries.length && (
+                      <span className="text-gray-600 text-xs self-center">
+                        … {g.added + g.changed - g.entries.length} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {IMPORTS.map((imp) => {

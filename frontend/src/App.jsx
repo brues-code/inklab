@@ -95,7 +95,7 @@ function App() {
                         onNavigate={handleSearchNavigate}
                     />
                 )}
-                {activeTab === 'tools' && <ToolsPage />}
+                {activeTab === 'tools' && <ToolsPage onNavigate={handleSearchNavigate} />}
                 {activeTab === 'settings' && <SettingsPage />}
             </main>
         </div>
