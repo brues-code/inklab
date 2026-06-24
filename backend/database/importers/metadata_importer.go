@@ -56,12 +56,17 @@ func (m *MetadataImporter) initStaticMetadata() {
 		m.db.Exec("INSERT OR IGNORE INTO quest_category_groups (id, name) VALUES (?, ?)", g.ID, g.Name)
 	}
 
+	// Category ids match SkillLine.dbc categoryID. 9 is the client's
+	// "Secondary Skills" bucket (cooking/first aid/fishing/riding + racials)
+	// and 11 is primary Professions — the previous labels had these swapped.
+	// 13 is synthetic: racial skill lines are lifted out of 9 in importSkills.
 	spellCats := []struct {
 		ID   int
 		Name string
 	}{
 		{6, "Weapon Skills"}, {8, "Armor Proficiencies"}, {10, "Languages"},
-		{7, "Class Skills"}, {9, "Professions"}, {11, "Racial Traits"},
+		{7, "Class Skills"}, {9, "Secondary Skills"}, {11, "Professions"},
+		{13, "Racial Traits"},
 	}
 	m.db.Exec("DELETE FROM spell_skill_categories")
 	for _, c := range spellCats {
@@ -111,6 +116,12 @@ func (m *MetadataImporter) importSkills(dataDir string) error {
 	for _, a := range abilities {
 		abilityStmt.Exec(a.SkillID, a.SpellID)
 	}
+
+	// Racial skill lines ("Orc Racial", "Racial - Human", ...) are imported
+	// under Secondary Skills (category 9); lift them into the dedicated
+	// Racial Traits category (13) so they browse on their own.
+	tx.Exec("UPDATE spell_skills SET category_id = 13 WHERE name LIKE '%Racial%'")
+
 	return tx.Commit()
 }
 

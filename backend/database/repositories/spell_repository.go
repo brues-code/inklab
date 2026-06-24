@@ -106,10 +106,11 @@ func (r *SpellRepository) GetSpellSkillCategories() ([]*models.SpellSkillCategor
 // GetSpellSkillsByCategory returns all skills in a category with spell counts
 func (r *SpellRepository) GetSpellSkillsByCategory(categoryID int) ([]*models.SpellSkill, error) {
 	rows, err := r.db.Query(`
-		SELECT s.id, s.category_id, s.name, 
+		SELECT s.id, s.category_id, s.name,
 		       (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) as spell_count
-		FROM spell_skills s 
+		FROM spell_skills s
 		WHERE s.category_id = ?
+		       AND (SELECT COUNT(*) FROM spell_skill_spells ss WHERE ss.skill_id = s.id) > 0
 		ORDER BY s.name
 	`, categoryID)
 	if err != nil {
