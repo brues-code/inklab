@@ -7,11 +7,34 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 //go:embed data/inklab.db
 var embeddedDB []byte
+
+// embeddedDBVersion identifies the embedded database's data revision. Bump it
+// whenever data/inklab.db is regenerated with fixes so production builds
+// overwrite a previously-extracted (stale) copy instead of keeping it forever.
+const embeddedDBVersion = 1
+
+// dbVersionFile is the marker written next to the extracted database recording
+// which embeddedDBVersion produced it.
+const dbVersionFile = ".dbversion"
+
+func readExtractedDBVersion(dataDir string) int {
+	b, err := os.ReadFile(filepath.Join(dataDir, dbVersionFile))
+	if err != nil {
+		return 0
+	}
+	v, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return v
+}
+
+func writeExtractedDBVersion(dataDir string, v int) {
+	_ = os.WriteFile(filepath.Join(dataDir, dbVersionFile), []byte(strconv.Itoa(v)), 0644)
+}
 
 //go:embed data/icons/*
 var embeddedIcons embed.FS
@@ -64,14 +87,24 @@ func InitializeData() (string, bool, error) {
 		return "", false, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	// In production, extract database if not exists
-	// In dev mode, we don't extract - we use the existing data/inklab.db directly
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		log.Println("Extracting embedded database...")
+	// Extract on first run, and in production also refresh when the embedded DB
+	// is a newer revision than the previously-extracted copy — otherwise data
+	// fixes never reach users who already have a data/inklab.db. Dev mode always
+	// uses the on-disk db as-is (it's managed via git / rebuilddb).
+	_, statErr := os.Stat(dbPath)
+	missing := os.IsNotExist(statErr)
+	stale := !isDevMode && !missing && readExtractedDBVersion(dataDir) < embeddedDBVersion
+	if missing || stale {
+		if stale {
+			log.Printf("Embedded database is newer (v%d); refreshing extracted copy...", embeddedDBVersion)
+		} else {
+			log.Println("Extracting embedded database...")
+		}
 		if err := os.WriteFile(dbPath, embeddedDB, 0644); err != nil {
 			return "", false, fmt.Errorf("failed to write database: %w", err)
 		}
-		log.Println("✓ Database extracted to", dbPath)
+		writeExtractedDBVersion(dataDir, embeddedDBVersion)
+		log.Println("✓ Database ready at", dbPath)
 	} else {
 		log.Println("✓ Using existing database:", dbPath)
 	}

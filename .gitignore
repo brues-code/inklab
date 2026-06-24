@@ -36,6 +36,8 @@ Thumbs.db
 # SQLite runtime artifacts (never commit)
 *.db-wal
 *.db-shm
+# Extracted-DB version marker (written at runtime next to the extracted db)
+data/.dbversion
 
 # Env (local secrets; commit .env.example instead)
 .env
