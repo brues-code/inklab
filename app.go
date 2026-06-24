@@ -158,16 +158,10 @@ func (a *App) startup(ctx context.Context) {
 	metadataImporter := database.NewMetadataImporter(db)
 	metadataImporter.ImportAll(a.DataDir)
 
-	// Initialize MySQL Connection (Development mode only)
-	if a.isDevMode {
-		mysqlDB, err := database.NewMySQLConnection(filepath.Join(".", ".env"))
-		if err != nil {
-			fmt.Printf("⚠️ MySQL connection failed: %v. NPC sync from MySQL will be unavailable.\n", err)
-		} else {
-			a.mysqlDB = mysqlDB
-			fmt.Println("✓ MySQL Connected (dev mode)")
-		}
-	}
+	// MySQL is initialized once above from the MYSQL_* env vars (loaded from
+	// .env), in both dev and production. The previous dev-only block here passed
+	// the ".env" path itself as the DSN, which always failed with "invalid DSN:
+	// missing the slash separating the database name".
 
 	// 4. Import Data (Developer Mode Only - users use pre-built DB)
 	if a.isDevMode {
