@@ -2,6 +2,8 @@ package schema
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 func GeneratedSchema() string {
@@ -599,4 +601,57 @@ func MigratePerformance(db *sql.DB) {
 	for _, q := range queries {
 		db.Exec(q)
 	}
+}
+
+// MigrateTextBlobs repairs text columns stored with BLOB affinity. Earlier
+// imports inserted MySQL TEXT/VARCHAR values as []byte, which SQLite stored as
+// BLOBs; a BLOB never compares equal to a TEXT literal, so name lookups and
+// LIKE search silently returned nothing (e.g. spell "Fireball"). This converts
+// every declared-TEXT column whose value is a blob back to text. Gated by
+// user_version so it only scans once per database.
+func MigrateTextBlobs(db *sql.DB) {
+	var version int
+	db.QueryRow("PRAGMA user_version").Scan(&version)
+	if version >= 1 {
+		return
+	}
+
+	rows, err := db.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+	if err != nil {
+		return
+	}
+	var tables []string
+	for rows.Next() {
+		var t string
+		if rows.Scan(&t) == nil {
+			tables = append(tables, t)
+		}
+	}
+	rows.Close()
+
+	for _, t := range tables {
+		cr, err := db.Query(fmt.Sprintf("PRAGMA table_info(%q)", t))
+		if err != nil {
+			continue
+		}
+		var textCols []string
+		for cr.Next() {
+			var cid, notnull, pk int
+			var name, typ string
+			var dflt sql.NullString
+			if cr.Scan(&cid, &name, &typ, &notnull, &dflt, &pk) != nil {
+				continue
+			}
+			u := strings.ToUpper(typ)
+			if strings.Contains(u, "TEXT") || strings.Contains(u, "CHAR") || strings.Contains(u, "CLOB") {
+				textCols = append(textCols, name)
+			}
+		}
+		cr.Close()
+		for _, c := range textCols {
+			db.Exec(fmt.Sprintf("UPDATE %q SET %q=CAST(%q AS TEXT) WHERE typeof(%q)='blob'", t, c, c, c))
+		}
+	}
+
+	db.Exec("PRAGMA user_version=1")
 }

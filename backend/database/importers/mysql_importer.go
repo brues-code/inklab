@@ -71,6 +71,16 @@ func (i *MySQLImporter) ImportTable(tableName, querySelect, queryInsert string, 
 			return fmt.Errorf("failed to scan row from %s: %w", tableName, err)
 		}
 
+		// The MySQL driver returns TEXT/VARCHAR columns as []byte. Inserting a
+		// []byte into SQLite stores it with BLOB affinity, and a BLOB never
+		// compares equal to a TEXT literal — silently breaking name lookups and
+		// LIKE search. Convert to string so the column keeps TEXT affinity.
+		for j, v := range values {
+			if b, ok := v.([]byte); ok {
+				values[j] = string(b)
+			}
+		}
+
 		if _, err := stmt.Exec(values...); err != nil {
 			return fmt.Errorf("failed to insert into %s: %w", tableName, err)
 		}

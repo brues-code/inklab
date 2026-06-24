@@ -76,6 +76,7 @@ func (s *SQLiteDB) InitSchema() error {
 	schema.MigrateV2(s.db)
 	schema.MigrateAtlasLoot(s.db)
 	schema.MigratePerformance(s.db)
+	schema.MigrateTextBlobs(s.db)
 
 	return nil
 }
