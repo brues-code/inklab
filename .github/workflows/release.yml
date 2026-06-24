@@ -77,59 +77,25 @@ jobs:
         run: wails build -platform ${{ matrix.platform }} -skipbindings ${{ matrix.build_tags }} -ldflags "-X main.Version=${{ github.ref_name }} -X main.Repo=${{ github.repository }}"
 
       # --- Windows Packaging ---
+      # The database is embedded in the binary; icons/maps/npc_images are built
+      # locally by the user (Import tab) and created under data/ on first run.
+      # So we ship just the executable — no empty data folders.
       - name: Package Windows
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "dist/data/icons"
-          Copy-Item "build/bin/InkLab.exe" -Destination "dist/"
-          # Database is embedded, no need to copy external file
-          # Copy initial icons if any
-          if (Test-Path "data/icons") {
-            Copy-Item "data/icons/*" -Destination "dist/data/icons/" -Recurse
-          }
-           # Copy NPC images
-          New-Item -ItemType Directory -Force -Path "dist/data/npc_images"
-          if (Test-Path "data/npc_images") {
-            Copy-Item "data/npc_images/*" -Destination "dist/data/npc_images/" -Recurse
-          }
-          Compress-Archive -Path "dist/*" -DestinationPath "InkLab-Windows-${{ github.ref_name }}.zip"
+          Compress-Archive -Path "build/bin/InkLab.exe" -DestinationPath "InkLab-Windows-${{ github.ref_name }}.zip"
 
       # --- Linux Packaging ---
       - name: Package Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          mkdir -p dist/data/icons
-          cp build/bin/InkLab dist/
-          # db embedded
-          if [ -d "data/icons" ]; then
-            cp -r data/icons/* dist/data/icons/
-          fi
-          # Copy NPC images
-          mkdir -p dist/data/npc_images
-          if [ -d "data/npc_images" ]; then
-            cp -r data/npc_images/* dist/data/npc_images/
-          fi
-          cd dist
-          tar -czvf "../InkLab-Linux-${{ github.ref_name }}.tar.gz" *
-          cd ..
+          tar -czvf "InkLab-Linux-${{ github.ref_name }}.tar.gz" -C build/bin InkLab
 
       # --- macOS Packaging ---
       - name: Package macOS
         if: matrix.os == 'macos-latest'
         run: |
-          # Copy data into app bundle MacOS directory (alongside binary) for unified path logic
-          mkdir -p build/bin/InkLab.app/Contents/MacOS/data/icons
-          # db embedded
-          if [ -d "data/icons" ]; then
-            cp -r data/icons/* build/bin/InkLab.app/Contents/MacOS/data/icons/
-          fi
-          # Copy NPC images
-          mkdir -p build/bin/InkLab.app/Contents/MacOS/data/npc_images
-          if [ -d "data/npc_images" ]; then
-            cp -r data/npc_images/* build/bin/InkLab.app/Contents/MacOS/data/npc_images/
-          fi
-
           cd build/bin
           ditto -c -k --sequesterRsrc --keepParent InkLab.app InkLab.app.zip
           mv InkLab.app.zip "../../InkLab-macOS-${{ github.ref_name }}.zip"
