@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"inklab/backend/database/models"
@@ -316,17 +317,18 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 		return nil, err
 	}
 
+	q.Title = cleanQuestEscapes(q.Title)
 	if details != nil {
-		q.Details = *details
+		q.Details = cleanQuestEscapes(*details)
 	}
 	if objectives != nil {
-		q.Objectives = *objectives
+		q.Objectives = cleanQuestEscapes(*objectives)
 	}
 	if offerReward != nil {
-		q.OfferRewardText = *offerReward
+		q.OfferRewardText = cleanQuestEscapes(*offerReward)
 	}
 	if endText != nil {
-		q.EndText = *endText
+		q.EndText = cleanQuestEscapes(*endText)
 	}
 
 	// Resolve Side and Races
@@ -564,6 +566,32 @@ func (r *QuestRepository) UpdateQuestFromScraper(data *parsers.ScrapedQuestData)
 		data.Entry,
 	)
 	return err
+}
+
+// questGenderRe matches WoW gender escapes: $GmaleText:femaleText; (and $g).
+var questGenderRe = regexp.MustCompile(`\$[Gg]([^:]*):([^;]*);`)
+
+// cleanQuestEscapes converts WoW quest text escape codes into plain readable
+// text. The client substitutes these at display time; our stored text keeps
+// them raw, so without this the UI shows literal "$B" etc.
+//
+//	$B / $b            -> line break
+//	$G male:female;    -> the male form (we can't know the viewer's gender)
+//	$N / $n            -> "you" (player name)
+//	$R $C $r $c        -> stripped (race/class, unknown to us)
+func cleanQuestEscapes(s string) string {
+	if s == "" {
+		return s
+	}
+	s = questGenderRe.ReplaceAllString(s, "$1")
+	s = strings.ReplaceAll(s, "$B", "\n")
+	s = strings.ReplaceAll(s, "$b", "\n")
+	s = strings.ReplaceAll(s, "$N", "you")
+	s = strings.ReplaceAll(s, "$n", "you")
+	for _, code := range []string{"$R", "$r", "$C", "$c"} {
+		s = strings.ReplaceAll(s, code, "")
+	}
+	return s
 }
 
 func resolveSideAndRaces(mask int) (string, string) {
