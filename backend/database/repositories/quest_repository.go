@@ -286,7 +286,8 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 			RewItemCount1, RewItemCount2, RewItemCount3, RewItemCount4,
 			RewChoiceItemId1, RewChoiceItemId2, RewChoiceItemId3, RewChoiceItemId4, RewChoiceItemId5, RewChoiceItemId6,
 			RewChoiceItemCount1, RewChoiceItemCount2, RewChoiceItemCount3, RewChoiceItemCount4, RewChoiceItemCount5, RewChoiceItemCount6,
-			RewRepFaction1, RewRepFaction2, RewRepValue1, RewRepValue2,
+			RewRepFaction1, RewRepFaction2, RewRepFaction3, RewRepFaction4, RewRepFaction5,
+			RewRepValue1, RewRepValue2, RewRepValue3, RewRepValue4, RewRepValue5,
 			PrevQuestId, NextQuestId, ExclusiveGroup, NextQuestInChain
 		FROM quest_template WHERE entry = ?
 	`, entry)
@@ -297,8 +298,8 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 	var rewItemCounts [4]int
 	var rewChoiceItems [6]int
 	var rewChoiceItemCounts [6]int
-	var repFactions [2]int
-	var repValues [2]int
+	var repFactions [5]int
+	var repValues [5]int
 	var prevQuestID, nextQuestID, exclusiveGroup, nextQuestInChain int
 
 	err := row.Scan(
@@ -310,7 +311,8 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 		&rewItemCounts[0], &rewItemCounts[1], &rewItemCounts[2], &rewItemCounts[3],
 		&rewChoiceItems[0], &rewChoiceItems[1], &rewChoiceItems[2], &rewChoiceItems[3], &rewChoiceItems[4], &rewChoiceItems[5],
 		&rewChoiceItemCounts[0], &rewChoiceItemCounts[1], &rewChoiceItemCounts[2], &rewChoiceItemCounts[3], &rewChoiceItemCounts[4], &rewChoiceItemCounts[5],
-		&repFactions[0], &repFactions[1], &repValues[0], &repValues[1],
+		&repFactions[0], &repFactions[1], &repFactions[2], &repFactions[3], &repFactions[4],
+		&repValues[0], &repValues[1], &repValues[2], &repValues[3], &repValues[4],
 		&prevQuestID, &nextQuestID, &exclusiveGroup, &nextQuestInChain,
 	)
 	if err != nil {
@@ -333,6 +335,18 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 
 	// Resolve Side and Races
 	q.Side, q.RaceNames = resolveSideAndRaces(q.RequiredRaces)
+
+	// Reputation rewards (faction id -> name).
+	for i := 0; i < 5; i++ {
+		if repFactions[i] > 0 && repValues[i] != 0 {
+			rep := &models.QuestReputation{FactionID: repFactions[i], Value: repValues[i]}
+			r.db.QueryRow("SELECT name FROM factions WHERE id = ?", repFactions[i]).Scan(&rep.Name)
+			if rep.Name == "" {
+				rep.Name = fmt.Sprintf("Faction #%d", repFactions[i])
+			}
+			q.Reputation = append(q.Reputation, rep)
+		}
+	}
 
 	// Process reward items
 	for i := 0; i < 4; i++ {
