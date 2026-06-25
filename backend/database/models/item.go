@@ -245,6 +245,19 @@ type ItemDetail struct {
 	DroppedBy      []*CreatureDrop `json:"droppedBy"`
 	RewardFrom     []*QuestReward  `json:"rewardFrom"`
 	Contains       []*ItemDrop     `json:"contains"`
+	SoldBy         []*ItemVendor   `json:"soldBy"`
+}
+
+// ItemVendor represents an NPC that sells an item (from the item page's
+// "sold by" list). Cost is the money price in copper (0 when bought with an
+// extended-cost currency); Stock is -1 for unlimited.
+type ItemVendor struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	LevelMin int    `json:"levelMin"`
+	LevelMax int    `json:"levelMax"`
+	Cost     int    `json:"cost"`
+	Stock    int    `json:"stock"`
 }
 
 // ItemDrop represents an item dropped by another item (e.g. from chest/clam)

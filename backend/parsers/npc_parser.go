@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,15 @@ type ScrapedNpcData struct {
 	ZoneName      string            `json:"zoneName"`
 	X             float64           `json:"x"`
 	Y             float64           `json:"y"`
+	Sells         []VendorSale      `json:"sells"` // items this NPC sells (octowow "sells" tab)
+}
+
+// VendorSale is one item an NPC sells: the item entry, money cost (copper, 0 for
+// extended-cost currencies) and stock (-1 = unlimited).
+type VendorSale struct {
+	ItemEntry int `json:"itemEntry"`
+	Cost      int `json:"cost"`
+	Stock     int `json:"stock"`
 }
 
 // ParseNpcData parses the HTML content of a Wowhead NPC page
@@ -263,14 +273,59 @@ func stripTags_Local(input string) string {
 }
 
 // ParseNpcDataTurtlecraft parses the HTML content of a TurtleCraft NPC page
+// soldByNpcSellsRe isolates the "sells" Listview's data array on an NPC page
+// (template:'item', id:'sells'). The array closes the Listview with "]})",
+// which never appears inside an item object (its sub-arrays like cost use "],"),
+// so a non-greedy capture to the first "]})" grabs exactly this array.
+var npcSellsRe = regexp.MustCompile(`(?s)id:'sells'.*?data: ?\[(.*?)\]\}\)`)
+var sellObjRe = regexp.MustCompile(`\{[^{}]*\}`)
+
+// parseNpcSells extracts the items an NPC sells from its page's "sells" tab.
+func parseNpcSells(content string) []VendorSale {
+	m := npcSellsRe.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return nil
+	}
+	intField := func(obj, key string) (int, bool) {
+		re := regexp.MustCompile(key + `: ?(-?\d+)`)
+		if mm := re.FindStringSubmatch(obj); len(mm) > 1 {
+			v, _ := strconv.Atoi(mm[1])
+			return v, true
+		}
+		return 0, false
+	}
+	var out []VendorSale
+	for _, obj := range sellObjRe.FindAllString(m[1], -1) {
+		id, ok := intField(obj, "id")
+		if !ok || id == 0 {
+			continue
+		}
+		sale := VendorSale{ItemEntry: id, Stock: -1}
+		if st, ok := intField(obj, "stock"); ok {
+			sale.Stock = st
+		}
+		// cost: [money, ...] — first element is the copper price.
+		if cm := regexp.MustCompile(`cost: ?\[(-?\d+)`).FindStringSubmatch(obj); len(cm) > 1 {
+			sale.Cost, _ = strconv.Atoi(cm[1])
+		}
+		out = append(out, sale)
+	}
+	return out
+}
+
 func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
-	doc, err := goquery.NewDocumentFromReader(r)
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}
 
 	data := &ScrapedNpcData{
 		Infobox: make(map[string]string),
+		Sells:   parseNpcSells(string(raw)),
 	}
 
 	// Parse infobox items (li elements with label: value format)

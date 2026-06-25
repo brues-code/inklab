@@ -135,6 +135,7 @@ type ItemTemplateFull struct {
 	ScriptName                string         `json:"script_name"`
 	DroppedByNpcs             []int          `json:"dropped_by_npcs,omitempty"` // populated during sync
 	SpellDescriptions         map[int]string `json:"-"`                         // extracted from item page, not persisted
+	Vendors                   []ItemVendor   `json:"-"`                         // "sold by" NPCs from the item page, not persisted on item_template
 }
 
 type CreatureTemplateFull struct {

@@ -566,6 +566,17 @@ func GeneratedSchema() string {
         PRIMARY KEY (entry)
     );
 
+    CREATE TABLE IF NOT EXISTS item_vendor (
+        item_entry INTEGER NOT NULL,
+        npc_entry INTEGER NOT NULL,
+        npc_name TEXT DEFAULT '',
+        level_min INTEGER DEFAULT 0,
+        level_max INTEGER DEFAULT 0,
+        cost INTEGER DEFAULT 0,
+        stock INTEGER DEFAULT -1,
+        PRIMARY KEY (item_entry, npc_entry)
+    );
+
     `
 }
 

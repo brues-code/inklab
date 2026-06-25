@@ -1343,6 +1343,28 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 		}
 	}
 
+	// Get vendors that sell this item ("sold by"). Prefer the live
+	// creature_template name/level, falling back to what we scraped.
+	rows4, err := r.db.Query(`
+		SELECT iv.npc_entry,
+		       COALESCE(NULLIF(c.name, ''), iv.npc_name),
+		       COALESCE(NULLIF(c.level_min, 0), iv.level_min),
+		       COALESCE(NULLIF(c.level_max, 0), iv.level_max),
+		       iv.cost, iv.stock
+		FROM item_vendor iv
+		LEFT JOIN creature_template c ON iv.npc_entry = c.entry
+		WHERE iv.item_entry = ?
+		ORDER BY iv.npc_name
+	`, entry)
+	if err == nil {
+		defer rows4.Close()
+		for rows4.Next() {
+			v := &models.ItemVendor{}
+			rows4.Scan(&v.Entry, &v.Name, &v.LevelMin, &v.LevelMax, &v.Cost, &v.Stock)
+			detail.SoldBy = append(detail.SoldBy, v)
+		}
+	}
+
 	return detail, nil
 }
 

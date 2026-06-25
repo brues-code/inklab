@@ -299,6 +299,9 @@ func (s *SyncService) FetchAndImportItem(itemID int) *SyncItemResult {
 		}
 	}
 
+	// Store the "sold by" vendor list scraped from the item page.
+	s.storeItemVendors(itemID, item.Vendors)
+
 	// Auto-fix icon if needed
 	iconFixService := NewIconFixService(s.db, iconDir)
 	_, _, _ = iconFixService.FixSingleItem(s.db, itemID)
@@ -307,6 +310,18 @@ func (s *SyncService) FetchAndImportItem(itemID int) *SyncItemResult {
 		Success: true,
 		ItemID:  itemID,
 		Name:    item.Name,
+	}
+}
+
+// storeItemVendors replaces an item's "sold by" rows with the freshly scraped
+// list (authoritative refresh — clears stale vendors).
+func (s *SyncService) storeItemVendors(itemID int, vendors []models.ItemVendor) {
+	s.db.Exec("DELETE FROM item_vendor WHERE item_entry = ?", itemID)
+	for _, v := range vendors {
+		s.db.Exec(
+			`INSERT OR REPLACE INTO item_vendor (item_entry, npc_entry, npc_name, level_min, level_max, cost, stock)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			itemID, v.Entry, v.Name, v.LevelMin, v.LevelMax, v.Cost, v.Stock)
 	}
 }
 
@@ -675,6 +690,9 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 				if itemSet != nil {
 					_ = s.UpsertItemSet(itemSet)
 				}
+
+				// Store the "sold by" vendor list scraped from the item page.
+				s.storeItemVendors(itemID, item.Vendors)
 
 				// Fix icon for item
 				if fixIcons {

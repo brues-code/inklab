@@ -126,6 +126,17 @@ type NpcFullDetails struct {
 	Quests        []NpcQuest        `json:"quests"`
 	Abilities     []NpcAbility      `json:"abilities"`
 	Spawns        []NpcSpawn        `json:"spawns"`
+	Sells         []NpcSellItem     `json:"sells"`
+}
+
+// NpcSellItem is an item this NPC sells (reverse of item_vendor).
+type NpcSellItem struct {
+	ItemID   int    `json:"itemId"`
+	Name     string `json:"name"`
+	Quality  int    `json:"quality"`
+	IconPath string `json:"iconPath"`
+	Cost     int    `json:"cost"`
+	Stock    int    `json:"stock"`
 }
 
 func (s *NpcService) GetNpcDetails(entry int) (*NpcFullDetails, error) {
@@ -347,6 +358,26 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 					Description: desc,
 					Icon:        icon.String,
 				})
+			}
+		}
+	}
+
+	// Load what this NPC sells (reverse of item_vendor; item info from our DB).
+	sellRows, err := s.sqlite.Query(`
+		SELECT iv.item_entry, COALESCE(i.name, ''), COALESCE(i.quality, 0),
+		       COALESCE(idi.icon, ''), iv.cost, iv.stock
+		FROM item_vendor iv
+		LEFT JOIN item_template i ON iv.item_entry = i.entry
+		LEFT JOIN item_display_info idi ON i.display_id = idi.ID
+		WHERE iv.npc_entry = ?
+		ORDER BY i.quality DESC, i.name
+	`, entry)
+	if err == nil {
+		defer sellRows.Close()
+		for sellRows.Next() {
+			var it NpcSellItem
+			if err := sellRows.Scan(&it.ItemID, &it.Name, &it.Quality, &it.IconPath, &it.Cost, &it.Stock); err == nil {
+				details.Sells = append(details.Sells, it)
 			}
 		}
 	}
@@ -1020,9 +1051,23 @@ func (s *NpcService) RefreshNpcImages(entry int) error {
 func (s *NpcService) syncNpcImages(entry int) error {
 	// A. Scrape Wowhead for Metadata
 	scrapedData, err := s.scraper.ScrapeNpcData(entry)
+	scrapeOK := err == nil
 	if err != nil {
 		fmt.Printf("Scrape failed: %v\n", err)
 		scrapedData = &ScrapedNpcData{Infobox: make(map[string]string)}
+	}
+
+	// Store what this NPC sells into item_vendor — the same table the item
+	// "sold by" scrape writes, so syncing either side fills the relationship.
+	// Only refresh on a successful scrape, so a failed fetch can't wipe a real
+	// vendor's inventory.
+	if scrapeOK {
+		s.sqlite.Exec("DELETE FROM item_vendor WHERE npc_entry = ?", entry)
+		for _, sale := range scrapedData.Sells {
+			s.sqlite.Exec(
+				`INSERT OR REPLACE INTO item_vendor (item_entry, npc_entry, cost, stock) VALUES (?, ?, ?, ?)`,
+				sale.ItemEntry, entry, sale.Cost, sale.Stock)
+		}
 	}
 
 	// Model and map images are not handled here. Model renders are produced

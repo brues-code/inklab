@@ -105,6 +105,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const endsQuests = detail.quests?.filter((q) => q.type === "ends") || [];
   const loot = detail.loot || [];
   const abilities = detail.abilities || [];
+  const sells = detail.sells || [];
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -114,6 +115,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
       label: `Quests (${startsQuests.length + endsQuests.length})`,
     },
     { id: "abilities", label: `Abilities (${abilities.length})` },
+    ...(sells.length > 0 ? [{ id: "sells", label: `Sells (${sells.length})` }] : []),
   ];
 
   return (
@@ -472,6 +474,38 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                       No loot table available.
                     </div>
                   )}
+                </div>
+              )}
+
+              {activeTab === "sells" && (
+                <div className="animate-fade-in">
+                  <LootGrid>
+                    {sells.map((item) => {
+                      const handlers =
+                        tooltipHook?.getItemHandlers?.(item.itemId) || {};
+                      const m = item.cost > 0 ? formatMoney(item.cost) : null;
+                      const price = m
+                        ? [m.g && `${m.g}g`, m.s && `${m.s}s`, m.c && `${m.c}c`]
+                            .filter(Boolean)
+                            .join(" ")
+                        : "";
+                      return (
+                        <LootItem
+                          key={item.itemId}
+                          item={{
+                            entry: item.itemId,
+                            name: item.name || `Item ${item.itemId}`,
+                            quality: item.quality,
+                            iconPath: item.iconPath || "",
+                            dropChance: price,
+                          }}
+                          onClick={() => onNavigate("item", item.itemId)}
+                          showDropChance={!!price}
+                          {...handlers}
+                        />
+                      );
+                    })}
+                  </LootGrid>
                 </div>
               )}
 

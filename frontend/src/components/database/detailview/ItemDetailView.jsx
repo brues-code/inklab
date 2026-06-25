@@ -4,7 +4,7 @@ import {
   FixSingleItemIcon,
   SyncSingleItem,
 } from "../../../../wailsjs/go/main/App";
-import { getQualityColor } from "../../../utils/wow";
+import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { useIcon } from "../../../services/useImage";
 import {
@@ -359,7 +359,42 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             </DetailSection>
           )}
 
-          {/* Reward From */}
+          {/* Sold By */}
+          {detail.soldBy?.length > 0 && (
+            <DetailSection title="Sold By">
+              <div className="space-y-1">
+                {detail.soldBy.map((npc) => {
+                  const m = npc.cost > 0 ? formatMoney(npc.cost) : null;
+                  return (
+                    <div
+                      key={npc.entry}
+                      className="flex items-center justify-between p-2 bg-white/[0.02] hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors"
+                      onClick={() => onNavigate("npc", npc.entry)}
+                    >
+                      <div>
+                        <div className="text-white font-bold hover:text-wow-gold">
+                          {npc.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Level {npc.levelMin}
+                          {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ""}
+                          {npc.stock > 0 ? ` · ${npc.stock} in stock` : ""}
+                        </div>
+                      </div>
+                      {m && (
+                        <div className="text-sm font-mono whitespace-nowrap">
+                          {m.g > 0 && <span className="text-yellow-400">{m.g}g </span>}
+                          {(m.g > 0 || m.s > 0) && <span className="text-gray-300">{m.s}s </span>}
+                          <span className="text-orange-400">{m.c}c</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </DetailSection>
+          )}
+
           {/* Reward From */}
           {detail.rewardFrom?.length > 0 && (
             <DetailSection title="Reward From">

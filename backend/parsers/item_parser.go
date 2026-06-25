@@ -500,7 +500,57 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 		item.Subclass, _ = strconv.Atoi(matches[2])
 	}
 
+	item.Vendors = parseItemVendors(content)
+
 	return item, itemSet, nil
+}
+
+// soldByRe isolates the "sold by" Listview's data array. The page has several
+// npc Listviews (sold-by, dropped-by, ...); we want only sold-by. The data
+// array closes the Listview with "]})", which never appears inside an object
+// (sub-arrays like location/cost/react use "]," ), so a non-greedy capture to
+// the first "]})" grabs exactly this array.
+var soldByRe = regexp.MustCompile(`(?s)id:'sold-by'.*?data:\[(.*?)\]\}\)`)
+var vendorObjRe = regexp.MustCompile(`\{[^{}]*\}`)
+
+// parseItemVendors extracts the NPCs that sell an item from the item page's
+// "sold by" tab.
+func parseItemVendors(content string) []models.ItemVendor {
+	m := soldByRe.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return nil
+	}
+	intField := func(obj, key string, def int) int {
+		re := regexp.MustCompile(key + `: ?(-?\d+)`)
+		if mm := re.FindStringSubmatch(obj); len(mm) > 1 {
+			v, _ := strconv.Atoi(mm[1])
+			return v
+		}
+		return def
+	}
+	var out []models.ItemVendor
+	for _, obj := range vendorObjRe.FindAllString(m[1], -1) {
+		id := intField(obj, "id", 0)
+		if id == 0 {
+			continue
+		}
+		v := models.ItemVendor{
+			Entry:    id,
+			LevelMin: intField(obj, "minlevel", 0),
+			LevelMax: intField(obj, "maxlevel", 0),
+			Stock:    intField(obj, "stock", -1),
+		}
+		// name: '...'
+		if nm := regexp.MustCompile(`name: ?'([^']*)'`).FindStringSubmatch(obj); len(nm) > 1 {
+			v.Name = html.UnescapeString(nm[1])
+		}
+		// cost: [money, ...] — first element is the copper price.
+		if cm := regexp.MustCompile(`cost: ?\[(-?\d+)`).FindStringSubmatch(obj); len(cm) > 1 {
+			v.Cost, _ = strconv.Atoi(cm[1])
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // parseItemSet parses the item set info from the content
