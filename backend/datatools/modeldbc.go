@@ -62,10 +62,14 @@ const (
 )
 
 // CreatureDisplayInfoExtra equipment columns. Appearance fields are 1-7, then
-// equipment NPCItemDisplay slots start at 8 (helm), 9 (shoulder), ...
+// equipment NPCItemDisplay slots start at 8 (helm), 9 (shoulder), 10 (shirt),
+// 11 (chest), ... A robe appearance can be authored into either the chest OR
+// the shirt slot (e.g. display 2970 carries INV_Robe_02 in the shirt slot with
+// an empty chest), so robe detection must look at both.
 const (
 	extraHelmField     = 8
 	extraShoulderField = 9
+	extraShirtField    = 10
 	extraChestField    = 11
 )
 
@@ -426,9 +430,26 @@ func ResolveCreatureModel(cf ClientFiles, displayID int) (*CreatureModel, error)
 							cm.Attachments = append(cm.Attachments, helm)
 						}
 					}
+					// A robe appearance may live in the chest slot or the shirt
+					// slot; record whichever displays as a robe so SelectGeosets
+					// picks the long skirt instead of legs.
+					chest := 0
 					if extraChestField < ex.fc {
-						cm.Extra.ChestItemDisplay = int(ex.u32(er, extraChestField))
-						cm.Robe = chestIsRobe(cf, cm.Extra.ChestItemDisplay)
+						chest = int(ex.u32(er, extraChestField))
+					}
+					shirt := 0
+					if extraShirtField < ex.fc {
+						shirt = int(ex.u32(er, extraShirtField))
+					}
+					switch {
+					case chestIsRobe(cf, chest):
+						cm.Extra.ChestItemDisplay = chest
+						cm.Robe = true
+					case chestIsRobe(cf, shirt):
+						cm.Extra.ChestItemDisplay = shirt
+						cm.Robe = true
+					default:
+						cm.Extra.ChestItemDisplay = chest
 					}
 					cm.Extra.HairTexture = ResolveHairTexture(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairColor)
 				}
