@@ -156,6 +156,14 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 			item.InventoryType = 28 // Relic
 			item.Class = 4
 			item.Subclass = 0
+		} else if strings.Contains(lowerContent, "<td>shirt") {
+			item.InventoryType = 4 // Shirt (Body) — no armor subtype, so the
+			item.Class = 4         // slot/type regex never matches (empty <th>)
+			item.Subclass = 0
+		} else if strings.Contains(lowerContent, "<td>tabard") {
+			item.InventoryType = 19 // Tabard — likewise has no armor subtype
+			item.Class = 4
+			item.Subclass = 0
 		}
 	}
 
