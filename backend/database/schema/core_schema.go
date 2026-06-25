@@ -233,6 +233,29 @@ func CoreSchema() string {
 		infobox_json TEXT
 	);
 
+	-- Talent trees (one row per class tree) and talents (DBC-derived, populated
+	-- from data/talents.json via the client-import flow).
+	CREATE TABLE IF NOT EXISTS talent_tab (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		class TEXT NOT NULL,
+		class_mask INTEGER DEFAULT 0,
+		order_index INTEGER DEFAULT 0,
+		background TEXT DEFAULT ''
+	);
+
+	CREATE TABLE IF NOT EXISTS talent (
+		id INTEGER PRIMARY KEY,
+		tab_id INTEGER NOT NULL,
+		row INTEGER DEFAULT 0,
+		col INTEGER DEFAULT 0,
+		ranks TEXT DEFAULT '[]',   -- JSON array of per-rank spell ids
+		req_talent INTEGER DEFAULT 0,
+		req_rank INTEGER DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_talent_tab_class ON talent_tab(class);
+	CREATE INDEX IF NOT EXISTS idx_talent_tab_id ON talent(tab_id);
+
 	-- Indexes for 1:1 tables (created after GeneratedSchema)
 	CREATE INDEX IF NOT EXISTS idx_item_template_name ON item_template(name);
 	CREATE INDEX IF NOT EXISTS idx_item_template_class ON item_template(class);

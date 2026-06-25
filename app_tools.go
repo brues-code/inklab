@@ -20,9 +20,10 @@ type ImportReport struct {
 // DataStatus reports how much locally-built image data InkLab currently has, so
 // the UI can tell the user when a category is empty and needs importing.
 type DataStatus struct {
-	Icons     int `json:"icons"`
-	Maps      int `json:"maps"`
-	NpcImages int `json:"npcImages"`
+	Icons        int `json:"icons"`
+	Maps         int `json:"maps"`
+	NpcImages    int `json:"npcImages"`
+	TalentBgs    int `json:"talentBgs"`
 }
 
 // GetDataStatus counts the local icon / map / npc-image files under the data dir.
@@ -31,6 +32,7 @@ func (a *App) GetDataStatus() DataStatus {
 		Icons:     countFiles(filepath.Join(a.DataDir, "icons"), ".jpg", ".png", ".jpeg"),
 		Maps:      countFiles(filepath.Join(a.DataDir, "maps"), ".jpg", ".png"),
 		NpcImages: countFiles(filepath.Join(a.DataDir, "npc_images"), ".jpg", ".png", ".jpeg"),
+		TalentBgs: countFiles(filepath.Join(a.DataDir, "talent_bg"), ".png", ".jpg"),
 	}
 }
 
@@ -182,7 +184,20 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		rep.Lines = append(rep.Lines, line)
 	}
 
-	// 4. Area grid: per-chunk ADT zone data for authoritative spawn->zone
+	// 4. Talent-frame background art (320x384 composited per tree). Built from
+	//    the same MPQ/loose source; powers the in-game look of the calculator.
+	bgSrc := pick(datatools.NewDirSourceClient(baseDir))
+	if res, err := datatools.GenerateTalentBackgrounds(bgSrc, filepath.Join(a.DataDir, "talent_bg"), nil); err != nil {
+		fail("Talent backgrounds: " + err.Error())
+	} else {
+		line := fmt.Sprintf("%d talent backgrounds", res.Generated)
+		if res.Skipped > 0 {
+			line += fmt.Sprintf(" (%d skipped)", res.Skipped)
+		}
+		rep.Lines = append(rep.Lines, line)
+	}
+
+	// 5. Area grid: per-chunk ADT zone data for authoritative spawn->zone
 	//    resolution. Needs the MPQ/loose World\Maps terrain; non-fatal.
 	gridSrc := pick(datatools.NewDirSourceClient(baseDir))
 	if err := datatools.GenerateAreaGrid(gridSrc, filepath.Join(a.DataDir, "area_grid.bin"), nil); err != nil {
@@ -219,10 +234,15 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	// client DBC export, so refresh after one.
 	a.db.DB().Exec("DELETE FROM faction_template")
 	add("faction templates", database.NewFactionImporter(a.db).CheckAndImportTemplates(a.DataDir))
-	// Icons + missing-spell backfill.
+	// Spell data: the client DBC is authoritative (latest patched values), so it
+	// overwrites spell text + values; then resolve $-placeholders against them.
 	gen := database.NewGeneratedImporter(a.db.DB())
-	_ = gen.ImportMissingSpells(filepath.Join(a.DataDir, "spells_enhanced.json"))
+	_ = gen.ImportSpellsFromDBC(filepath.Join(a.DataDir, "spells_enhanced.json"))
 	_ = gen.ImportItemIcons(filepath.Join(a.DataDir, "item_icons.json"))
 	_ = gen.ImportSpellIcons(filepath.Join(a.DataDir, "spells_enhanced.json"))
-	rep.Lines = append(rep.Lines, "icons + spell text refreshed")
+	_ = gen.ImportTalents(filepath.Join(a.DataDir, "talents.json"))
+	if a.syncService != nil {
+		a.syncService.FullSyncSpells(0, false, "", 0, nil)
+	}
+	rep.Lines = append(rep.Lines, "spell text (DBC) + talents refreshed")
 }

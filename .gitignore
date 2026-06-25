@@ -57,5 +57,7 @@ data/icons/
 data/*.json
 # NPC model/map images — built locally by syncing/scraping octowow.st (not shipped)
 data/npc_images/
+# Talent-frame background art — extracted locally from client art (not shipped)
+data/talent_bg/
 # Per-chunk ADT area grid for spawn->zone resolution (regenerated via the Import tab)
 data/area_grid.bin

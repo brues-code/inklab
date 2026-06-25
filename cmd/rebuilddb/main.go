@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"inklab/backend/database"
+	"inklab/backend/services"
 
 	"github.com/joho/godotenv"
 )
@@ -78,8 +79,8 @@ func main() {
 	// 3. Icon mappings onto the imported templates (the newly wired step).
 	fmt.Println("Applying icon mappings...")
 	gen := database.NewGeneratedImporter(db.DB())
-	if err := gen.ImportMissingSpells(filepath.Join(dataDir, "spells_enhanced.json")); err != nil {
-		fmt.Println("  warn spell backfill:", err)
+	if err := gen.ImportSpellsFromDBC(filepath.Join(dataDir, "spells_enhanced.json")); err != nil {
+		fmt.Println("  warn spell DBC import:", err)
 	}
 	if err := gen.ImportItemIcons(filepath.Join(dataDir, "item_icons.json")); err != nil {
 		fmt.Println("  warn item icons:", err)
@@ -87,6 +88,13 @@ func main() {
 	if err := gen.ImportSpellIcons(filepath.Join(dataDir, "spells_enhanced.json")); err != nil {
 		fmt.Println("  warn spell icons:", err)
 	}
+	if err := gen.ImportTalents(filepath.Join(dataDir, "talents.json")); err != nil {
+		fmt.Println("  warn talents:", err)
+	}
+
+	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
+	fmt.Println("Resolving spell descriptions...")
+	services.NewSyncService(db.DB()).FullSyncSpells(0, false, "", 0, nil)
 
 	fmt.Println("✓ Rebuild complete:", dbPath)
 }

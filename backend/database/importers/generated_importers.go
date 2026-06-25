@@ -64,31 +64,52 @@ func (i *GeneratedImporter) ImportItemIcons(jsonPath string) error {
 	return nil
 }
 
-// SpellEnhanced represents a spell record from spells_enhanced.json
+// SpellEnhanced represents a spell record from spells_enhanced.json. The fields
+// mirror exactly what the $-placeholder resolver reads, so the client DBC can be
+// the authoritative source for spell text + values.
 type SpellEnhanced struct {
-	Entry         int    `json:"entry"`
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	BasePoints1   int    `json:"effectBasePoints1"`
-	BasePoints2   int    `json:"effectBasePoints2"`
-	BasePoints3   int    `json:"effectBasePoints3"`
-	DieSides1     int    `json:"effectDieSides1"`
-	DieSides2     int    `json:"effectDieSides2"`
-	DieSides3     int    `json:"effectDieSides3"`
-	DurationIndex int    `json:"durationIndex"`
-	SpellIconId   int    `json:"spellIconId"`
-	IconName      string `json:"iconName"`
+	Entry              int    `json:"entry"`
+	Name               string `json:"name"`
+	Description        string `json:"description"`
+	BasePoints1        int    `json:"effectBasePoints1"`
+	BasePoints2        int    `json:"effectBasePoints2"`
+	BasePoints3        int    `json:"effectBasePoints3"`
+	DieSides1          int    `json:"effectDieSides1"`
+	DieSides2          int    `json:"effectDieSides2"`
+	DieSides3          int    `json:"effectDieSides3"`
+	Amplitude1         int    `json:"effectAmplitude1"`
+	Amplitude2         int    `json:"effectAmplitude2"`
+	Amplitude3         int    `json:"effectAmplitude3"`
+	ChainTarget1       int    `json:"effectChainTarget1"`
+	ChainTarget2       int    `json:"effectChainTarget2"`
+	ChainTarget3       int    `json:"effectChainTarget3"`
+	RadiusIndex1       int    `json:"effectRadiusIndex1"`
+	RadiusIndex2       int    `json:"effectRadiusIndex2"`
+	RadiusIndex3       int    `json:"effectRadiusIndex3"`
+	DurationIndex      int    `json:"durationIndex"`
+	RangeIndex         int    `json:"rangeIndex"`
+	ProcChance         int    `json:"procChance"`
+	ProcCharges        int    `json:"procCharges"`
+	MaxTargetLevel     int    `json:"maxTargetLevel"`
+	MaxAffectedTargets int    `json:"maxAffectedTargets"`
+	SpellIconId        int    `json:"spellIconId"`
+	IconName           string `json:"iconName"`
 }
 
-// ImportMissingSpells backfills spell_template from the Spell.dbc export with
-// any spell the (frozen) MySQL import lacked. The client DBC carries newer
-// octo spells — e.g. set-bonus spells like 52568/52587 — that otherwise show
-// as a raw spell id in tooltips and are unsearchable. Existing rows are kept
-// (INSERT OR IGNORE), so the richer MySQL data always wins.
-func (i *GeneratedImporter) ImportMissingSpells(jsonPath string) error {
+// ImportSpellsFromDBC makes the client Spell.dbc the authoritative source for
+// spell text and the values the $-placeholder resolver reads. On a custom server
+// the client DBC is patched to match what the server actually does, so it is the
+// latest/correct data — newer than the frozen MySQL world-DB import. For every
+// DBC spell it overwrites name/description/effect values/proc/range/icon on the
+// existing row (DBC wins), and inserts spells the MySQL import lacked. The raw
+// $-templates it writes are turned into readable text by the spell resolver pass
+// that runs immediately after (FullSyncSpells). Name/description/icon are only
+// overwritten when the DBC actually provides them, so a DBC gap can't blank good
+// data.
+func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 	data, err := os.ReadFile(jsonPath)
 	if err != nil {
-		return nil // optional
+		return nil // optional — only present after a client import
 	}
 	var spells []SpellEnhanced
 	if err := json.Unmarshal(data, &spells); err != nil {
@@ -102,16 +123,39 @@ func (i *GeneratedImporter) ImportMissingSpells(jsonPath string) error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO spell_template
-		(entry, name, description, effectBasePoints1, effectBasePoints2, effectBasePoints3,
-		 effectDieSides1, effectDieSides2, effectDieSides3, durationIndex, spellIconId, iconName)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+	// DBC wins for existing rows; NULLIF('') keeps prior text/icon when the DBC
+	// has none.
+	upd, err := tx.Prepare(`UPDATE spell_template SET
+		name = COALESCE(NULLIF(?,''), name),
+		description = COALESCE(NULLIF(?,''), description),
+		effectBasePoints1=?, effectBasePoints2=?, effectBasePoints3=?,
+		effectDieSides1=?, effectDieSides2=?, effectDieSides3=?,
+		effectAmplitude1=?, effectAmplitude2=?, effectAmplitude3=?,
+		effectChainTarget1=?, effectChainTarget2=?, effectChainTarget3=?,
+		effectRadiusIndex1=?, effectRadiusIndex2=?, effectRadiusIndex3=?,
+		durationIndex=?, rangeIndex=?, procChance=?, procCharges=?,
+		maxTargetLevel=?, maxAffectedTargets=?,
+		spellIconId=?, iconName=COALESCE(NULLIF(?,''), iconName)
+		WHERE entry=?`)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer upd.Close()
+	ins, err := tx.Prepare(`INSERT OR IGNORE INTO spell_template
+		(entry, name, description, effectBasePoints1, effectBasePoints2, effectBasePoints3,
+		 effectDieSides1, effectDieSides2, effectDieSides3,
+		 effectAmplitude1, effectAmplitude2, effectAmplitude3,
+		 effectChainTarget1, effectChainTarget2, effectChainTarget3,
+		 effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
+		 durationIndex, rangeIndex, procChance, procCharges,
+		 maxTargetLevel, maxAffectedTargets, spellIconId, iconName)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer ins.Close()
 
-	count := 0
+	updated, inserted := 0, 0
 	for _, s := range spells {
 		if s.Entry <= 0 {
 			continue
@@ -120,19 +164,114 @@ func (i *GeneratedImporter) ImportMissingSpells(jsonPath string) error {
 		if icon == "temp" {
 			icon = ""
 		}
-		res, err := stmt.Exec(s.Entry, s.Name, s.Description, s.BasePoints1, s.BasePoints2, s.BasePoints3,
-			s.DieSides1, s.DieSides2, s.DieSides3, s.DurationIndex, s.SpellIconId, icon)
+		res, err := upd.Exec(s.Name, s.Description,
+			s.BasePoints1, s.BasePoints2, s.BasePoints3,
+			s.DieSides1, s.DieSides2, s.DieSides3,
+			s.Amplitude1, s.Amplitude2, s.Amplitude3,
+			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
+			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
+			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
+			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon, s.Entry)
 		if err != nil {
 			continue
 		}
 		if n, _ := res.RowsAffected(); n > 0 {
-			count++
+			updated++
+			continue
+		}
+		// No existing row — insert the DBC spell.
+		if _, err := ins.Exec(s.Entry, s.Name, s.Description,
+			s.BasePoints1, s.BasePoints2, s.BasePoints3,
+			s.DieSides1, s.DieSides2, s.DieSides3,
+			s.Amplitude1, s.Amplitude2, s.Amplitude3,
+			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
+			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
+			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
+			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon); err == nil {
+			inserted++
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Backfilled %d missing spells from DBC\n", count)
+	fmt.Printf("  ✓ Spell DBC import: %d updated, %d inserted (client DBC wins)\n", updated, inserted)
+	return nil
+}
+
+// talentTabJSON mirrors a record in data/talents.json (datatools.TalentTabOut).
+type talentTabJSON struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	Class      string `json:"class"`
+	ClassMask  int    `json:"classMask"`
+	Order      int    `json:"order"`
+	Background string `json:"background"`
+	Talents    []struct {
+		ID        int   `json:"id"`
+		Row       int   `json:"row"`
+		Col       int   `json:"col"`
+		Ranks     []int `json:"ranks"`
+		ReqTalent int   `json:"reqTalent"`
+		ReqRank   int   `json:"reqRank"`
+	} `json:"talents"`
+}
+
+// ImportTalents loads the DBC-derived talent trees from talents.json into the
+// talent_tab / talent tables. The per-rank spell ids are stored as a JSON array;
+// name/description/icon are resolved at query time from spell_template. Existing
+// rows are replaced so a re-import refreshes the data.
+func (i *GeneratedImporter) ImportTalents(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — talents only present after a client import
+	}
+	var tabs []talentTabJSON
+	if err := json.Unmarshal(data, &tabs); err != nil {
+		fmt.Printf("  ERROR parsing talents.json: %v\n", err)
+		return nil
+	}
+
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Clear and repopulate (small, fully derived data set).
+	tx.Exec("DELETE FROM talent")
+	tx.Exec("DELETE FROM talent_tab")
+
+	tabStmt, err := tx.Prepare(`INSERT OR REPLACE INTO talent_tab
+		(id, name, class, class_mask, order_index, background) VALUES (?,?,?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer tabStmt.Close()
+	talStmt, err := tx.Prepare(`INSERT OR REPLACE INTO talent
+		(id, tab_id, row, col, ranks, req_talent, req_rank) VALUES (?,?,?,?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer talStmt.Close()
+
+	tabCount, talCount := 0, 0
+	for _, t := range tabs {
+		if _, err := tabStmt.Exec(t.ID, t.Name, t.Class, t.ClassMask, t.Order, t.Background); err != nil {
+			continue
+		}
+		tabCount++
+		for _, tal := range t.Talents {
+			ranks, _ := json.Marshal(tal.Ranks)
+			if _, err := talStmt.Exec(tal.ID, t.ID, tal.Row, tal.Col, string(ranks), tal.ReqTalent, tal.ReqRank); err != nil {
+				continue
+			}
+			talCount++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d talent trees, %d talents\n", tabCount, talCount)
 	return nil
 }
 

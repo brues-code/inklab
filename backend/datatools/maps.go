@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -408,6 +409,17 @@ func writeJPEG(path string, img image.Image) error {
 	}
 	defer f.Close()
 	return jpeg.Encode(f, img, &jpeg.Options{Quality: 82})
+}
+
+// writePNG writes an image as PNG, preserving alpha (used for assets with
+// transparent edges such as talent-frame backgrounds).
+func writePNG(path string, img image.Image) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return png.Encode(f, img)
 }
 
 // decodeBLP2 decodes the top mip of a BLP2 texture into RGBA. Handles the two

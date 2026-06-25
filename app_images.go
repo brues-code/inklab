@@ -31,6 +31,9 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	case "npc_model", "npc_map":
 		basePath = filepath.Join(a.DataDir, "npc_images")
 		extensions = []string{".jpg", ".png", ".jpeg"}
+	case "talent_bg":
+		basePath = filepath.Join(a.DataDir, "talent_bg")
+		extensions = []string{".png", ".jpg"}
 	case "zone_map":
 		// Zone maps are keyed by texture-folder name (e.g. "UngoroCrater") but
 		// the stored zone name may differ in spacing/punctuation ("Ungoro

@@ -114,6 +114,10 @@ export function GetSyncStats():Promise<Record<string, any>>;
 
 export function GetTables(arg1:string,arg2:string):Promise<Array<models.AtlasTable>>;
 
+export function GetTalentClasses():Promise<Array<string>>;
+
+export function GetTalentTrees(arg1:string):Promise<main.TalentClassData>;
+
 export function GetTooltipData(arg1:number):Promise<models.TooltipData>;
 
 export function GetZoneDetail(arg1:number):Promise<models.ZoneDetail>;

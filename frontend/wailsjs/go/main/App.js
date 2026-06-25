@@ -222,6 +222,14 @@ export function GetTables(arg1, arg2) {
   return window['go']['main']['App']['GetTables'](arg1, arg2);
 }
 
+export function GetTalentClasses() {
+  return window['go']['main']['App']['GetTalentClasses']();
+}
+
+export function GetTalentTrees(arg1) {
+  return window['go']['main']['App']['GetTalentTrees'](arg1);
+}
+
 export function GetTooltipData(arg1) {
   return window['go']['main']['App']['GetTooltipData'](arg1);
 }

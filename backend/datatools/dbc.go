@@ -106,6 +106,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"questsorts", "quest_sorts.json"},
 		{"icons", "item_icons.json"},
 		{"spells", "spells_enhanced.json"},
+		{"talents", "talents.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -133,6 +134,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genIcons(cf)
 	case "spells":
 		v, err = genSpells(cf)
+	case "talents":
+		v, err = genTalents(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -267,9 +270,16 @@ func genIcons(cf ClientFiles) (interface{}, error) {
 	return out, nil
 }
 
-// Spell.dbc: id(0), durationIndex(30), effectDieSides[3](64-66),
-// effectBasePoints[3](76-78), spellIconID(117), name[8](120-127),
-// description[8](138-145). iconName via SpellIcon.dbc: id(0)->texturePath(1).
+// Spell.dbc (1.12, 173 fields): id(0), procChance(25), procCharges(26),
+// durationIndex(30), rangeIndex(36), effectDieSides[3](64-66),
+// effectBasePoints[3](76-78), effectRadiusIndex[3](88-90),
+// effectAmplitude[3](94-96), effectChainTarget[3](100-102), spellIconID(117),
+// name[8](120-127), description[8](138-145), maxTargetLevel(159),
+// maxAffectedTargets(163). iconName via SpellIcon.dbc: id(0)->texturePath(1).
+//
+// These are exactly the fields the local $-placeholder resolver reads, so the
+// client DBC can be the authoritative source for spell text + values (it is the
+// patched, current data for a custom server) — see ImportSpellsFromDBC.
 func genSpells(cf ClientFiles) (interface{}, error) {
 	icons, err := openDBCFrom(cf, "SpellIcon.dbc")
 	if err != nil {
@@ -294,7 +304,13 @@ func genSpells(cf ClientFiles) (interface{}, error) {
 			"entry": d.U32(r, 0), "name": d.Str(r, 120), "description": d.Str(r, 138),
 			"effectBasePoints1": d.I32(r, 76), "effectBasePoints2": d.I32(r, 77), "effectBasePoints3": d.I32(r, 78),
 			"effectDieSides1": d.I32(r, 64), "effectDieSides2": d.I32(r, 65), "effectDieSides3": d.I32(r, 66),
-			"durationIndex": d.U32(r, 30), "spellIconId": iconID, "iconName": name,
+			"effectAmplitude1": d.I32(r, 94), "effectAmplitude2": d.I32(r, 95), "effectAmplitude3": d.I32(r, 96),
+			"effectChainTarget1": d.I32(r, 100), "effectChainTarget2": d.I32(r, 101), "effectChainTarget3": d.I32(r, 102),
+			"effectRadiusIndex1": d.I32(r, 88), "effectRadiusIndex2": d.I32(r, 89), "effectRadiusIndex3": d.I32(r, 90),
+			"durationIndex": d.U32(r, 30), "rangeIndex": d.U32(r, 36),
+			"procChance": d.I32(r, 25), "procCharges": d.I32(r, 26),
+			"maxTargetLevel": d.I32(r, 159), "maxAffectedTargets": d.I32(r, 163),
+			"spellIconId": iconID, "iconName": name,
 		})
 	}
 	return out, nil

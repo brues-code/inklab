@@ -38,6 +38,7 @@ export namespace main {
 	    icons: number;
 	    maps: number;
 	    npcImages: number;
+	    talentBgs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataStatus(source);
@@ -48,6 +49,7 @@ export namespace main {
 	        this.icons = source["icons"];
 	        this.maps = source["maps"];
 	        this.npcImages = source["npcImages"];
+	        this.talentBgs = source["talentBgs"];
 	    }
 	}
 	export class FixMissingIconsResult {
@@ -158,6 +160,138 @@ export namespace main {
 		    return a;
 		}
 	}
+	
+	export class TalentRank {
+	    spellId: number;
+	    description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TalentRank(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.description = source["description"];
+	    }
+	}
+	export class Talent {
+	    id: number;
+	    row: number;
+	    col: number;
+	    name: string;
+	    icon: string;
+	    maxRank: number;
+	    ranks: TalentRank[];
+	    reqTalent: number;
+	    reqRank: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Talent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.row = source["row"];
+	        this.col = source["col"];
+	        this.name = source["name"];
+	        this.icon = source["icon"];
+	        this.maxRank = source["maxRank"];
+	        this.ranks = this.convertValues(source["ranks"], TalentRank);
+	        this.reqTalent = source["reqTalent"];
+	        this.reqRank = source["reqRank"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TalentTree {
+	    id: number;
+	    name: string;
+	    order: number;
+	    background: string;
+	    talents: Talent[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TalentTree(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.order = source["order"];
+	        this.background = source["background"];
+	        this.talents = this.convertValues(source["talents"], Talent);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TalentClassData {
+	    class: string;
+	    trees: TalentTree[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TalentClassData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.trees = this.convertValues(source["trees"], TalentTree);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class UpdateInfo {
 	    current: string;

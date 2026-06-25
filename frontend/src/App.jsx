@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import AtlasLootPage from './pages/AtlasLootPage/AtlasLootPage'
 import DatabasePage from './pages/DatabasePage/DatabasePage'
 import SearchPage from './pages/SearchPage/SearchPage'
+import TalentsPage from './pages/TalentsPage'
 import SyncPage from './pages/SyncPage'
 import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
@@ -55,11 +56,17 @@ function App() {
                         >
                             Favorites
                         </TabButton>
-                        <TabButton 
-                            active={activeTab === 'search'} 
+                        <TabButton
+                            active={activeTab === 'search'}
                             onClick={() => setActiveTab('search')}
                         >
                             Search
+                        </TabButton>
+                        <TabButton
+                            active={activeTab === 'talents'}
+                            onClick={() => setActiveTab('talents')}
+                        >
+                            Talents
                         </TabButton>
                         <TabButton
                             active={activeTab === 'tools'}
@@ -96,6 +103,7 @@ function App() {
                         onNavigate={handleSearchNavigate}
                     />
                 )}
+                {activeTab === 'talents' && <TalentsPage />}
                 {activeTab === 'tools' && <ToolsPage onNavigate={handleSearchNavigate} />}
                 {activeTab === 'sync' && <SyncPage />}
             </main>
