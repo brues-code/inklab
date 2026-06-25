@@ -22,6 +22,7 @@ type ZoneNpc struct {
 	RankName string `json:"rankName"`
 	Type     int    `json:"type"`
 	TypeName string `json:"typeName"`
+	NpcFlags int    `json:"npcFlags"` // service bitmask (vendor, trainer, banker, …)
 }
 
 // ZoneQuest is a quest assigned to a zone (quest_template.ZoneOrSort).
@@ -30,6 +31,14 @@ type ZoneQuest struct {
 	Title      string `json:"title"`
 	QuestLevel int    `json:"questLevel"`
 	MinLevel   int    `json:"minLevel"`
+}
+
+// ZoneObject is a game object that spawns in a zone.
+type ZoneObject struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	Type     int    `json:"type"`
+	TypeName string `json:"typeName"`
 }
 
 // ZoneSpawn is a single creature spawn point in map-percentage coords (0-100),
@@ -50,7 +59,10 @@ type ZoneDetail struct {
 	MinLevel  int    `json:"minLevel"`
 	MaxLevel  int    `json:"maxLevel"`
 
-	Npcs   []*ZoneNpc   `json:"npcs"`
-	Quests []*ZoneQuest `json:"quests"`
-	Spawns []*ZoneSpawn `json:"spawns"`
+	Npcs    []*ZoneNpc    `json:"npcs"`
+	Quests  []*ZoneQuest  `json:"quests"`
+	Objects []*ZoneObject `json:"objects"`
+
+	Spawns       []*ZoneSpawn `json:"spawns"`       // creature spawn markers
+	ObjectSpawns []*ZoneSpawn `json:"objectSpawns"` // game-object spawn markers
 }

@@ -239,7 +239,7 @@ func (r *ZoneRepository) GetZoneDetail(id int) (*models.ZoneDetail, error) {
 		// NPCs spawning in this zone (deduped across spawn points / names).
 		npcRows, err := r.db.Query(`
 			SELECT DISTINCT ct.entry, ct.name, COALESCE(ct.subname, ''),
-				ct.level_min, ct.level_max, ct.rank, ct.type
+				ct.level_min, ct.level_max, ct.rank, ct.type, COALESCE(ct.npc_flags, 0)
 			FROM creature_spawn cs
 			JOIN creature_template ct ON ct.entry = cs.creature_entry
 			WHERE cs.zone_name IN (`+placeholders+`)
@@ -250,7 +250,7 @@ func (r *ZoneRepository) GetZoneDetail(id int) (*models.ZoneDetail, error) {
 			first := true
 			for npcRows.Next() {
 				n := &models.ZoneNpc{}
-				if err := npcRows.Scan(&n.Entry, &n.Name, &n.Subname, &n.LevelMin, &n.LevelMax, &n.Rank, &n.Type); err != nil {
+				if err := npcRows.Scan(&n.Entry, &n.Name, &n.Subname, &n.LevelMin, &n.LevelMax, &n.Rank, &n.Type, &n.NpcFlags); err != nil {
 					continue
 				}
 				n.RankName = helpers.GetCreatureRankName(n.Rank)
@@ -307,13 +307,71 @@ func (r *ZoneRepository) GetZoneDetail(id int) (*models.ZoneDetail, error) {
 		}
 	}
 
+	// Game objects spawning in this zone, plus their spawn markers.
+	objNames := r.spawnNamesForZoneTable("gameobject_spawn", id, zones)
+	if len(objNames) > 0 {
+		ph := strings.TrimSuffix(strings.Repeat("?,", len(objNames)), ",")
+		args := make([]interface{}, len(objNames))
+		for i, n := range objNames {
+			args[i] = n
+		}
+
+		objRows, err := r.db.Query(`
+			SELECT DISTINCT gt.entry, gt.name, gt.type
+			FROM gameobject_spawn gs
+			JOIN gameobject_template gt ON gt.entry = gs.gameobject_entry
+			WHERE gs.zone_name IN (`+ph+`)
+			ORDER BY gt.name
+		`, args...)
+		if err == nil {
+			defer objRows.Close()
+			for objRows.Next() {
+				o := &models.ZoneObject{}
+				if err := objRows.Scan(&o.Entry, &o.Name, &o.Type); err != nil {
+					continue
+				}
+				if name, ok := objectTypeNames[o.Type]; ok {
+					o.TypeName = name
+				}
+				d.Objects = append(d.Objects, o)
+			}
+		}
+
+		osRows, err := r.db.Query(`
+			SELECT gameobject_entry, position_x, position_y
+			FROM gameobject_spawn
+			WHERE zone_name IN (`+ph+`)
+				AND position_x > 0 AND position_x <= 100
+				AND position_y > 0 AND position_y <= 100
+			LIMIT 3000
+		`, args...)
+		if err == nil {
+			defer osRows.Close()
+			for osRows.Next() {
+				s := &models.ZoneSpawn{}
+				if err := osRows.Scan(&s.Entry, &s.X, &s.Y); err != nil {
+					continue
+				}
+				d.ObjectSpawns = append(d.ObjectSpawns, s)
+			}
+		}
+	}
+
 	return d, nil
 }
 
 // spawnNamesForZone returns the distinct creature_spawn.zone_name values that
 // resolve to the given zone id.
 func (r *ZoneRepository) spawnNamesForZone(id int, zones []zoneInfo) []string {
-	rows, err := r.db.Query(`SELECT DISTINCT zone_name FROM creature_spawn`)
+	return r.spawnNamesForZoneTable("creature_spawn", id, zones)
+}
+
+// spawnNamesForZoneTable returns the distinct zone_name values in the given
+// spawn table that resolve to the given zone id. Both creature_spawn and
+// gameobject_spawn store zone names in mixed forms (aowow display names from the
+// MySQL sync, clean folder names from the web sync), so we match via matchZone.
+func (r *ZoneRepository) spawnNamesForZoneTable(table string, id int, zones []zoneInfo) []string {
+	rows, err := r.db.Query(`SELECT DISTINCT zone_name FROM ` + table)
 	if err != nil {
 		return nil
 	}

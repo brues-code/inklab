@@ -2159,6 +2159,24 @@ export namespace models {
 	        this.y = source["y"];
 	    }
 	}
+	export class ZoneObject {
+	    entry: number;
+	    name: string;
+	    type: number;
+	    typeName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZoneObject(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.typeName = source["typeName"];
+	    }
+	}
 	export class ZoneQuest {
 	    entry: number;
 	    title: string;
@@ -2187,6 +2205,7 @@ export namespace models {
 	    rankName: string;
 	    type: number;
 	    typeName: string;
+	    npcFlags: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ZoneNpc(source);
@@ -2203,6 +2222,7 @@ export namespace models {
 	        this.rankName = source["rankName"];
 	        this.type = source["type"];
 	        this.typeName = source["typeName"];
+	        this.npcFlags = source["npcFlags"];
 	    }
 	}
 	export class ZoneDetail {
@@ -2214,7 +2234,9 @@ export namespace models {
 	    maxLevel: number;
 	    npcs: ZoneNpc[];
 	    quests: ZoneQuest[];
+	    objects: ZoneObject[];
 	    spawns: ZoneSpawn[];
+	    objectSpawns: ZoneSpawn[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ZoneDetail(source);
@@ -2230,7 +2252,9 @@ export namespace models {
 	        this.maxLevel = source["maxLevel"];
 	        this.npcs = this.convertValues(source["npcs"], ZoneNpc);
 	        this.quests = this.convertValues(source["quests"], ZoneQuest);
+	        this.objects = this.convertValues(source["objects"], ZoneObject);
 	        this.spawns = this.convertValues(source["spawns"], ZoneSpawn);
+	        this.objectSpawns = this.convertValues(source["objectSpawns"], ZoneSpawn);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2273,6 +2297,7 @@ export namespace models {
 	        this.questCount = source["questCount"];
 	    }
 	}
+	
 	
 	
 

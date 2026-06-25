@@ -13,16 +13,40 @@ const ZONE_COLOR = "#4ADE80";
 // Plotting every spawn point gets heavy in dense zones; cap the markers we draw.
 const MAX_MARKERS = 800;
 
+// Map "services" filters, à la Wowhead. NPC services are creature npc_flags
+// bits; books/mailboxes are game-object types. Selecting one narrows the map
+// markers and the matching list to just that service.
+const SERVICES = [
+  { id: "questgiver", label: "Quest Givers", kind: "npc", bit: 0x2 },
+  { id: "vendor", label: "Vendors", kind: "npc", bit: 0x80 },
+  { id: "trainer", label: "Trainers", kind: "npc", bit: 0x10 | 0x20 | 0x40 },
+  { id: "repair", label: "Repairers", kind: "npc", bit: 0x1000 },
+  { id: "flightmaster", label: "Flight Masters", kind: "npc", bit: 0x2000 },
+  { id: "spirithealer", label: "Spirit Healers", kind: "npc", bit: 0x4000 },
+  { id: "innkeeper", label: "Innkeepers", kind: "npc", bit: 0x10000 },
+  { id: "banker", label: "Bankers", kind: "npc", bit: 0x20000 },
+  { id: "battlemaster", label: "Battlemasters", kind: "npc", bit: 0x100000 },
+  { id: "auctioneer", label: "Auctioneers", kind: "npc", bit: 0x200000 },
+  { id: "stablemaster", label: "Stable Masters", kind: "npc", bit: 0x400000 },
+  { id: "books", label: "Books", kind: "obj", type: 9 },
+  { id: "mailbox", label: "Mailboxes", kind: "obj", type: 19 },
+];
+
+const npcMatchesService = (n, svc) => svc.kind === "npc" && (n.npcFlags & svc.bit) !== 0;
+const objMatchesService = (o, svc) => svc.kind === "obj" && o.type === svc.type;
+
 const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState("npcs");
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [service, setService] = useState(null); // active service filter id
 
   const mapImage = useZoneMap(detail?.mapName);
 
   useEffect(() => {
     setLoading(true);
+    setService(null);
     GetZoneDetail(entry).then((res) => {
       setDetail(res);
       setLoading(false);
@@ -32,9 +56,26 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
   if (loading) return <DetailLoading />;
   if (!detail) return <DetailError message="Zone not found" onBack={onBack} />;
 
-  const npcs = detail.npcs || [];
+  const allNpcs = detail.npcs || [];
   const quests = detail.quests || [];
-  const spawns = (detail.spawns || []).slice(0, MAX_MARKERS);
+  const allObjects = detail.objects || [];
+
+  const activeSvc = SERVICES.find((s) => s.id === service) || null;
+
+  // Lists are narrowed to the active service (if any).
+  const npcs =
+    activeSvc?.kind === "npc" ? allNpcs.filter((n) => npcMatchesService(n, activeSvc)) : allNpcs;
+  const objects =
+    activeSvc?.kind === "obj" ? allObjects.filter((o) => objMatchesService(o, activeSvc)) : allObjects;
+
+  // Only offer service chips that actually match something in this zone.
+  const services = SERVICES.map((s) => ({
+    ...s,
+    count:
+      s.kind === "npc"
+        ? allNpcs.filter((n) => npcMatchesService(n, s)).length
+        : allObjects.filter((o) => objMatchesService(o, s)).length,
+  })).filter((s) => s.count > 0);
 
   const levelLabel =
     detail.maxLevel > 0
@@ -46,13 +87,42 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
   const tabs = [
     { id: "npcs", label: `NPCs (${npcs.length})` },
     { id: "quests", label: `Quests (${quests.length})` },
+    { id: "objects", label: `Objects (${objects.length})` },
   ];
+
+  // Map markers: when a service is active, show only its matching spawns;
+  // otherwise follow the active tab. Object markers are cyan, creatures emerald.
+  let showingObjects;
+  let markerSource;
+  if (activeSvc) {
+    showingObjects = activeSvc.kind === "obj";
+    const ok = new Set((showingObjects ? objects : npcs).map((e) => e.entry));
+    markerSource = (showingObjects ? detail.objectSpawns : detail.spawns)?.filter((s) =>
+      ok.has(s.entry)
+    );
+  } else {
+    showingObjects = activeTab === "objects";
+    markerSource = showingObjects ? detail.objectSpawns : detail.spawns;
+  }
+  const spawns = (markerSource || []).slice(0, MAX_MARKERS);
+  const markerClass = showingObjects
+    ? "bg-cyan-400/80 border-cyan-200"
+    : "bg-emerald-500/80 border-emerald-300";
+
+  const selectService = (s) => {
+    if (service === s.id) {
+      setService(null);
+      return;
+    }
+    setService(s.id);
+    setActiveTab(s.kind === "obj" ? "objects" : "npcs");
+  };
 
   const renderMarkers = (size) =>
     spawns.map((s, idx) => (
       <div
         key={idx}
-        className="absolute rounded-full bg-emerald-500/80 border border-emerald-300 shadow"
+        className={`absolute rounded-full border shadow ${markerClass}`}
         style={{
           width: size,
           height: size,
@@ -77,6 +147,35 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
           )}
         </div>
 
+        {/* Services filter — narrows the map markers and the matching list */}
+        {services.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-5">
+            <button
+              onClick={() => setService(null)}
+              className={`px-2.5 py-1 rounded text-xs border transition-colors ${
+                !service
+                  ? "border-wow-gold/60 bg-wow-gold/15 text-wow-gold"
+                  : "border-gray-600/40 bg-white/[0.02] text-gray-300 hover:bg-white/5"
+              }`}
+            >
+              All
+            </button>
+            {services.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => selectService(s)}
+                className={`px-2.5 py-1 rounded text-xs border transition-colors ${
+                  service === s.id
+                    ? "border-wow-gold/60 bg-wow-gold/15 text-wow-gold"
+                    : "border-gray-600/40 bg-white/[0.02] text-gray-300 hover:bg-white/5"
+                }`}
+              >
+                {s.label} <span className="text-gray-500">({s.count})</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left: Map */}
           <div className="w-full lg:w-[488px] flex-shrink-0">
@@ -85,8 +184,8 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
               {spawns.length > 0 && (
                 <span className="text-xs text-gray-400 font-mono">
                   {spawns.length}
-                  {(detail.spawns?.length || 0) > spawns.length ? "+" : ""} spawn
-                  points
+                  {(markerSource?.length || 0) > spawns.length ? "+" : ""}{" "}
+                  {showingObjects ? "object" : "spawn"} points
                 </span>
               )}
             </div>
@@ -141,11 +240,15 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                 </tr>
                 <tr>
                   <th>NPCs:</th>
-                  <td>{npcs.length}</td>
+                  <td>{allNpcs.length}</td>
                 </tr>
                 <tr>
                   <th>Quests:</th>
                   <td>{quests.length}</td>
+                </tr>
+                <tr>
+                  <th>Objects:</th>
+                  <td>{allObjects.length}</td>
                 </tr>
               </tbody>
             </table>
@@ -240,6 +343,40 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                 </div>
               ) : (
                 <div className="text-gray-500 italic">No quests in this zone.</div>
+              )}
+            </DetailSection>
+          )}
+
+          {activeTab === "objects" && (
+            <DetailSection title={`Objects (${objects.length})`}>
+              {objects.length > 0 ? (
+                <div className="bg-bg-sub rounded border border-border-light">
+                  {objects.map((o, i) => (
+                    <div
+                      key={o.entry}
+                      onClick={() => onNavigate("object", o.entry)}
+                      className={`p-3 flex items-center gap-3 hover:bg-white/5 cursor-pointer transition-colors ${
+                        i !== objects.length - 1
+                          ? "border-b border-border-light/50"
+                          : ""
+                      }`}
+                    >
+                      <span className="text-gray-600 text-[11px] font-mono min-w-[50px]">
+                        [{o.entry}]
+                      </span>
+                      <span className="text-sm font-medium truncate flex-1" style={{ color: "#4ADE80" }}>
+                        {o.name}
+                      </span>
+                      {o.typeName && (
+                        <span className="text-gray-500 text-xs whitespace-nowrap">
+                          {o.typeName}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500 italic">No objects recorded in this zone.</div>
               )}
             </DetailSection>
           )}
