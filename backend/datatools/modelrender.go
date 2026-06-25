@@ -320,6 +320,8 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 			sb := clamp255(float64(cb) * li)
 			dst := img.RGBAAt(x, y)
 
+			// M2 blendingMode: 0 opaque, 1 alpha-key, 2 alpha, 3 no-alpha-add,
+			// 4 add, 5 mod, 6 mod2x, 7 blend-add.
 			switch blend {
 			case 2: // alpha blend (translucent) — over existing, no z-write
 				af := float64(ca) / 255
@@ -329,8 +331,11 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 					uint8(sb*af + float64(dst.B)*(1-af)),
 					maxU8(dst.A, ca),
 				})
-			case 3: // additive (glows, auras) — order-independent, no z-write
+			case 3, 4, 7: // additive (glows, auras) — order-independent, no z-write
 				af := float64(ca) / 255
+				if blend == 3 {
+					af = 1 // no-alpha-add: add full color
+				}
 				// Alpha tracks the brightness added, so dark additive texels stay
 				// transparent (no dark panel) and bright glows show on any backdrop.
 				addLum := maxf(sr, maxf(sg, sb)) * af
@@ -340,7 +345,7 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 					uint8(clamp255(float64(dst.B) + sb*af)),
 					maxU8(dst.A, uint8(clamp255(addLum))),
 				})
-			default: // 0 opaque / 1 alpha-key — alpha-tested, writes z
+			default: // 0 opaque / 1 alpha-key / 5,6 modulate — alpha-tested, writes z
 				if ca < 128 {
 					continue
 				}
