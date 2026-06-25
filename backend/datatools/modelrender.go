@@ -13,7 +13,6 @@ import (
 	"image/png"
 	"math"
 	"os"
-	"strings"
 )
 
 // RenderOptions controls a model render.
@@ -36,8 +35,10 @@ func RenderCreatureModel(cf ClientFiles, displayID int, opt RenderOptions) (*ima
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(strings.ToLower(cm.ModelPath), "character\\") {
-		return nil, fmt.Errorf("display %d is a character model (%s); creature renderer only", displayID, cm.ModelPath)
+	// Character (humanoid) models without a baked skin can't be textured, so skip
+	// them (the caller falls back to octowow). Those with a baked skin render here.
+	if cm.IsCharacter() && cm.BakedSkinPath() == "" {
+		return nil, fmt.Errorf("display %d is a character model without a baked skin (%s)", displayID, cm.ModelPath)
 	}
 	mb, _, err := ReadModelFile(cf, cm.ModelPath)
 	if err != nil {
@@ -143,8 +144,19 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 
 	light := normalize3([3]float64{-0.4, 0.7, -0.8}) // upper-left, toward camera
 
+	selected := cm.SelectGeosets(cf, m)
+	isChar := cm.IsCharacter()
+
 	for si, sub := range m.SubMeshes {
+		if !selected[si] {
+			continue
+		}
 		tex := texFor(si)
+		// On character models, an untextured submesh (e.g. hair we can't resolve)
+		// would draw as a gray blob — skip it instead.
+		if tex == nil && isChar {
+			continue
+		}
 		triEnd := sub.TriangleStart + uint32(sub.TriangleCount)
 		for t := sub.TriangleStart; t+2 < triEnd && int(t+2) < len(m.Triangles); t += 3 {
 			var verts [3]screenVert

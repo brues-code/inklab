@@ -17,6 +17,33 @@ type CreatureModel struct {
 	ModelID   int
 	ModelPath string    // e.g. Creature\Murloc\Murloc.mdx
 	TexVars   [3]string // CreatureDisplayInfo texture variations (skin names)
+	Extra     *CreatureExtra
+}
+
+// CreatureExtra holds the humanoid appearance from CreatureDisplayInfoExtra,
+// present only for character (Character\Race\Sex) models. BakeName is the
+// pre-composited body skin the client ships in Textures\BakedNpcTextures.
+type CreatureExtra struct {
+	Race       int
+	Sex        int
+	HairStyle   int
+	HairColor   int
+	FacialHair  int
+	BakeName    string
+	HairTexture string // resolved CharSections hair texture for the hair geoset
+}
+
+// IsCharacter reports whether this display uses a humanoid character model.
+func (cm *CreatureModel) IsCharacter() bool {
+	return strings.HasPrefix(strings.ToLower(cm.ModelPath), `character\`)
+}
+
+// BakedSkinPath returns the baked composite-skin texture path, or "".
+func (cm *CreatureModel) BakedSkinPath() string {
+	if cm.Extra == nil || cm.Extra.BakeName == "" {
+		return ""
+	}
+	return `Textures\BakedNpcTextures\` + cm.Extra.BakeName
 }
 
 // dbcReader is a minimal WDBC accessor (record/field/string-block).
@@ -107,7 +134,76 @@ func ResolveCreatureModel(cf ClientFiles, displayID int) (*CreatureModel, error)
 		return nil, fmt.Errorf("model id %d not found", cm.ModelID)
 	}
 	cm.ModelPath = cmd.str(mrec, 2)
+
+	// Humanoid appearance (CreatureDisplayInfo.extendedDisplayInfoID, field 3).
+	if extID := cdi.u32(rec, 3); extID > 0 {
+		if exb, err := cf.ReadDBC("CreatureDisplayInfoExtra.dbc"); err == nil {
+			if ex, err := openDBCReader(exb); err == nil {
+				if er, ok := ex.findByID(extID); ok {
+					cm.Extra = &CreatureExtra{
+						Race:       int(ex.u32(er, 1)),
+						Sex:        int(ex.u32(er, 2)),
+						HairStyle:  int(ex.u32(er, 5)),
+						HairColor:  int(ex.u32(er, 6)),
+						FacialHair: int(ex.u32(er, 7)),
+						BakeName:   ex.str(er, ex.fc-1), // bakeName is the last field
+					}
+					cm.Extra.HairTexture = ResolveHairTexture(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairColor)
+				}
+			}
+		}
+	}
 	return cm, nil
+}
+
+// ResolveHairTexture returns the hair texture for a (race, sex, hairColor) from
+// CharSections.dbc (baseSection 3 = Hair, texture at field 6), preferring a
+// matching color and falling back to any hair row for the race/sex.
+func ResolveHairTexture(cf ClientFiles, race, sex, hairColor int) string {
+	b, err := cf.ReadDBC("CharSections.dbc")
+	if err != nil {
+		return ""
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return ""
+	}
+	fallback := ""
+	for r := 0; r < d.rc; r++ {
+		if int(d.u32(r, 1)) != race || int(d.u32(r, 2)) != sex || d.u32(r, 3) != 3 {
+			continue
+		}
+		tex := d.str(r, 6)
+		if tex == "" {
+			continue
+		}
+		if int(d.u32(r, 5)) == hairColor {
+			return tex
+		}
+		if fallback == "" {
+			fallback = tex
+		}
+	}
+	return fallback
+}
+
+// ResolveHairGeoset returns the group-0 hair geoset id for a (race, sex,
+// hairStyle) from CharHairGeosets.dbc, or -1 if not found.
+func ResolveHairGeoset(cf ClientFiles, race, sex, hairStyle int) int {
+	b, err := cf.ReadDBC("CharHairGeosets.dbc")
+	if err != nil {
+		return -1
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return -1
+	}
+	for r := 0; r < d.rc; r++ {
+		if int(d.u32(r, 1)) == race && int(d.u32(r, 2)) == sex && int(d.u32(r, 3)) == hairStyle {
+			return int(d.u32(r, 4))
+		}
+	}
+	return -1
 }
 
 // ReadModelFile reads the model bytes, tolerating the .mdx/.m2 extension split
@@ -144,8 +240,15 @@ func (cm *CreatureModel) TextureForUnit(m *M2Model, tu M2TexUnit) string {
 		return ""
 	}
 	t := m.Textures[texIdx]
-	if t.Type == 0 {
+	switch t.Type {
+	case 0:
 		return t.FileName
+	case 1, 8: // character body skin -> the baked composite the client ships
+		return cm.BakedSkinPath()
+	case 6: // character hair
+		if cm.Extra != nil {
+			return cm.Extra.HairTexture
+		}
 	}
 	// Monster skins: variation index = type - 11. The skin BLP lives in the
 	// model file's directory.
@@ -159,4 +262,33 @@ func (cm *CreatureModel) TextureForUnit(m *M2Model, tu M2TexUnit) string {
 		return strings.ReplaceAll(path.Join(dir, name), "/", `\`)
 	}
 	return ""
+}
+
+// SelectGeosets returns the set of submesh INDICES to render. Creatures draw
+// every submesh; character models draw the base body + the selected hairstyle +
+// the default (lowest) variant of each body-part group, skipping alternates
+// (other hairstyles, facial hair, tabards/cloaks/etc.). The baked skin already
+// carries the equipped armor as texture, so this yields a clothed humanoid.
+func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool {
+	sel := map[int]bool{}
+	if !cm.IsCharacter() || cm.Extra == nil {
+		for i := range m.SubMeshes {
+			sel[i] = true
+		}
+		return sel
+	}
+	hair := ResolveHairGeoset(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairStyle)
+	for i, s := range m.SubMeshes {
+		id := int(s.ID)
+		g := id / 100 * 100
+		switch {
+		case id == 0: // base body
+			sel[i] = true
+		case g == 0 && id == hair: // selected hairstyle
+			sel[i] = true
+		case g != 0 && id == g+1: // variant 1 = each group's default "skin" geoset
+			sel[i] = true
+		}
+	}
+	return sel
 }
