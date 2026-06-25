@@ -340,6 +340,35 @@ func (a *App) RenderNpcModels(baseDir string, startFrom int, delayMs int) string
 	return "Started"
 }
 
+// FullSyncObjects re-syncs spawn points for every known game object from the web
+// (octowow.st) — the bulk counterpart to SyncObjectSpawns. Runs in the
+// background, emits progress, and is cancellable via StopSync.
+func (a *App) FullSyncObjects(delayMs int, startFrom int) string {
+	fmt.Printf("[API] FullSyncObjects called with delayMs=%d, startFrom=%d\n", delayMs, startFrom)
+	if delayMs <= 0 {
+		delayMs = 200
+	}
+	a.npcService.ResetStop()
+
+	go func() {
+		progressCb := func(current, total int, id int) {
+			runtime.EventsEmit(a.ctx, "sync:objects:progress", map[string]interface{}{
+				"current":  current,
+				"total":    total,
+				"itemId":   id,
+				"itemName": fmt.Sprintf("Object %d", id),
+			})
+		}
+		if err := a.npcService.FullSyncObjectSpawns(startFrom, delayMs, progressCb); err != nil {
+			runtime.EventsEmit(a.ctx, "sync:objects_full:error", err.Error())
+		} else {
+			runtime.EventsEmit(a.ctx, "sync:objects_full:complete", "GameObject spawn sync complete")
+		}
+	}()
+
+	return "Started"
+}
+
 func (a *App) SyncSingleSpell(spellID int) *services.SyncSpellResult {
 	fmt.Printf("[API] SyncSingleSpell called for spell %d\n", spellID)
 	// Resolve the spell's description locally from DBC data (no web scrape).

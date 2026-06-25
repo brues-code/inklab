@@ -5,6 +5,7 @@ import {
   FullSyncItems,
   FullSyncSpells,
   FullSyncQuests,
+  FullSyncObjects,
   StopSync,
 } from "../../../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
@@ -15,9 +16,10 @@ const SYNC_TYPES = [
   { id: "item", name: "Items", icon: "⚔️" },
   { id: "spell", name: "Spells", icon: "✨" },
   { id: "quest", name: "Quests", icon: "📜" },
+  { id: "object", name: "Objects", icon: "📦" },
 ];
 
-function SettingsPage() {
+function SyncPage() {
   // Global stats
   const [syncStats, setSyncStats] = useState(null);
   
@@ -32,6 +34,7 @@ function SettingsPage() {
       item: parseInt(localStorage.getItem('lastSyncedItemId') || "0", 10),
       spell: parseInt(localStorage.getItem('lastSyncedSpellId') || "0", 10),
       quest: parseInt(localStorage.getItem('lastSyncedQuestId') || "0", 10),
+      object: parseInt(localStorage.getItem('lastSyncedObjectId') || "0", 10),
       model: parseInt(localStorage.getItem('lastSyncedModelId') || "0", 10),
   });
 
@@ -62,6 +65,11 @@ function SettingsPage() {
     EventsOn("sync:quests:progress", (data) => handleProgress("quest", data));
     EventsOn("sync:quests_full:complete", (msg) => handleSyncDone("quest", msg));
 
+    // Object Progress
+    EventsOn("sync:objects:progress", (data) => handleProgress("object", data));
+    EventsOn("sync:objects_full:error", (msg) => handleSyncError("object", msg));
+    EventsOn("sync:objects_full:complete", (msg) => handleSyncDone("object", msg));
+
     return () => {
         EventsOff("sync:npc_full:progress");
         EventsOff("sync:npc_full:error");
@@ -73,6 +81,9 @@ function SettingsPage() {
         EventsOff("sync:spells_full:complete");
         EventsOff("sync:quests:progress");
         EventsOff("sync:quests_full:complete");
+        EventsOff("sync:objects:progress");
+        EventsOff("sync:objects_full:error");
+        EventsOff("sync:objects_full:complete");
     };
   }, []);
 
@@ -144,6 +155,9 @@ function SettingsPage() {
               break;
           case 'quest':
               await FullSyncQuests(100, startId);
+              break;
+          case 'object':
+              await FullSyncObjects(100, startId);
               break;
       }
     } catch (error) {
@@ -371,4 +385,4 @@ function SettingsPage() {
   );
 }
 
-export default SettingsPage;
+export default SyncPage;

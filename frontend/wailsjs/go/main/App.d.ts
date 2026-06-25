@@ -30,6 +30,8 @@ export function FullSyncItems(arg1:number,arg2:boolean,arg3:number):Promise<stri
 
 export function FullSyncNpcs(arg1:number,arg2:number):Promise<string>;
 
+export function FullSyncObjects(arg1:number,arg2:number):Promise<string>;
+
 export function FullSyncQuests(arg1:number,arg2:number):Promise<string>;
 
 export function FullSyncSpells(arg1:number,arg2:boolean,arg3:number):Promise<string>;

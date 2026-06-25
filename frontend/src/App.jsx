@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import AtlasLootPage from './pages/AtlasLootPage/AtlasLootPage'
 import DatabasePage from './pages/DatabasePage/DatabasePage'
 import SearchPage from './pages/SearchPage/SearchPage'
-import SettingsPage from './pages/SettingsPage'
+import SyncPage from './pages/SyncPage'
 import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
 import { TabButton, UpdateBanner, DataStatusBanner } from './components/ui'
@@ -68,8 +68,8 @@ function App() {
                             Import
                         </TabButton>
                         <TabButton
-                            active={activeTab === 'settings'}
-                            onClick={() => setActiveTab('settings')}
+                            active={activeTab === 'sync'}
+                            onClick={() => setActiveTab('sync')}
                         >
                             Sync
                         </TabButton>
@@ -97,7 +97,7 @@ function App() {
                     />
                 )}
                 {activeTab === 'tools' && <ToolsPage onNavigate={handleSearchNavigate} />}
-                {activeTab === 'settings' && <SettingsPage />}
+                {activeTab === 'sync' && <SyncPage />}
             </main>
         </div>
     )

@@ -1116,6 +1116,70 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	return nil
 }
 
+// FullSyncObjectSpawns scrapes spawn points for every known game object from the
+// web (octowow.st), replacing each object's gameobject_spawn rows — the bulk
+// counterpart to SyncObjectSpawnsFromWeb (the individual object sync). Like the
+// NPC full sync it's network-bound, so it runs over a worker pool; honors the
+// stop flag and resumes from startFrom.
+func (s *NpcService) FullSyncObjectSpawns(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
+	if s.scraper == nil {
+		return fmt.Errorf("no scraper available")
+	}
+	rows, err := s.sqlite.Query("SELECT entry FROM gameobject_template WHERE entry >= ? ORDER BY entry", startFrom)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var entries []int
+	for rows.Next() {
+		var e int
+		if err := rows.Scan(&e); err == nil {
+			entries = append(entries, e)
+		}
+	}
+
+	total := len(entries)
+	const numWorkers = 10
+	jobs := make(chan int, total)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	processed := 0
+
+	worker := func() {
+		defer wg.Done()
+		for entry := range jobs {
+			if s.IsStopped() {
+				return
+			}
+			// Non-fatal per object: a scrape failure (no page, network blip) just
+			// leaves that object's spawns as-is and we move on.
+			_, _ = s.SyncObjectSpawnsFromWeb(entry)
+			mu.Lock()
+			processed++
+			if progressCb != nil {
+				progressCb(processed, total, entry)
+			}
+			mu.Unlock()
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
+		}
+	}
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, entry := range entries {
+		jobs <- entry
+	}
+	close(jobs)
+	wg.Wait()
+
+	return nil
+}
+
 // RefreshNpcImages scrapes only the visual metadata (model + map images, zone,
 // coords) and stores it, WITHOUT touching creature_template. Use this to pull a
 // missing model/map without re-syncing (and potentially overwriting) the
