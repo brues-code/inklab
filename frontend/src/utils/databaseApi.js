@@ -216,6 +216,21 @@ export const GetQuestsByEnhancedCategory = (categoryId, nameFilter = '') => {
     return Promise.resolve([])
 }
 
+// Zone APIs
+export const GetZones = () => {
+    if (window?.go?.main?.App?.GetZones) {
+        return window.go.main.App.GetZones()
+    }
+    return Promise.resolve([])
+}
+
+export const GetZoneDetail = (id) => {
+    if (window?.go?.main?.App?.GetZoneDetail) {
+        return window.go.main.App.GetZoneDetail(id)
+    }
+    return Promise.resolve(null)
+}
+
 // Filter helper function
 export const filterItems = (items, filter) => {
     if (!filter || !filter.trim()) return items || []

@@ -116,6 +116,10 @@ export function GetTables(arg1:string,arg2:string):Promise<Array<models.AtlasTab
 
 export function GetTooltipData(arg1:number):Promise<models.TooltipData>;
 
+export function GetZoneDetail(arg1:number):Promise<models.ZoneDetail>;
+
+export function GetZones():Promise<Array<models.ZoneListEntry>>;
+
 export function IsFavorite(arg1:number):Promise<boolean>;
 
 export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;

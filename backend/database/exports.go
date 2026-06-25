@@ -86,6 +86,11 @@ type FavoriteCategory = models.FavoriteCategory
 type FavoriteResult = models.FavoriteResult
 
 type ZoneEntry = models.ZoneEntry
+type ZoneListEntry = models.ZoneListEntry
+type ZoneNpc = models.ZoneNpc
+type ZoneQuest = models.ZoneQuest
+type ZoneSpawn = models.ZoneSpawn
+type ZoneDetail = models.ZoneDetail
 type SkillEntry = models.SkillEntry
 type SkillLineAbilityEntry = models.SkillLineAbilityEntry
 type SearchFilter = models.SearchFilter
@@ -100,6 +105,7 @@ type SpellRepository = repositories.SpellRepository
 type LootRepository = repositories.LootRepository
 type FactionRepository = repositories.FactionRepository
 type GameObjectRepository = repositories.GameObjectRepository
+type ZoneRepository = repositories.ZoneRepository
 type CategoryRepository = repositories.CategoryRepository
 type AtlasLootRepository = repositories.AtlasLootRepository
 type LocaleRepository = repositories.LocaleRepository
@@ -133,6 +139,10 @@ func NewFactionRepository(db *SQLiteDB) *FactionRepository {
 
 func NewGameObjectRepository(db *SQLiteDB) *GameObjectRepository {
 	return repositories.NewGameObjectRepository(db.DB())
+}
+
+func NewZoneRepository(db *SQLiteDB) *ZoneRepository {
+	return repositories.NewZoneRepository(db.DB())
 }
 
 func NewCategoryRepository(db *SQLiteDB) *CategoryRepository {

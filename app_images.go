@@ -60,10 +60,21 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	return &ImageResult{Error: "file not found: " + name}
 }
 
+// mapKeyAliases canonicalizes misspelled map keys so a correctly-spelled zone
+// name still resolves its (typo'd) shipped map file. Both the requested name
+// and the on-disk filename pass through normKey, so mapping the typo form to the
+// correct form makes them collide. Keys/values are normKey output (lowercase
+// alphanumerics). The octo client ships these capital-city maps misspelled.
+var mapKeyAliases = map[string]string{
+	"ogrimmar":  "orgrimmar", // file "Ogrimmar.jpg"  -> zone "Orgrimmar"
+	"darnassis": "darnassus", // file "Darnassis.jpg" -> zone "Darnassus"
+}
+
 // normKey reduces a name to lowercase alphanumerics for loose matching, so
 // "Ungoro Crater" and "Zul'Gurub" match the "UngoroCrater"/"ZulGurub" folders.
 // Parenthetical suffixes are dropped so scraped names like "The Deadmines
-// (Dungeon)" still match the "TheDeadmines" map file.
+// (Dungeon)" still match the "TheDeadmines" map file. Known misspellings are
+// canonicalized via mapKeyAliases.
 func normKey(s string) string {
 	var b strings.Builder
 	depth := 0
@@ -79,7 +90,11 @@ func normKey(s string) string {
 			b.WriteRune(r)
 		}
 	}
-	return b.String()
+	k := b.String()
+	if canon, ok := mapKeyAliases[k]; ok {
+		return canon
+	}
+	return k
 }
 
 // findZoneMap resolves a zone name to data/maps/<file>, trying an exact match

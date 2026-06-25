@@ -27,6 +27,7 @@ type App struct {
 	lootRepo      *database.LootRepository
 	factionRepo   *database.FactionRepository
 	objectRepo    *database.GameObjectRepository
+	zoneRepo      *database.ZoneRepository
 	categoryRepo  *database.CategoryRepository
 	atlasLootRepo *database.AtlasLootRepository
 	favoriteRepo  *database.FavoriteRepository
@@ -91,6 +92,7 @@ func (a *App) startup(ctx context.Context) {
 	a.lootRepo = database.NewLootRepository(db)
 	a.factionRepo = database.NewFactionRepository(db)
 	a.objectRepo = database.NewGameObjectRepository(db)
+	a.zoneRepo = database.NewZoneRepository(db)
 	a.categoryRepo = database.NewCategoryRepository(db)
 	a.atlasLootRepo = database.NewAtlasLootRepository(db)
 	a.favoriteRepo = database.NewFavoriteRepository(db)

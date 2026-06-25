@@ -7,13 +7,13 @@ import {
     TabBar,
     ItemTooltip 
 } from '../../components/ui'
-import { NPCDetailView, QuestDetailView, ItemDetailView, SpellDetailView, ObjectDetailView, FactionDetailView } from '../../components/database/detailview'
+import { NPCDetailView, QuestDetailView, ItemDetailView, SpellDetailView, ObjectDetailView, ZoneDetailView, FactionDetailView } from '../../components/database/detailview'
 import { GRID_LAYOUT, ITEMS_LAYOUT, SETS_LAYOUT } from '../../components/common/layout'
 
 // Import tab components
-import { ItemsTab, SetsTab, NPCsTab, QuestsTab, ObjectsTab, SpellsTab, FactionsTab } from '../../components/database/tabs'
+import { ItemsTab, SetsTab, NPCsTab, QuestsTab, ObjectsTab, ZonesTab, SpellsTab, FactionsTab } from '../../components/database/tabs'
 
-const TABS = ['Items', 'Sets', 'NPCs', 'Quests', 'Objects', 'Spells', 'Factions']
+const TABS = ['Items', 'Sets', 'NPCs', 'Quests', 'Objects', 'Zones', 'Spells', 'Factions']
 
 function DatabasePage({ pendingNavigation, onNavigationHandled }) {
     const [activeTab, setActiveTab] = useState('items')
@@ -99,6 +99,9 @@ function DatabasePage({ pendingNavigation, onNavigationHandled }) {
                         {activeTab === 'objects' && (
                             <ObjectsTab onNavigate={navigateTo} />
                         )}
+                        {activeTab === 'zones' && (
+                            <ZonesTab onNavigate={navigateTo} />
+                        )}
                         {activeTab === 'spells' && (
                             <SpellsTab onNavigate={navigateTo} />
                         )}
@@ -161,11 +164,18 @@ function DatabasePage({ pendingNavigation, onNavigationHandled }) {
                             />
                         )}
                         {currentDetail.type === 'object' && (
-                            <ObjectDetailView 
-                                entry={currentDetail.entry} 
+                            <ObjectDetailView
+                                entry={currentDetail.entry}
                                 onNavigate={navigateTo}
                                 onBack={goBack}
                                 tooltipHook={enhancedTooltipHook}
+                            />
+                        )}
+                        {currentDetail.type === 'zone' && (
+                            <ZoneDetailView
+                                entry={currentDetail.entry}
+                                onNavigate={navigateTo}
+                                onBack={goBack}
                             />
                         )}
                         {currentDetail.type === 'faction' && (
