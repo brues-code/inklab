@@ -73,8 +73,9 @@ var mapKeyAliases = map[string]string{
 // normKey reduces a name to lowercase alphanumerics for loose matching, so
 // "Ungoro Crater" and "Zul'Gurub" match the "UngoroCrater"/"ZulGurub" folders.
 // Parenthetical suffixes are dropped so scraped names like "The Deadmines
-// (Dungeon)" still match the "TheDeadmines" map file. Known misspellings are
-// canonicalized via mapKeyAliases.
+// (Dungeon)" still match the "TheDeadmines" map file. A leading "the" is
+// stripped ("The Barrens" -> Barrens) and known misspellings are canonicalized
+// via mapKeyAliases.
 func normKey(s string) string {
 	var b strings.Builder
 	depth := 0
@@ -90,7 +91,7 @@ func normKey(s string) string {
 			b.WriteRune(r)
 		}
 	}
-	k := b.String()
+	k := strings.TrimPrefix(b.String(), "the")
 	if canon, ok := mapKeyAliases[k]; ok {
 		return canon
 	}
@@ -120,16 +121,30 @@ func (a *App) findZoneMap(name string) *ImageResult {
 	target := normKey(name)
 	if target != "" {
 		if ents, err := os.ReadDir(dir); err == nil {
+			bestFn, bestExt, bestLen := "", "", 0
 			for _, e := range ents {
 				fn := e.Name()
 				ext := filepath.Ext(fn)
 				if ext != ".jpg" && ext != ".png" {
 					continue
 				}
-				if normKey(strings.TrimSuffix(fn, ext)) == target {
+				k := normKey(strings.TrimSuffix(fn, ext))
+				if k == target {
 					if r := read(filepath.Join(dir, fn), ext); r != nil {
 						return r
 					}
+				}
+				// Longest-prefix fallback: the stored zone name often carries
+				// extra words the texture folder lacks ("Stormwind City" ->
+				// Stormwind, "Elwynn Forrest" -> Elwynn). Match the map file whose
+				// key is the longest prefix of the requested name.
+				if len(k) >= 3 && len(k) > bestLen && strings.HasPrefix(target, k) {
+					bestFn, bestExt, bestLen = fn, ext, len(k)
+				}
+			}
+			if bestFn != "" {
+				if r := read(filepath.Join(dir, bestFn), bestExt); r != nil {
+					return r
 				}
 			}
 		}
