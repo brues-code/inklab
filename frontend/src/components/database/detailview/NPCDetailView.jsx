@@ -428,8 +428,18 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                   {detail.abilities?.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-1">
                       {detail.abilities.slice(0, 5).map((spell, i) => (
-                        <li key={spell.id || i}>
-                          <span className="text-wow-quality-1">
+                        <li key={spell.spellId || i}>
+                          <span
+                            onClick={() =>
+                              spell.spellId &&
+                              onNavigate("spell", spell.spellId)
+                            }
+                            className={`text-wow-quality-1 ${
+                              spell.spellId
+                                ? "cursor-pointer hover:text-wow-gold"
+                                : ""
+                            }`}
+                          >
                             {spell.name}
                           </span>
                         </li>
@@ -573,13 +583,19 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     <div className="grid grid-cols-1 gap-4">
                       {abilities.map((spell, idx) => (
                         <div
-                          key={spell.id || idx}
-                          className="bg-bg-sub p-4 rounded border border-border-light hover:border-border-hover transition-colors"
+                          key={spell.spellId || idx}
+                          onClick={() =>
+                            spell.spellId &&
+                            onNavigate("spell", spell.spellId)
+                          }
+                          className={`bg-bg-sub p-4 rounded border border-border-light hover:border-border-hover transition-colors ${
+                            spell.spellId ? "cursor-pointer" : ""
+                          }`}
                         >
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex items-center gap-3">
                                 <AbilityIcon iconName={spell.icon} />
-                                <h4 className="text-wow-quality-1 font-bold text-lg">
+                                <h4 className="text-wow-quality-1 hover:text-wow-gold font-bold text-lg">
                                   {spell.name}
                                 </h4>
                               </div>
