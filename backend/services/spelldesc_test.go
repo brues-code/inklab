@@ -4,7 +4,8 @@ import "testing"
 
 func TestResolveSpellDescription(t *testing.T) {
 	refs := map[int]spellVars{
-		6788: {durationMs: 15000}, // Weakened Soul
+		6788: {durationMs: 15000},                          // Weakened Soul
+		8026: {basePoints: [3]int{76}, dieSides: [3]int{1}}, // ref for division (m1 = 77)
 	}
 	cases := []struct {
 		name string
@@ -53,6 +54,24 @@ func TestResolveSpellDescription(t *testing.T) {
 			raw:  "Restores $ghis:her; mana.",
 			self: spellVars{},
 			want: "Restores his mana.",
+		},
+		{
+			name: "charges / targets / level",
+			raw:  "$n balls hit up to $i enemies of level $v.",
+			self: spellVars{procCharges: 3, maxTargets: 4, maxTargetLevel: 40},
+			want: "3 balls hit up to 4 enemies of level 40.",
+		},
+		{
+			name: "uppercase token",
+			raw:  "Reduces cast time by $/1000;S1 sec.",
+			self: spellVars{basePoints: [3]int{499}, dieSides: [3]int{1}}, // 500/1000 = 0.5
+			want: "Reduces cast time by 0.5 sec.",
+		},
+		{
+			name: "division of referenced spell token",
+			raw:  "Deals $/77;8026m1 extra damage.",
+			self: spellVars{},
+			want: "Deals 1 extra damage.", // ref 8026 m1 = 77; 77/77 = 1
 		},
 	}
 	for _, c := range cases {

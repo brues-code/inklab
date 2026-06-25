@@ -28,7 +28,7 @@ const spellVarCols = `durationIndex,
 	effectAmplitude1, effectAmplitude2, effectAmplitude3,
 	effectChainTarget1, effectChainTarget2, effectChainTarget3,
 	effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
-	procChance`
+	procChance, procCharges, maxAffectedTargets, maxTargetLevel, rangeIndex`
 
 func (s *SyncService) loadDurationMap() map[int]int {
 	m := map[int]int{}
@@ -63,10 +63,27 @@ func (s *SyncService) loadRadiusMap() map[int]float64 {
 	return m
 }
 
+func (s *SyncService) loadRangeMap() map[int]float64 {
+	m := map[int]float64{}
+	rows, err := s.db.Query("SELECT id, range_max FROM spell_range")
+	if err != nil {
+		return m
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		var rmax float64
+		if rows.Scan(&id, &rmax) == nil {
+			m[id] = rmax
+		}
+	}
+	return m
+}
+
 // scanSpellVars reads the spellVarCols (in order) plus a leading entry id into a
 // spellVars, resolving the duration/radius indices via the aux maps.
-func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap map[int]float64) (int, spellVars, error) {
-	var entry, durIdx, proc int
+func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap, rangeMap map[int]float64) (int, spellVars, error) {
+	var entry, durIdx, proc, charges, maxTgts, maxTgtLvl, rangeIdx int
 	var bp, die, amp, chain, radIdx [3]int
 	err := scan(&entry, &durIdx,
 		&bp[0], &bp[1], &bp[2],
@@ -74,12 +91,14 @@ func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap m
 		&amp[0], &amp[1], &amp[2],
 		&chain[0], &chain[1], &chain[2],
 		&radIdx[0], &radIdx[1], &radIdx[2],
-		&proc)
+		&proc, &charges, &maxTgts, &maxTgtLvl, &rangeIdx)
 	if err != nil {
 		return 0, spellVars{}, err
 	}
-	v := spellVars{basePoints: bp, dieSides: die, amplitude: amp, chainTarget: chain, procChance: proc}
+	v := spellVars{basePoints: bp, dieSides: die, amplitude: amp, chainTarget: chain,
+		procChance: proc, procCharges: charges, maxTargets: maxTgts, maxTargetLevel: maxTgtLvl}
 	v.durationMs = durMap[durIdx]
+	v.rangeYd = rangeMap[rangeIdx]
 	for i := 0; i < 3; i++ {
 		v.radiusYd[i] = radMap[radIdx[i]]
 	}
@@ -88,7 +107,7 @@ func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap m
 
 // loadAllSpellVars loads every spell's resolver fields into a map (for the batch
 // pass, where any spell may be referenced by any other via $<id>TOK).
-func (s *SyncService) loadAllSpellVars(durMap map[int]int, radMap map[int]float64) map[int]spellVars {
+func (s *SyncService) loadAllSpellVars(durMap map[int]int, radMap, rangeMap map[int]float64) map[int]spellVars {
 	out := map[int]spellVars{}
 	rows, err := s.db.Query("SELECT entry, " + spellVarCols + " FROM spell_template")
 	if err != nil {
@@ -96,7 +115,7 @@ func (s *SyncService) loadAllSpellVars(durMap map[int]int, radMap map[int]float6
 	}
 	defer rows.Close()
 	for rows.Next() {
-		entry, v, err := scanSpellVars(rows.Scan, durMap, radMap)
+		entry, v, err := scanSpellVars(rows.Scan, durMap, radMap, rangeMap)
 		if err == nil {
 			out[entry] = v
 		}
@@ -105,11 +124,11 @@ func (s *SyncService) loadAllSpellVars(durMap map[int]int, radMap map[int]float6
 }
 
 // loadSpellVarsByIDs loads the resolver fields for a specific set of spell ids.
-func (s *SyncService) loadSpellVarsByIDs(ids []int, durMap map[int]int, radMap map[int]float64) map[int]spellVars {
+func (s *SyncService) loadSpellVarsByIDs(ids []int, durMap map[int]int, radMap, rangeMap map[int]float64) map[int]spellVars {
 	out := map[int]spellVars{}
 	for _, id := range ids {
 		row := s.db.QueryRow("SELECT entry, "+spellVarCols+" FROM spell_template WHERE entry = ?", id)
-		entry, v, err := scanSpellVars(row.Scan, durMap, radMap)
+		entry, v, err := scanSpellVars(row.Scan, durMap, radMap, rangeMap)
 		if err == nil {
 			out[entry] = v
 		}
@@ -117,7 +136,9 @@ func (s *SyncService) loadSpellVarsByIDs(ids []int, durMap map[int]int, radMap m
 	return out
 }
 
-var reRefIDs = regexp.MustCompile(`\$(\d+)[a-zA-Z]`)
+// reRefIDs captures spell ids referenced by $<id>TOK and by division targets
+// like $/77;8026m1 (so the single-spell path loads them for resolution).
+var reRefIDs = regexp.MustCompile(`\$(?:/\d+;)?(\d+)[a-zA-Z]`)
 
 // refIDsIn returns the spell ids referenced by $<id>TOK tokens in a description.
 func refIDsIn(desc string) []int {
@@ -150,9 +171,9 @@ func (s *SyncService) ResolveSpellByID(spellID int, fallbackDesc string) *SyncSp
 	}
 
 	if strings.Contains(desc, "$") {
-		durMap, radMap := s.loadDurationMap(), s.loadRadiusMap()
+		durMap, radMap, rangeMap := s.loadDurationMap(), s.loadRadiusMap(), s.loadRangeMap()
 		ids := append(refIDsIn(desc), spellID)
-		vars := s.loadSpellVarsByIDs(ids, durMap, radMap)
+		vars := s.loadSpellVarsByIDs(ids, durMap, radMap, rangeMap)
 		resolved := ResolveSpellDescription(desc, vars[spellID], vars)
 		if resolved != desc {
 			if _, err := s.db.Exec("UPDATE spell_template SET description = ? WHERE entry = ?", resolved, spellID); err == nil {
@@ -170,8 +191,8 @@ func (s *SyncService) ResolveSpellByID(spellID int, fallbackDesc string) *SyncSp
 func (s *SyncService) FullSyncSpells(delayMs int, fixIcons bool, iconDir string, startFrom int, progressCb ProgressCallback) *FullSyncResult {
 	result := &FullSyncResult{Errors: []string{}, StartFromID: startFrom}
 
-	durMap, radMap := s.loadDurationMap(), s.loadRadiusMap()
-	allVars := s.loadAllSpellVars(durMap, radMap)
+	durMap, radMap, rangeMap := s.loadDurationMap(), s.loadRadiusMap(), s.loadRangeMap()
+	allVars := s.loadAllSpellVars(durMap, radMap, rangeMap)
 
 	rows, err := s.db.Query(
 		"SELECT entry, description FROM spell_template WHERE description LIKE '%$%' AND entry >= ? ORDER BY entry",

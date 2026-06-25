@@ -28,13 +28,26 @@ import (
 // spellVars holds the per-spell DBC fields needed to resolve description tokens.
 // durationMs and radiusYd are pre-resolved from the aux tables.
 type spellVars struct {
-	basePoints  [3]int
-	dieSides    [3]int
-	amplitude   [3]int     // ms
-	chainTarget [3]int
-	radiusYd    [3]float64 // pre-resolved from spell_radius
-	durationMs  int        // pre-resolved from spell_durations
-	procChance  int
+	basePoints     [3]int
+	dieSides       [3]int
+	amplitude      [3]int     // ms
+	chainTarget    [3]int
+	radiusYd       [3]float64 // pre-resolved from spell_radius
+	durationMs     int        // pre-resolved from spell_durations
+	rangeYd        float64    // pre-resolved from spell_range (range_max)
+	procChance     int
+	procCharges    int
+	maxTargets     int
+	maxTargetLevel int
+}
+
+// lowerByte folds an ASCII letter to lowercase (tokens are case-insensitive,
+// except $m=min vs $M=max which the caller distinguishes before folding).
+func lowerByte(b byte) byte {
+	if b >= 'A' && b <= 'Z' {
+		return b + 32
+	}
+	return b
 }
 
 func clampIdx(idx int) int {
@@ -64,15 +77,17 @@ func absInt(n int) int {
 }
 
 // numToken returns the numeric value of a token against the given vars, for use
-// in arithmetic ($/N;). Returns ok=false for tokens that aren't plain numbers.
+// in arithmetic ($/N;). Tokens are case-insensitive except $M (max) vs $m (min).
+// Returns ok=false for tokens that aren't plain numbers.
 func (v spellVars) numToken(letter byte, idx int) (float64, bool) {
-	switch letter {
-	case 's':
+	if letter == 'M' { // explicit max
 		return float64(absInt(v.effMax(idx))), true
-	case 'm':
+	}
+	switch lowerByte(letter) {
+	case 's', 'q': // effect value (q: e.g. Resurrection restored mana)
+		return float64(absInt(v.effMax(idx))), true
+	case 'm': // min
 		return float64(absInt(v.effMin(idx))), true
-	case 'M':
-		return float64(absInt(v.effMax(idx))), true
 	case 'o':
 		val := absInt(v.effMax(idx))
 		i := clampIdx(idx) - 1
@@ -88,6 +103,14 @@ func (v spellVars) numToken(letter byte, idx int) (float64, bool) {
 		return float64(v.chainTarget[clampIdx(idx)-1]), true
 	case 'h':
 		return float64(v.procChance), true
+	case 'n': // number of charges (e.g. Lightning Shield "$n balls")
+		return float64(v.procCharges), true
+	case 'i': // max affected targets (e.g. Whirlwind "$i enemies")
+		return float64(v.maxTargets), true
+	case 'v': // max target level (e.g. Mind Soothe "level $v")
+		return float64(v.maxTargetLevel), true
+	case 'r': // spell range in yards (e.g. totem "$<id>r1 yards")
+		return v.rangeYd, true
 	case 'd':
 		return float64(v.durationMs) / 1000.0, true
 	}
@@ -96,10 +119,12 @@ func (v spellVars) numToken(letter byte, idx int) (float64, bool) {
 
 // displayToken returns the human-readable substitution for a token.
 func (v spellVars) displayToken(letter byte, idx int) (string, bool) {
-	switch letter {
+	switch lowerByte(letter) {
 	case 'd':
 		return formatDuration(v.durationMs), true
-	case 's':
+	case 'z': // home/bind location — not a DBC number
+		return "your home", true
+	case 's', 'q': // value, shown as a range when the dice spread it
 		mn, mx := absInt(v.effMin(idx)), absInt(v.effMax(idx))
 		if mn > mx {
 			mn, mx = mx, mn
@@ -138,8 +163,9 @@ func formatDuration(ms int) string {
 }
 
 var (
-	reRef     = regexp.MustCompile(`\$(\d+)([a-zA-Z])(\d?)`)        // $6788d, $1234s2
-	reDiv     = regexp.MustCompile(`\$/(\d+);([a-zA-Z])(\d?)`)      // $/1000;s1
+	reRef     = regexp.MustCompile(`\$(\d+)([a-zA-Z])(\d?)`)         // $6788d, $1234s2
+	reDiv     = regexp.MustCompile(`\$/(\d+);(\d*)([a-zA-Z])(\d?)`)  // $/1000;s1, $/77;8026m1
+	reMul     = regexp.MustCompile(`\$\*(\d+);(\d*)([a-zA-Z])(\d?)`) // $*15;s1, $*100;F1
 	reToken   = regexp.MustCompile(`\$([a-zA-Z])(\d?)`)             // $s1, $d, $o1
 	reCond    = regexp.MustCompile(`\$([lg])([^:;]*):([^;]*);`)     // $lsing:plur; $gm:f;
 	reLastNum = regexp.MustCompile(`(\d+)(?:\.\d+)?\D*$`)           // trailing number
@@ -170,16 +196,52 @@ func ResolveSpellDescription(raw string, self spellVars, refs map[int]spellVars)
 		return m
 	})
 
-	// 2. Division: $/N;TOK -> (TOK value)/N.
+	// 2. Division: $/N;TOK or $/N;<id>TOK -> (TOK value)/N. The token may target
+	//    another spell (e.g. $/77;8026m1 = spell 8026's $m1 ÷ 77).
 	out = reDiv.ReplaceAllStringFunc(out, func(m string) string {
 		g := reDiv.FindStringSubmatch(m)
 		div, _ := strconv.Atoi(g[1])
-		idx := 1
-		if g[3] != "" {
-			idx, _ = strconv.Atoi(g[3])
+		if div == 0 {
+			return m
 		}
-		if n, ok := self.numToken(g[2][0], idx); ok && div != 0 {
+		vars := self
+		if g[2] != "" { // referenced spell id
+			id, _ := strconv.Atoi(g[2])
+			rv, ok := refs[id]
+			if !ok {
+				return m
+			}
+			vars = rv
+		}
+		idx := 1
+		if g[4] != "" {
+			idx, _ = strconv.Atoi(g[4])
+		}
+		if n, ok := vars.numToken(g[3][0], idx); ok {
 			return formatNum(n / float64(div))
+		}
+		return m
+	})
+
+	// 2b. Multiplication: $*N;TOK or $*N;<id>TOK -> (TOK value)*N.
+	out = reMul.ReplaceAllStringFunc(out, func(m string) string {
+		g := reMul.FindStringSubmatch(m)
+		mul, _ := strconv.Atoi(g[1])
+		vars := self
+		if g[2] != "" {
+			id, _ := strconv.Atoi(g[2])
+			rv, ok := refs[id]
+			if !ok {
+				return m
+			}
+			vars = rv
+		}
+		idx := 1
+		if g[4] != "" {
+			idx, _ = strconv.Atoi(g[4])
+		}
+		if n, ok := vars.numToken(g[3][0], idx); ok {
+			return formatNum(n * float64(mul))
 		}
 		return m
 	})
