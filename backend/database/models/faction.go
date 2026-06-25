@@ -28,4 +28,14 @@ type FactionDetail struct {
 	CategoryId  int              `json:"categoryId"`
 	Creatures   []*Creature      `json:"creatures,omitempty"`
 	Quests      []*QuestRelation `json:"quests,omitempty"`
+	QuestGivers []*FactionNpc    `json:"questGivers,omitempty"` // NPCs offering this faction's rep quests
+	Members     []*FactionNpc    `json:"members,omitempty"`     // NPCs belonging to this faction (FactionTemplate)
+}
+
+// FactionNpc is a creature associated with a faction (quest giver or member).
+type FactionNpc struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	LevelMin int    `json:"levelMin"`
+	LevelMax int    `json:"levelMax"`
 }

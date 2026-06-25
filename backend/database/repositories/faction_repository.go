@@ -87,5 +87,53 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 		}
 	}
 
+	// Quest Givers: NPCs that start or end any of this faction's rep quests.
+	giverRows, _ := r.db.Query(`
+		SELECT DISTINCT c.entry, c.name, c.level_min, c.level_max
+		FROM creature_template c
+		JOIN (
+			SELECT id FROM creature_questrelation WHERE quest IN (
+				SELECT entry FROM quest_template
+				WHERE RewRepFaction1=? OR RewRepFaction2=? OR RewRepFaction3=? OR RewRepFaction4=? OR RewRepFaction5=?
+			)
+			UNION
+			SELECT id FROM creature_involvedrelation WHERE quest IN (
+				SELECT entry FROM quest_template
+				WHERE RewRepFaction1=? OR RewRepFaction2=? OR RewRepFaction3=? OR RewRepFaction4=? OR RewRepFaction5=?
+			)
+		) rel ON c.entry = rel.id
+		ORDER BY c.name
+		LIMIT 200
+	`, id, id, id, id, id, id, id, id, id, id)
+	if giverRows != nil {
+		defer giverRows.Close()
+		for giverRows.Next() {
+			n := &models.FactionNpc{}
+			if err := giverRows.Scan(&n.Entry, &n.Name, &n.LevelMin, &n.LevelMax); err == nil {
+				f.QuestGivers = append(f.QuestGivers, n)
+			}
+		}
+	}
+
+	// Faction Members: creatures whose faction-template maps to this faction.
+	// Requires faction_template (imported from FactionTemplate.dbc); empty until
+	// the client import has generated it.
+	memberRows, _ := r.db.Query(`
+		SELECT entry, name, level_min, level_max
+		FROM creature_template
+		WHERE faction IN (SELECT template_id FROM faction_template WHERE faction_id = ?)
+		ORDER BY name
+		LIMIT 300
+	`, id)
+	if memberRows != nil {
+		defer memberRows.Close()
+		for memberRows.Next() {
+			n := &models.FactionNpc{}
+			if err := memberRows.Scan(&n.Entry, &n.Name, &n.LevelMin, &n.LevelMax); err == nil {
+				f.Members = append(f.Members, n)
+			}
+		}
+	}
+
 	return f, nil
 }

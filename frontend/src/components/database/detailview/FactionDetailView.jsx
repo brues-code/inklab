@@ -25,6 +25,28 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
   if (!detail) return <DetailError message="Faction not found" onBack={onBack} />;
 
   const quests = detail.quests || [];
+  const questGivers = detail.questGivers || [];
+  const members = detail.members || [];
+
+  const npcGrid = (npcs) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+      {npcs.map((n) => (
+        <div
+          key={n.entry}
+          onClick={() => onNavigate("npc", n.entry)}
+          className="p-3 flex items-center justify-between gap-2 bg-white/[0.02] hover:bg-white/5 border border-white/5 rounded cursor-pointer transition-colors"
+        >
+          <span className="text-wow-gold hover:text-yellow-300 font-medium truncate">
+            {n.name}
+          </span>
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            Lvl {n.levelMin}
+            {n.levelMax > n.levelMin ? `-${n.levelMax}` : ""}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 
   // Side color and icon
   const getSideStyle = () => {
@@ -115,6 +137,20 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
               </div>
             ))}
           </div>
+        </DetailSection>
+      )}
+
+      {/* NPCs that give this faction's reputation quests */}
+      {questGivers.length > 0 && (
+        <DetailSection title={`Quest Givers (${questGivers.length})`}>
+          {npcGrid(questGivers)}
+        </DetailSection>
+      )}
+
+      {/* NPCs belonging to this faction (from FactionTemplate) */}
+      {members.length > 0 && (
+        <DetailSection title={`Faction Members (${members.length})`}>
+          {npcGrid(members)}
         </DetailSection>
       )}
     </DetailPageLayout>

@@ -577,6 +577,12 @@ func GeneratedSchema() string {
         PRIMARY KEY (item_entry, npc_entry)
     );
 
+    CREATE TABLE IF NOT EXISTS faction_template (
+        template_id INTEGER NOT NULL,
+        faction_id INTEGER DEFAULT 0,
+        PRIMARY KEY (template_id)
+    );
+
     `
 }
 

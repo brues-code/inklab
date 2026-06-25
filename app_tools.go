@@ -206,6 +206,10 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	add("item sets", database.NewItemSetImporter(a.db).CheckAndImport(a.DataDir))
 	a.db.DB().Exec("DELETE FROM factions")
 	add("factions", database.NewFactionImporter(a.db).CheckAndImport(a.DataDir))
+	// Faction templates (NPC -> faction membership) — generated only by the
+	// client DBC export, so refresh after one.
+	a.db.DB().Exec("DELETE FROM faction_template")
+	add("faction templates", database.NewFactionImporter(a.db).CheckAndImportTemplates(a.DataDir))
 	// Icons + missing-spell backfill.
 	gen := database.NewGeneratedImporter(a.db.DB())
 	_ = gen.ImportMissingSpells(filepath.Join(a.DataDir, "spells_enhanced.json"))

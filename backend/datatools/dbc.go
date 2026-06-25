@@ -92,6 +92,12 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 	if err := writeFactions(cf, filepath.Join(dataDir, "factions.json")); err != nil {
 		return fmt.Errorf("factions: %w", err)
 	}
+	// FactionTemplate maps creature.faction (a template id) to a Faction.dbc id,
+	// used to list faction members. Non-fatal: a missing/odd DBC shouldn't break
+	// the whole client import.
+	if err := writeFactionTemplates(cf, filepath.Join(dataDir, "faction_templates.json")); err != nil {
+		fmt.Printf("[dbc] faction_templates skipped: %v\n", err)
+	}
 	jobs := []struct{ name, file string }{
 		{"itemsets", "item_sets.json"},
 		{"skills", "skills.json"},
@@ -328,6 +334,34 @@ func factionSide(id, parent uint32) int {
 	default:
 		return 0
 	}
+}
+
+// factionTemplateOut maps a FactionTemplate id (creature.faction) to its
+// Faction.dbc id.
+type factionTemplateOut struct {
+	TemplateID int `json:"id"`
+	FactionID  int `json:"faction"`
+}
+
+// writeFactionTemplates emits FactionTemplate.dbc as {id, faction} pairs. In
+// vanilla the layout is field 0 = template id, field 1 = Faction.dbc id.
+func writeFactionTemplates(cf ClientFiles, outPath string) error {
+	d, err := openDBCFrom(cf, "FactionTemplate.dbc")
+	if err != nil {
+		return err
+	}
+	out := make([]factionTemplateOut, 0, d.RecordCount)
+	for rec := 0; rec < d.RecordCount; rec++ {
+		out = append(out, factionTemplateOut{
+			TemplateID: int(d.U32(rec, 0)),
+			FactionID:  int(d.U32(rec, 1)),
+		})
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outPath, b, 0644)
 }
 
 func writeFactions(cf ClientFiles, outPath string) error {

@@ -51,6 +51,57 @@ func (f *FactionImporter) ImportFromJSON(jsonPath string) error {
 	return tx.Commit()
 }
 
+type factionTemplateJSON struct {
+	TemplateID int `json:"id"`
+	FactionID  int `json:"faction"`
+}
+
+// ImportTemplatesFromJSON loads faction_templates.json (FactionTemplate.dbc:
+// template id -> Faction.dbc id) into faction_template, used to list an NPC's
+// faction membership.
+func (f *FactionImporter) ImportTemplatesFromJSON(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read JSON file: %w", err)
+	}
+	var rows []factionTemplateJSON
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	tx, err := f.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM faction_template")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO faction_template (template_id, faction_id) VALUES (?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, t := range rows {
+		stmt.Exec(t.TemplateID, t.FactionID)
+	}
+	return tx.Commit()
+}
+
+// CheckAndImportTemplates imports faction_template from JSON when the table is
+// empty and the JSON exists (it only exists after a client DBC export).
+func (f *FactionImporter) CheckAndImportTemplates(dataDir string) error {
+	var count int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM faction_template").Scan(&count); err != nil {
+		return nil
+	}
+	if count == 0 {
+		path := fmt.Sprintf("%s/faction_templates.json", dataDir)
+		if _, err := os.Stat(path); err == nil {
+			fmt.Println("Importing Faction Templates...")
+			return f.ImportTemplatesFromJSON(path)
+		}
+	}
+	return nil
+}
+
 // CheckAndImport checks if factions table is empty and imports if JSON exists
 func (f *FactionImporter) CheckAndImport(dataDir string) error {
 	var count int
