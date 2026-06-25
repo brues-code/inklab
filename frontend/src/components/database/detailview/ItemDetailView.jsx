@@ -82,9 +82,6 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     }
   }, [entry]);
 
-  // ... (rest of useEffects and handlers same as before)
-  // BUT we need to remove getIconPath/createIconErrorHandler imports if not used elsewhere
-
   const reloadData = async () => {
     const updatedDetail = await GetItemDetail(entry);
     setDetail(updatedDetail);

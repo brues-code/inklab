@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"inklab/backend/database"
+	"inklab/backend/datatools"
 	"inklab/backend/services"
 
 	"github.com/joho/godotenv"
@@ -41,6 +43,12 @@ type App struct {
 	syncService *services.SyncService
 	scraper     *services.ScraperService
 	mysqlDB     *database.MySQLConnection
+
+	// Cached client MPQ source for on-demand model rendering. The mpq set is not
+	// concurrency-safe, so clientSrcMu guards both the (re)open and every use.
+	clientSrc    datatools.ClientFiles
+	clientSrcDir string
+	clientSrcMu  sync.Mutex
 
 	// Mode
 	isDevMode bool
@@ -271,6 +279,12 @@ func (a *App) buildCategoryCache() {
 
 // shutdown is called when the app is closing
 func (a *App) shutdown(ctx context.Context) {
+	a.clientSrcMu.Lock()
+	if a.clientSrc != nil {
+		a.clientSrc.Close()
+		a.clientSrc = nil
+	}
+	a.clientSrcMu.Unlock()
 	if a.db != nil {
 		a.db.Close()
 	}

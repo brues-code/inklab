@@ -1,28 +1,28 @@
 /**
  * Unified Image Service
- * Handles loading images from local storage with remote fallback
- * Works consistently in both dev and production modes
+ * Loads images from the local store only (no network). Model renders are
+ * generated on demand from the client MPQs; icons come from the local client set.
  */
+import { getClientBasePath } from '../utils/constants';
 
 // Image cache to avoid repeated API calls
 const imageCache = new Map();
 
 /**
- * Load an image with local-first strategy
+ * Load an image from the LOCAL store only. Images are never fetched from the
+ * network — models are rendered locally from the client MPQs and icons come from
+ * the locally imported client icon set. Returns null when not present locally.
  * @param {string} imageType - 'icon' | 'npc_model' | 'npc_map'
  * @param {string} name - Image name without extension (e.g., 'inv_sword_01', 'model_15114')
- * @param {string} remoteUrl - Fallback remote URL
- * @returns {Promise<string>} - Data URL that can be used as img src
+ * @returns {Promise<string|null>} - Data URL that can be used as img src, or null
  */
-export const loadImage = async (imageType, name, remoteUrl = null) => {
+export const loadImage = async (imageType, name) => {
     const cacheKey = `${imageType}:${name}`;
-    
-    // Check cache first
+
     if (imageCache.has(cacheKey)) {
         return imageCache.get(cacheKey);
     }
 
-    // Try local first
     if (window?.go?.main?.App?.GetLocalImage) {
         try {
             const result = await window.go.main.App.GetLocalImage(imageType, name);
@@ -36,30 +36,6 @@ export const loadImage = async (imageType, name, remoteUrl = null) => {
         }
     }
 
-    // Fallback to remote
-    if (remoteUrl) {
-        if (window?.go?.main?.App?.FetchRemoteImage) {
-            try {
-                const result = await window.go.main.App.FetchRemoteImage(remoteUrl, imageType, name);
-                if (result && result.data && !result.error) {
-                    const dataUrl = `data:${result.mimeType};base64,${result.data}`;
-                    imageCache.set(cacheKey, dataUrl);
-                    return dataUrl;
-                }
-            } catch (e) {
-                console.log(`[ImageService] Remote fetch failed: ${remoteUrl}`);
-            }
-            // Binding is present and the fetch genuinely failed (e.g. 404 on an
-            // octo-custom icon). Return null so callers can fall back rather
-            // than handing back a dead URL that renders as a broken image.
-            return null;
-        }
-
-        // Binding unavailable (pure-browser dev): return the URL so the browser
-        // can attempt to load it directly.
-        return remoteUrl;
-    }
-
     return null;
 };
 
@@ -67,52 +43,72 @@ export const loadImage = async (imageType, name, remoteUrl = null) => {
 const QUESTIONMARK = 'inv_misc_questionmark';
 
 /**
- * Load the generic questionmark placeholder as a real data URL. Used when a
- * requested icon resolves nowhere (e.g. octo-custom icons not local and 404 on
- * the CDN) so callers never have to point at a non-existent /local-icons route.
+ * Load the generic questionmark placeholder (ships locally in data/icons) as a
+ * data URL, so callers always have a usable src instead of a broken image.
  * @returns {Promise<string|null>}
  */
 export const loadQuestionmarkIcon = async () => {
-    const cdnUrl = `https://wow.zamimg.com/images/wow/icons/medium/${QUESTIONMARK}.jpg`;
-    return loadImage('icon', QUESTIONMARK, cdnUrl);
+    return loadImage('icon', QUESTIONMARK);
 };
 
 /**
- * Load an icon with fallback chain. Resolves to the questionmark placeholder
- * (as a data URL) when the named icon can't be found locally or remotely, so
- * the UI always has a usable src instead of a broken image.
+ * Load an icon from the local client icon set, falling back to the questionmark
+ * placeholder when the named icon isn't present locally. No network fetching.
  * @param {string} iconName - Icon name (e.g., 'inv_sword_01')
  * @returns {Promise<string|null>} - Image data URL
  */
 export const loadIcon = async (iconName) => {
     if (!iconName) return loadQuestionmarkIcon();
 
-    const name = iconName.toLowerCase();
-    const cdnUrl = `https://wow.zamimg.com/images/wow/icons/medium/${name}.jpg`;
-
-    const result = await loadImage('icon', name, cdnUrl);
+    const result = await loadImage('icon', iconName.toLowerCase());
     if (result) return result;
 
-    // Named icon resolved nowhere — fall back to the placeholder.
+    // Named icon not in the local set — fall back to the placeholder.
     return loadQuestionmarkIcon();
 };
 
 /**
- * Load an NPC model render, keyed by CreatureDisplayInfo id (octowow serves
- * these at /images/models/<displayId>.png and many NPCs share a display).
+ * Load an NPC model render, fully locally: a per-creature render (with held
+ * weapons) when present, else the shared display render, else generated on
+ * demand from the client MPQs. No network fetching — returns null when nothing
+ * can be produced (e.g. no client configured, or a humanoid without a baked
+ * skin), and the UI shows a placeholder.
  * @param {number} displayId - creature display id (display_id1)
- * @param {string} remoteUrl - octowow model URL
- * @returns {Promise<string>} - Image URL
+ * @param {number} creatureEntry - creature entry (for the weaponed per-creature render)
+ * @returns {Promise<string|null>} - Image data URL or null
  */
-export const loadNpcModel = async (displayId, remoteUrl, creatureEntry = 0) => {
-    // Prefer a per-creature render (body + armor + held weapons) when one exists
-    // locally — weapons are creature-specific, so they can't be display-keyed.
-    // Falls back to the shared display render (and then octowow) otherwise.
+export const loadNpcModel = async (displayId, creatureEntry = 0) => {
+    // 1. Per-creature render (body + armor + held weapons) — weapons are
+    //    creature-specific, so they can't be display-keyed.
     if (creatureEntry) {
-        const local = await loadImage('npc_model', `model_creature_${creatureEntry}`, null);
-        if (local) return local;
+        const c = await loadImage('npc_model', `model_creature_${creatureEntry}`);
+        if (c) return c;
     }
-    return loadImage('npc_model', `model_${displayId}`, remoteUrl);
+    // 2. Shared display render (cached on disk).
+    const d = await loadImage('npc_model', `model_${displayId}`);
+    if (d) return d;
+
+    // 3. Generate on demand from the client MPQs. The backend writes the file(s)
+    //    to disk; we then re-read via the local path so each cache key holds its
+    //    own correct image. Uses the configured client path or its default.
+    const baseDir = getClientBasePath();
+    if (baseDir && window?.go?.main?.App?.RenderNpcModel) {
+        try {
+            const rendered = await window.go.main.App.RenderNpcModel(creatureEntry || 0, displayId, baseDir);
+            if (rendered) {
+                if (creatureEntry) {
+                    const c2 = await loadImage('npc_model', `model_creature_${creatureEntry}`);
+                    if (c2) return c2;
+                }
+                const d2 = await loadImage('npc_model', `model_${displayId}`);
+                if (d2) return d2;
+            }
+        } catch (e) {
+            // nothing renderable — fall through to null (UI placeholder)
+        }
+    }
+
+    return null;
 };
 
 /**

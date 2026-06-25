@@ -40,17 +40,13 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [imgReload, setImgReload] = useState(0);
   const [refreshingImages, setRefreshingImages] = useState(false);
 
-  // Model renders are keyed by CreatureDisplayInfo id and fetched straight from
-  // octowow (/images/models/<displayId>.png) — many NPCs share a display, so
-  // this caches once per display rather than per entry. The map is a
-  // locally-generated zone map keyed by the NPC's resolved zone name.
+  // Model renders are produced locally from the client MPQs (per-creature when
+  // the NPC has weapons, else the shared display render) — no network fetching.
+  // The map is a locally-generated zone map keyed by the NPC's resolved zone name.
   const displayId = detail?.displayId1;
-  const modelUrl = displayId
-    ? `${DATABASE_BASE_URL}/images/models/${displayId}.png`
-    : null;
   // Pass the creature entry so a per-creature render (with held weapons) is
   // preferred over the shared display render when one exists locally.
-  const modelImage = useNpcModel(displayId, modelUrl, imgReload, entry);
+  const modelImage = useNpcModel(displayId, imgReload, entry);
   const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
   useEffect(() => {
@@ -186,15 +182,15 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             ) : (
               <div
                 onClick={handleRefreshImages}
-                title="Click to fetch model image"
+                title="Click to render model from client"
                 className="aspect-[3/4] border border-white/10 rounded bg-black/40 flex flex-col items-center justify-center text-gray-500 text-xs cursor-pointer hover:bg-black/60 hover:text-gray-300 transition-colors"
               >
                 {refreshingImages ? (
-                  <span className="animate-pulse">Fetching…</span>
+                  <span className="animate-pulse">Rendering…</span>
                 ) : (
                   <>
                     <span>No Model</span>
-                    <span className="mt-1 text-[10px] text-gray-600">click to fetch</span>
+                    <span className="mt-1 text-[10px] text-gray-600">click to render</span>
                   </>
                 )}
               </div>

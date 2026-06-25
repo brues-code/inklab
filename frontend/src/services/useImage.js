@@ -85,12 +85,15 @@ export const useIcon = (iconName) => {
 };
 
 /**
- * Hook for loading an NPC model render, keyed by creature display id.
+ * Hook for loading an NPC model render (fully local: rendered from the client
+ * MPQs, no network). Prefers a per-creature render (with weapons) when given an
+ * entry. Sets error=true when nothing local can be produced (UI shows a fallback).
  * @param {number} displayId - creature display id (display_id1)
- * @param {string} remoteUrl - octowow model URL
+ * @param {number} reloadKey - bump to force a reload
+ * @param {number} creatureEntry - creature entry (for the weaponed per-creature render)
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
-export const useNpcModel = (displayId, remoteUrl, reloadKey = 0, creatureEntry = 0) => {
+export const useNpcModel = (displayId, reloadKey = 0, creatureEntry = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -105,7 +108,7 @@ export const useNpcModel = (displayId, remoteUrl, reloadKey = 0, creatureEntry =
         setLoading(true);
         setError(false);
 
-        loadNpcModel(displayId, remoteUrl, creatureEntry)
+        loadNpcModel(displayId, creatureEntry)
             .then(result => {
                 if (result) {
                     setSrc(result);
@@ -119,7 +122,7 @@ export const useNpcModel = (displayId, remoteUrl, reloadKey = 0, creatureEntry =
             .finally(() => {
                 setLoading(false);
             });
-    }, [displayId, remoteUrl, reloadKey, creatureEntry]);
+    }, [displayId, reloadKey, creatureEntry]);
 
     return { src, loading, error };
 };

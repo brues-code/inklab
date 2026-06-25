@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
 import { PageLayout } from "../../components/ui";
+import { DEFAULT_WOW_BASE } from "../../utils/constants";
 
-const DEFAULT_BASE = "C:\\WoW\\Octo";
+const DEFAULT_BASE = DEFAULT_WOW_BASE;
 
 // Each importer maps to an App binding that takes the client base folder.
 const IMPORTS = [

@@ -38,10 +38,6 @@ export function CheckNewQuests(arg1, arg2) {
   return window['go']['main']['App']['CheckNewQuests'](arg1, arg2);
 }
 
-export function FetchRemoteImage(arg1, arg2, arg3) {
-  return window['go']['main']['App']['FetchRemoteImage'](arg1, arg2, arg3);
-}
-
 export function FixMissingIcons(arg1, arg2) {
   return window['go']['main']['App']['FixMissingIcons'](arg1, arg2);
 }
@@ -52,10 +48,6 @@ export function FixSingleItemIcon(arg1) {
 
 export function FullSyncItems(arg1, arg2, arg3) {
   return window['go']['main']['App']['FullSyncItems'](arg1, arg2, arg3);
-}
-
-export function FullSyncNpcModels(arg1, arg2) {
-  return window['go']['main']['App']['FullSyncNpcModels'](arg1, arg2);
 }
 
 export function FullSyncNpcs(arg1, arg2) {
@@ -248,6 +240,10 @@ export function RefreshNpcImages(arg1) {
 
 export function RemoveFavorite(arg1) {
   return window['go']['main']['App']['RemoveFavorite'](arg1);
+}
+
+export function RenderNpcModel(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RenderNpcModel'](arg1, arg2, arg3);
 }
 
 export function RenderNpcModels(arg1, arg2, arg3) {

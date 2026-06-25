@@ -2,12 +2,11 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"inklab/backend/datatools"
 )
 
 // ImageResult represents the result of an image fetch
@@ -58,6 +57,50 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	}
 
 	return &ImageResult{Error: "file not found: " + name}
+}
+
+// clientMPQ returns a cached MPQ source for <baseDir>/Data, opening (and
+// caching) it on first use and reopening if baseDir changed. Callers MUST hold
+// clientSrcMu around this and any use of the returned source — the mpq set is
+// not concurrency-safe.
+func (a *App) clientMPQ(baseDir string) (datatools.ClientFiles, bool) {
+	dataDir := filepath.Join(baseDir, "Data")
+	if a.clientSrc != nil && a.clientSrcDir == dataDir {
+		return a.clientSrc, true
+	}
+	if a.clientSrc != nil {
+		a.clientSrc.Close()
+		a.clientSrc = nil
+		a.clientSrcDir = ""
+	}
+	src, err := datatools.NewMpqSource(dataDir)
+	if err != nil {
+		return nil, false
+	}
+	a.clientSrc = src
+	a.clientSrcDir = dataDir
+	return src, true
+}
+
+// RenderNpcModel renders an NPC's model on demand from the client MPQs under
+// baseDir, so a page visit can generate a missing render instead of relying on a
+// bulk pre-pass. It writes a per-creature image (body + armor + held weapons)
+// when the creature carries weapons, plus the shared display render. Returns true
+// if a client was available and rendering ran; the frontend then re-reads the
+// produced files via GetLocalImage (so each cache key holds its own image) and
+// falls back to the remote image when this returns false or produced nothing.
+func (a *App) RenderNpcModel(entry int, displayID int, baseDir string) bool {
+	if displayID <= 0 || baseDir == "" {
+		return false
+	}
+	a.clientSrcMu.Lock()
+	defer a.clientSrcMu.Unlock()
+	cf, ok := a.clientMPQ(baseDir)
+	if !ok {
+		return false
+	}
+	a.npcService.RenderModelOnDemand(cf, entry, displayID)
+	return true
 }
 
 // mapKeyAliases canonicalizes misspelled map keys so a correctly-spelled zone
@@ -152,66 +195,3 @@ func (a *App) findZoneMap(name string) *ImageResult {
 	return &ImageResult{Error: "zone map not found: " + name}
 }
 
-// FetchRemoteImage fetches an image from a remote URL and returns it as base64
-// Also optionally saves it locally for caching
-func (a *App) FetchRemoteImage(url string, imageType string, name string) *ImageResult {
-	if url == "" {
-		return &ImageResult{Error: "empty URL"}
-	}
-
-	// Create HTTP request with User-Agent
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return &ImageResult{Error: "failed to create request: " + err.Error()}
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return &ImageResult{Error: "failed to fetch: " + err.Error()}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return &ImageResult{Error: fmt.Sprintf("HTTP %d", resp.StatusCode)}
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &ImageResult{Error: "failed to read response: " + err.Error()}
-	}
-
-	// Determine MIME type
-	mimeType := resp.Header.Get("Content-Type")
-	if mimeType == "" {
-		mimeType = "image/jpeg"
-	}
-
-	// Optionally save locally
-	if imageType != "" && name != "" {
-		var saveDir string
-		switch imageType {
-		case "icon":
-			saveDir = filepath.Join(a.DataDir, "icons")
-		case "npc_model", "npc_map":
-			saveDir = filepath.Join(a.DataDir, "npc_images")
-		}
-		if saveDir != "" {
-			os.MkdirAll(saveDir, 0755)
-			ext := ".jpg"
-			if strings.Contains(mimeType, "png") {
-				ext = ".png"
-			}
-			savePath := filepath.Join(saveDir, name+ext)
-			os.WriteFile(savePath, data, 0644)
-			fmt.Printf("[Image] Saved to local: %s\n", savePath)
-		}
-	}
-
-	return &ImageResult{
-		Data:     base64.StdEncoding.EncodeToString(data),
-		MimeType: mimeType,
-		Source:   "remote",
-	}
-}

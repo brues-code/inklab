@@ -5,7 +5,6 @@ import {
   FullSyncItems,
   FullSyncSpells,
   FullSyncQuests,
-  FullSyncNpcModels,
   StopSync,
 } from "../../../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
@@ -16,7 +15,6 @@ const SYNC_TYPES = [
   { id: "item", name: "Items", icon: "⚔️" },
   { id: "spell", name: "Spells", icon: "✨" },
   { id: "quest", name: "Quests", icon: "📜" },
-  { id: "model", name: "Models", icon: "🎭" },
 ];
 
 function SettingsPage() {
@@ -64,11 +62,6 @@ function SettingsPage() {
     EventsOn("sync:quests:progress", (data) => handleProgress("quest", data));
     EventsOn("sync:quests_full:complete", (msg) => handleSyncDone("quest", msg));
 
-    // Model Progress
-    EventsOn("sync:models:progress", (data) => handleProgress("model", data));
-    EventsOn("sync:models_full:error", (msg) => handleSyncError("model", msg));
-    EventsOn("sync:models_full:complete", (msg) => handleSyncDone("model", msg));
-
     return () => {
         EventsOff("sync:npc_full:progress");
         EventsOff("sync:npc_full:error");
@@ -80,9 +73,6 @@ function SettingsPage() {
         EventsOff("sync:spells_full:complete");
         EventsOff("sync:quests:progress");
         EventsOff("sync:quests_full:complete");
-        EventsOff("sync:models:progress");
-        EventsOff("sync:models_full:error");
-        EventsOff("sync:models_full:complete");
     };
   }, []);
 
@@ -154,11 +144,6 @@ function SettingsPage() {
               break;
           case 'quest':
               await FullSyncQuests(100, startId);
-              break;
-          case 'model':
-              // Download pre-rendered model images from octowow (web source).
-              // Rendering from the local client lives on the Import tab.
-              await FullSyncNpcModels(startId, 100);
               break;
       }
     } catch (error) {

@@ -2,21 +2,16 @@ package services
 
 import (
 	"context"
-	"crypto/md5"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image/png"
-	"io"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"inklab/backend/database"
 	"inklab/backend/datatools"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -994,11 +989,11 @@ func (s *NpcService) syncNpcImages(entry int) error {
 		scrapedData = &ScrapedNpcData{Infobox: make(map[string]string)}
 	}
 
-	// Model and map images are no longer downloaded here. Model renders are
-	// loaded on demand (and bulk-synced) by CreatureDisplayInfo id straight from
-	// octowow — see SyncAllNpcModels / useNpcModel — so a per-entry model_<id>.png
-	// would be both redundant and wrongly keyed. The NPC view's map is a
-	// locally-generated zone map. We keep only the scraped metadata below.
+	// Model and map images are not handled here. Model renders are produced
+	// locally from the client MPQs on demand (and via the bulk render job) keyed
+	// by CreatureDisplayInfo id — see RenderModelOnDemand / useNpcModel — so a
+	// per-entry model_<id>.png would be both redundant and wrongly keyed. The NPC
+	// view's map is a locally-generated zone map. We keep only scraped metadata.
 	localModelPath := ""
 	localMapPath := ""
 
@@ -1172,56 +1167,6 @@ func (s *NpcService) GetNpcDetailsContext(ctx context.Context, entry int) (*NpcF
 	return s.GetNpcDetails(entry)
 }
 
-// downloadImage downloads an image from URL and saves it locally. When name is
-// given it's used as the base filename (the on-demand image service reads NPC
-// images as model_<id>/map_<id>); otherwise an MD5 hash of the URL is used.
-// SyncAllNpcModels downloads NPC model renders from octowow.st, keyed by
-// CreatureDisplayInfo id (octowow serves them at /images/models/<displayId>.png).
-// Many creatures share a display, so we fetch each distinct display once into
-// data/npc_images/model_<displayId>.png. Existing files are skipped, and the
-// throttle only applies to actual downloads. Honors the stop flag.
-func (s *NpcService) SyncAllNpcModels(startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
-	rows, err := s.sqlite.Query(
-		"SELECT DISTINCT display_id1 FROM creature_template WHERE display_id1 >= ? AND display_id1 > 0 ORDER BY display_id1",
-		startFrom)
-	if err != nil {
-		return err
-	}
-	var ids []int
-	for rows.Next() {
-		var d int
-		if rows.Scan(&d) == nil {
-			ids = append(ids, d)
-		}
-	}
-	rows.Close()
-
-	npcImagesDir := filepath.Join(s.dataDir, "npc_images")
-	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
-		return err
-	}
-
-	total := len(ids)
-	for i, d := range ids {
-		if s.IsStopped() {
-			return nil
-		}
-		name := fmt.Sprintf("model_%d", d)
-		if _, err := os.Stat(filepath.Join(npcImagesDir, name+".png")); err != nil {
-			// Not cached yet — fetch from octowow, then throttle.
-			url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
-			s.downloadImage(url, npcImagesDir, name)
-			if delayMs > 0 {
-				time.Sleep(time.Duration(delayMs) * time.Millisecond)
-			}
-		}
-		if progressCb != nil {
-			progressCb(i+1, total, d)
-		}
-	}
-	return nil
-}
-
 // resolveCreatureWeapons builds the held-weapon attachments for a creature from
 // its equipment template: equipentry1 = main hand (right), equipentry2 = off hand
 // (left). Each equipped item's display id resolves to a weapon model + texture
@@ -1268,22 +1213,23 @@ func (s *NpcService) resolveCreatureWeapons(cf datatools.ClientFiles, entry int)
 }
 
 // renderJob is one model-render task: a creatureEntry of 0 means a display-keyed
-// render (model_<displayID>.png, body + display armor, with octowow fallback); a
-// non-zero creatureEntry means a per-creature render (model_creature_<entry>.png)
-// that additionally draws the creature's held weapons.
+// render (model_<displayID>.png, body + display armor); a non-zero creatureEntry
+// means a per-creature render (model_creature_<entry>.png) that additionally
+// draws the creature's held weapons.
 type renderJob struct {
 	creatureEntry int
 	displayID     int
 }
 
 // RenderAllNpcModels renders creature models from the client MPQs (at
-// <baseDir>/Data) into data/npc_images. It runs in two phases over one worker
-// pool: (1) one render per distinct display into model_<displayId>.png (body +
-// display-equipped armor incl. shoulders), falling back to octowow's pre-rendered
-// image when the software renderer can't handle a display; (2) one render per
-// creature that has held weapons into model_creature_<entry>.png (body + armor +
-// weapons), local-only (no octowow equivalent exists). Existing files are
-// skipped; honors the stop flag. delayMs throttles only the network fallback.
+// <baseDir>/Data) into data/npc_images — a "warm the whole cache" pass, since
+// pages also render on demand. It runs in two phases over one worker pool: (1)
+// one render per distinct display into model_<displayId>.png (body + display
+// armor incl. shoulders); (2) one render per creature that has held weapons into
+// model_creature_<entry>.png (body + armor + weapons). All renders are local;
+// displays the software renderer can't handle simply produce no file (the UI
+// shows a placeholder). Existing files are skipped; honors the stop flag.
+// delayMs is unused (kept for API compatibility) now that nothing downloads.
 func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
 	dataPath := filepath.Join(baseDir, "Data")
 	// Validate the client path up front so the caller gets a clear error.
@@ -1358,7 +1304,7 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 			for j := range jobs {
 				if !s.IsStopped() {
 					if j.creatureEntry == 0 {
-						s.renderDisplayJob(src, npcImagesDir, j.displayID, opt, delayMs)
+						s.renderDisplayJob(src, npcImagesDir, j.displayID, opt)
 					} else {
 						s.renderCreatureWeaponJob(src, npcImagesDir, j.creatureEntry, j.displayID, opt)
 					}
@@ -1382,25 +1328,20 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 }
 
 // renderDisplayJob renders one display to model_<displayID>.png (skipping if it
-// exists), falling back to octowow's pre-rendered image on local-render failure.
-func (s *NpcService) renderDisplayJob(src datatools.ClientFiles, dir string, displayID int, opt datatools.RenderOptions, delayMs int) {
+// exists). Local render only — a failure (e.g. a humanoid without a baked skin)
+// leaves no file and the UI shows a placeholder. No remote fallback.
+func (s *NpcService) renderDisplayJob(src datatools.ClientFiles, dir string, displayID int, opt datatools.RenderOptions) {
 	out := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
 	if _, statErr := os.Stat(out); statErr == nil {
 		return
 	}
-	if rErr := datatools.RenderCreatureModelToFile(src, displayID, out, opt); rErr != nil {
-		url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, displayID)
-		s.downloadImage(url, dir, fmt.Sprintf("model_%d", displayID))
-		if delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
-		}
-	}
+	_ = datatools.RenderCreatureModelToFile(src, displayID, out, opt)
 }
 
 // renderCreatureWeaponJob renders a creature's body + armor + held weapons to
 // model_creature_<entry>.png. It's a no-op when the creature resolves no weapon
 // models (the display-keyed image already covers body + armor) or the model
-// can't be rendered locally — there's no octowow per-creature fallback.
+// can't be rendered locally.
 func (s *NpcService) renderCreatureWeaponJob(src datatools.ClientFiles, dir string, entry, displayID int, opt datatools.RenderOptions) {
 	out := filepath.Join(dir, fmt.Sprintf("model_creature_%d.png", entry))
 	if _, statErr := os.Stat(out); statErr == nil {
@@ -1427,96 +1368,26 @@ func (s *NpcService) renderCreatureWeaponJob(src datatools.ClientFiles, dir stri
 	_ = png.Encode(f, img)
 }
 
-// looksLikeImage reports whether a downloaded body is an image, via its
-// Content-Type or magic bytes — used to reject soft-404 HTML pages.
-func looksLikeImage(contentType string, b []byte) bool {
-	if strings.HasPrefix(strings.ToLower(contentType), "image/") {
-		return true
+// RenderModelOnDemand renders a single creature's model into data/npc_images if
+// not already cached: a per-creature image (with held weapons) when the creature
+// has equipment, plus the shared display image. Local-only — no network. The
+// caller must serialize calls (the MPQ source is not concurrency-safe).
+func (s *NpcService) RenderModelOnDemand(cf datatools.ClientFiles, entry, displayID int) {
+	if displayID <= 0 {
+		return
 	}
-	if len(b) >= 4 {
-		switch {
-		case b[0] == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G': // PNG
-			return true
-		case b[0] == 0xFF && b[1] == 0xD8: // JPEG
-			return true
-		case b[0] == 'G' && b[1] == 'I' && b[2] == 'F': // GIF
-			return true
-		case b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F': // WEBP (RIFF)
-			return true
-		}
+	dir := filepath.Join(s.dataDir, "npc_images")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return
 	}
-	return false
-}
-
-func (s *NpcService) downloadImage(url string, dir string, name string) string {
-	if url == "" {
-		return ""
+	opt := datatools.DefaultRenderOptions()
+	if entry > 0 {
+		s.renderCreatureWeaponJob(cf, dir, entry, displayID, opt)
 	}
-
-	// Determine file extension from URL
-	ext := ".jpg"
-	if strings.Contains(strings.ToLower(url), ".png") {
-		ext = ".png"
-	} else if strings.Contains(strings.ToLower(url), ".gif") {
-		ext = ".gif"
-	} else if strings.Contains(strings.ToLower(url), ".webp") {
-		ext = ".webp"
+	out := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
+	if _, statErr := os.Stat(out); statErr != nil {
+		_ = datatools.RenderCreatureModelToFile(cf, displayID, out, opt)
 	}
-
-	base := name
-	if base == "" {
-		hash := md5.Sum([]byte(url))
-		base = hex.EncodeToString(hash[:])
-	}
-
-	localPath := filepath.Join(dir, base+ext)
-
-	// Skip if file already exists (DEDUPLICATION)
-	if _, err := os.Stat(localPath); err == nil {
-		return localPath
-	}
-
-	// Download the image
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Printf("Failed to create request for %s: %v\n", url, err)
-		return ""
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("Failed to download image from %s: %v\n", url, err)
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		fmt.Printf("Failed to download image from %s: HTTP %d\n", url, resp.StatusCode)
-		return ""
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Failed to read image from %s: %v\n", url, err)
-		return ""
-	}
-
-	// Validate the body is actually an image. octowow serves a soft-404 HTML
-	// page (HTTP 200, text/html) for display ids it has no render for; without
-	// this check that HTML would be saved as a .png.
-	if !looksLikeImage(resp.Header.Get("Content-Type"), data) {
-		return ""
-	}
-
-	if err := os.WriteFile(localPath, data, 0644); err != nil {
-		fmt.Printf("Failed to save image to %s: %v\n", localPath, err)
-		return ""
-	}
-	return localPath
 }
 
 // RequestStop signals the sync process to stop

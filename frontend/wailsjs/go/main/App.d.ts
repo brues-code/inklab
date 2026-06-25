@@ -22,15 +22,11 @@ export function CheckNewItems(arg1:number,arg2:number):Promise<Array<services.Re
 
 export function CheckNewQuests(arg1:number,arg2:number):Promise<Array<services.RemoteQuest>>;
 
-export function FetchRemoteImage(arg1:string,arg2:string,arg3:string):Promise<main.ImageResult>;
-
 export function FixMissingIcons(arg1:string,arg2:number):Promise<main.FixMissingIconsResult>;
 
 export function FixSingleItemIcon(arg1:number):Promise<main.FixMissingIconsResult>;
 
 export function FullSyncItems(arg1:number,arg2:boolean,arg3:number):Promise<string>;
-
-export function FullSyncNpcModels(arg1:number,arg2:number):Promise<string>;
 
 export function FullSyncNpcs(arg1:number,arg2:number):Promise<string>;
 
@@ -127,6 +123,8 @@ export function IsFavorite(arg1:number):Promise<boolean>;
 export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;
 
 export function RemoveFavorite(arg1:number):Promise<models.FavoriteResult>;
+
+export function RenderNpcModel(arg1:number,arg2:number,arg3:string):Promise<boolean>;
 
 export function RenderNpcModels(arg1:string,arg2:number,arg3:number):Promise<string>;
 
