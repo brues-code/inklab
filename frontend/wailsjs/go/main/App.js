@@ -94,6 +94,10 @@ export function GetCreatureTypes() {
   return window['go']['main']['App']['GetCreatureTypes']();
 }
 
+export function GetDataStatus() {
+  return window['go']['main']['App']['GetDataStatus']();
+}
+
 export function GetFactionDetail(arg1) {
   return window['go']['main']['App']['GetFactionDetail'](arg1);
 }
@@ -308,4 +312,8 @@ export function UpdateFavoriteStatus(arg1, arg2) {
 
 export function WaitForReady() {
   return window['go']['main']['App']['WaitForReady']();
+}
+
+export function WhatsNew() {
+  return window['go']['main']['App']['WhatsNew']();
 }

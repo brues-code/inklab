@@ -50,6 +50,8 @@ export function GetCreatureLoot(arg1:number):Promise<Array<models.LootItem>>;
 
 export function GetCreatureTypes():Promise<Array<models.CreatureType>>;
 
+export function GetDataStatus():Promise<main.DataStatus>;
+
 export function GetFactionDetail(arg1:number):Promise<models.FactionDetail>;
 
 export function GetFactions():Promise<Array<models.Faction>>;
@@ -157,3 +159,5 @@ export function UpdateFavoriteCategory(arg1:number,arg2:string):Promise<models.F
 export function UpdateFavoriteStatus(arg1:number,arg2:number):Promise<models.FavoriteResult>;
 
 export function WaitForReady():Promise<boolean>;
+
+export function WhatsNew():Promise<main.WhatsNewReport>;
