@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"inklab/backend/database"
 	"inklab/backend/datatools"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1226,11 +1227,13 @@ func (s *NpcService) SyncAllNpcModels(startFrom, delayMs int, progressCb func(cu
 // falls back to downloading octowow's pre-rendered image. Existing files are
 // skipped; honors the stop flag. delayMs throttles only the network fallback.
 func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
-	src, err := datatools.NewMpqSource(filepath.Join(baseDir, "Data"))
-	if err != nil {
+	dataPath := filepath.Join(baseDir, "Data")
+	// Validate the client path up front so the caller gets a clear error.
+	if probe, err := datatools.NewMpqSource(dataPath); err != nil {
 		return fmt.Errorf("open client MPQs at %s: %w", baseDir, err)
+	} else {
+		probe.Close()
 	}
-	defer src.Close()
 
 	rows, err := s.sqlite.Query(
 		"SELECT DISTINCT display_id1 FROM creature_template WHERE display_id1 >= ? AND display_id1 > 0 ORDER BY display_id1",
@@ -1252,32 +1255,60 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 		return err
 	}
 	opt := datatools.DefaultRenderOptions()
-
 	total := len(ids)
-	for i, d := range ids {
-		if s.IsStopped() {
-			return nil
-		}
-		out := filepath.Join(npcImagesDir, fmt.Sprintf("model_%d.png", d))
-		if _, err := os.Stat(out); err == nil {
-			if progressCb != nil {
-				progressCb(i+1, total, d)
-			}
-			continue // already have it
-		}
-		// Try to render the creature locally; on failure (character model, etc.)
-		// fall back to octowow's pre-rendered image.
-		if err := datatools.RenderCreatureModelToFile(src, d, out, opt); err != nil {
-			url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
-			s.downloadImage(url, npcImagesDir, fmt.Sprintf("model_%d", d))
-			if delayMs > 0 {
-				time.Sleep(time.Duration(delayMs) * time.Millisecond)
-			}
-		}
-		if progressCb != nil {
-			progressCb(i+1, total, d)
-		}
+
+	// Rasterizing is CPU-bound, so fan out across cores. Each worker opens its
+	// OWN MPQ set — model reads are hash-table lookups, so no listfile scan and
+	// no shared mutable state between workers.
+	workers := runtime.NumCPU() - 1
+	if workers < 1 {
+		workers = 1
 	}
+	if workers > 8 {
+		workers = 8
+	}
+	jobs := make(chan int, 256)
+	var done int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			src, err := datatools.NewMpqSource(dataPath)
+			if err != nil {
+				return
+			}
+			defer src.Close()
+			for d := range jobs {
+				if !s.IsStopped() {
+					out := filepath.Join(npcImagesDir, fmt.Sprintf("model_%d.png", d))
+					if _, statErr := os.Stat(out); statErr != nil {
+						// Render the creature locally; on failure (character model,
+						// parse error) fall back to octowow's pre-rendered image.
+						if rErr := datatools.RenderCreatureModelToFile(src, d, out, opt); rErr != nil {
+							url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
+							s.downloadImage(url, npcImagesDir, fmt.Sprintf("model_%d", d))
+							if delayMs > 0 {
+								time.Sleep(time.Duration(delayMs) * time.Millisecond)
+							}
+						}
+					}
+				}
+				cur := atomic.AddInt64(&done, 1)
+				if progressCb != nil {
+					progressCb(int(cur), total, d)
+				}
+			}
+		}()
+	}
+	for _, d := range ids {
+		if s.IsStopped() {
+			break
+		}
+		jobs <- d
+	}
+	close(jobs)
+	wg.Wait()
 	return nil
 }
 
