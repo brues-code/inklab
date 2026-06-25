@@ -5,7 +5,7 @@ import {
   FullSyncItems,
   FullSyncSpells,
   FullSyncQuests,
-  RenderNpcModels,
+  FullSyncNpcModels,
   StopSync,
 } from "../../../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
@@ -155,13 +155,11 @@ function SettingsPage() {
           case 'quest':
               await FullSyncQuests(100, startId);
               break;
-          case 'model': {
-              // Render creature models from the local client (falls back to
-              // octowow per-display). Client folder is shared with the Import tab.
-              const baseDir = localStorage.getItem('toolsBasePath') || 'C:\\WoW\\Octo';
-              await RenderNpcModels(baseDir, startId, 50);
+          case 'model':
+              // Download pre-rendered model images from octowow (web source).
+              // Rendering from the local client lives on the Import tab.
+              await FullSyncNpcModels(startId, 100);
               break;
-          }
       }
     } catch (error) {
       handleSyncError(activeSyncType, error.toString());

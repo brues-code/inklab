@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
 import { PageLayout } from "../../components/ui";
 
 const DEFAULT_BASE = "C:\\WoW\\Octo";
@@ -33,6 +34,11 @@ function ToolsPage({ onNavigate }) {
   const [wnLoading, setWnLoading] = useState(false);
   const [status, setStatus] = useState(null);
 
+  // NPC model rendering (background job with progress events).
+  const [modelBusy, setModelBusy] = useState(false);
+  const [modelProgress, setModelProgress] = useState(null);
+  const [modelMsg, setModelMsg] = useState(null);
+
   const refreshStatus = useCallback(async () => {
     const app = window?.go?.main?.App;
     if (!app?.GetDataStatus) return;
@@ -46,6 +52,44 @@ function ToolsPage({ onNavigate }) {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  // Subscribe to model-render progress events.
+  useEffect(() => {
+    EventsOn("sync:models:progress", (d) =>
+      setModelProgress({ current: d.current, total: d.total, name: d.itemName })
+    );
+    EventsOn("sync:models_full:complete", (msg) => {
+      setModelBusy(false);
+      setModelMsg({ ok: true, text: msg || "Model render complete" });
+      refreshStatus();
+    });
+    EventsOn("sync:models_full:error", (msg) => {
+      setModelBusy(false);
+      setModelMsg({ ok: false, text: msg });
+    });
+    return () => {
+      EventsOff("sync:models:progress");
+      EventsOff("sync:models_full:complete");
+      EventsOff("sync:models_full:error");
+    };
+  }, [refreshStatus]);
+
+  const runModelRender = () => {
+    const app = window?.go?.main?.App;
+    if (!app?.RenderNpcModels) {
+      setModelMsg({ ok: false, text: "Binding not found (restart dev build)" });
+      return;
+    }
+    setModelBusy(true);
+    setModelMsg(null);
+    setModelProgress(null);
+    app.RenderNpcModels(base, 0, 50);
+  };
+
+  const stopModelRender = () => {
+    window?.go?.main?.App?.StopSync?.();
+    setModelBusy(false);
+  };
 
   const loadWhatsNew = async () => {
     const app = window?.go?.main?.App;
@@ -205,6 +249,72 @@ function ToolsPage({ onNavigate }) {
             </div>
           );
         })}
+
+        {/* NPC Model Renders — renders creature models from the client MPQs.
+            Background job with progress; falls back to octowow per-display for
+            humanoid character models. */}
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-white font-semibold">NPC Model Renders</h3>
+              <p className="text-gray-400 text-sm mt-1">
+                Render creature models straight from your client into
+                data/npc_images, keyed by display id. Humanoid character models
+                (and any render failure) fall back to octowow's pre-rendered
+                image. Runs in the background; existing images are kept.
+              </p>
+              <p className="text-[11px] text-gray-600 font-mono mt-1">
+                Data\*.MPQ → Creature\…\*.m2 + skins
+              </p>
+            </div>
+            {modelBusy ? (
+              <button
+                onClick={stopModelRender}
+                className="shrink-0 bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-2 rounded transition-colors"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={runModelRender}
+                disabled={!!running}
+                className="shrink-0 bg-wow-gold/90 hover:bg-wow-gold text-black font-bold px-5 py-2 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Render
+              </button>
+            )}
+          </div>
+
+          {modelProgress && (
+            <div className="mt-3">
+              <div className="flex justify-between text-[11px] text-gray-400 font-mono mb-1">
+                <span>{modelProgress.name || "Rendering…"}</span>
+                <span>
+                  {modelProgress.current} / {modelProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-wow-gold h-full rounded-full transition-all"
+                  style={{
+                    width: `${modelProgress.total ? (modelProgress.current / modelProgress.total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          {modelMsg && (
+            <div
+              className={`mt-3 rounded border p-3 text-sm ${
+                modelMsg.ok
+                  ? "border-green-500/30 bg-green-500/5 text-green-400"
+                  : "border-red-500/30 bg-red-500/5 text-red-400"
+              }`}
+            >
+              {modelMsg.text}
+            </div>
+          )}
+        </div>
 
         {/* What's New — diff of the live DB vs the baseline. Placed last: it's
             noise for a brand-new user who hasn't imported anything yet. */}
