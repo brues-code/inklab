@@ -162,18 +162,25 @@ const (
 // alpha-blends them onto canvas at the overlay's map offset, with 256px tile
 // spacing.
 //
-// Tile count handling has two cases. Normally each row of the overlay ends in a
-// partial-width (<256) edge tile, since an overlay's width is rarely a multiple
-// of 256 — that edge tile marks the true column count and the end of each row.
-// octo sometimes appends unrelated tiles after the real overlay (e.g. Icepoint's
-// "kaneqnuun" is a 3x2 island overlay followed by 6 foreign tiles, including an
-// opaque one, that corrupt the map); a full-width tile where a row's edge tile
-// should be marks where that junk begins, so we stop there.
+// The challenge is that octo frequently ships MORE tiles than an overlay's
+// WorldMapOverlay.dbc rect calls for, in two unrelated ways that must be told
+// apart:
 //
-// When no partial-width tile exists at all (uniform 256px tiles), the art was
-// upscaled past its stale DBC entry (e.g. Stonetalon's WindshearCrag ships 4
-// tiles for a 1-tile rect); there's no edge to key on, so overlayCols recovers
-// the column count from the aspect ratio and every tile is used.
+//   - Appended foreign tiles: unrelated map art dumped into the folder after the
+//     real overlay (e.g. Icepoint's "kaneqnuun", Lapidis's "caelansrest" /
+//     "toweroflapidis"). Drawing these scatters duplicate landmass and labels
+//     across the map. The real overlay must be isolated and the rest dropped.
+//   - Upscaled art: the same rect re-exported at higher resolution (e.g.
+//     Stonetalon's WindshearCrag ships 4 tiles for a 1-tile rect). Every tile is
+//     real and should be drawn, scaled implicitly by the 256px grid.
+//
+// An overlay's true grid is cols=ceil(w/256) x rows=ceil(h/256) tiles, where only
+// the last column may be <256 wide and only the last row <256 tall. So a
+// partial-width tile marks the real column count (and a sliver column the DBC w
+// rounds away, as in kaneqnuun), and a partial-height tile marks the last row.
+// Tiles past that grid are foreign and dropped. Only when the art has no partial
+// edge at all AND the DBC rect is a whole number of 256px tiles do we treat the
+// extras as an upscale and keep them.
 func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov overlay) {
 	var tiles []*image.RGBA
 	for i := 1; i <= 64; i++ {
@@ -191,37 +198,41 @@ func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov 
 		return
 	}
 
-	// Column count from the first partial-width edge tile, if any.
-	cols, edged := 0, false
-	for i, t := range tiles {
-		if t.Bounds().Dx() < 256 {
-			cols, edged = i+1, true
+	dbcCols := (ov.w + 255) / 256
+	dbcRows := (ov.h + 255) / 256
+	if dbcCols < 1 {
+		dbcCols = 1
+	}
+	if dbcRows < 1 {
+		dbcRows = 1
+	}
+
+	// Real column count: the first partial-width tile is a row's right edge. Search
+	// one past dbcCols so a sliver column the DBC width rounds off (kaneqnuun's 8px
+	// 3rd column) is still found.
+	cols, widthEdge := dbcCols, false
+	for i := 0; i < len(tiles) && i <= dbcCols; i++ {
+		if tiles[i].Bounds().Dx() < 256 {
+			cols, widthEdge = i+1, true
 			break
 		}
 	}
 
-	limit := len(tiles)
-	if edged && cols > 0 {
-		// Keep only the leading rows that each end in an edge tile; stop at the
-		// first row whose final column is full-width (appended foreign tiles).
-		rows := 0
-		for r := 0; r*cols < len(tiles); r++ {
-			last := r*cols + cols - 1
-			if last >= len(tiles) {
-				rows = r + 1 // ragged final row — keep what's there
-				break
-			}
-			if tiles[last].Bounds().Dx() < 256 {
-				rows = r + 1
-			} else {
-				break
-			}
+	// Real row count: the row holding the first partial-height tile is the last row.
+	rows, heightEdge := dbcRows, false
+	for i, t := range tiles {
+		if t.Bounds().Dy() < 256 {
+			rows, heightEdge = i/cols+1, true
+			break
 		}
-		if rows > 0 {
-			limit = rows * cols
-		}
-	} else {
+	}
+
+	limit := cols * rows
+	// Upscale exception: no partial edge anywhere and a whole-tile DBC rect means
+	// the extras are higher-res art for the same rect, not foreign — keep them all.
+	if !widthEdge && !heightEdge && ov.w%256 == 0 && ov.h%256 == 0 && len(tiles) > limit {
 		cols = overlayCols(len(tiles), ov.w, ov.h)
+		limit = len(tiles)
 	}
 	if cols < 1 {
 		cols = 1
