@@ -21,11 +21,24 @@ type RenderOptions struct {
 	YawDeg      float64 // rotation around the up axis (3/4 view)
 	PitchDeg    float64
 	Supersample int // SSAA factor; render at Size*ss then downscale (default 2)
+
+	// Portrait, when set, renders from the model's embedded type-0 portrait
+	// camera (the head/bust framing the game shows in unit frames) using a
+	// perspective projection, ignoring YawDeg/PitchDeg. Falls back to the
+	// orthographic 3/4 view when the model has no portrait camera.
+	Portrait     bool
+	PortraitZoom float64 // FOV multiplier; >1 pulls back for headroom (default 1)
 }
 
-// DefaultRenderOptions is a front-3/4 portrait framing with 2x SSAA.
+// DefaultRenderOptions is a front-3/4 full-body framing with 2x SSAA.
 func DefaultRenderOptions() RenderOptions {
 	return RenderOptions{Size: 512, YawDeg: 35, PitchDeg: 10, Supersample: 2}
+}
+
+// DefaultPortraitOptions frames the model's embedded portrait camera (in-game
+// head shot) with a touch of headroom and 2x SSAA.
+func DefaultPortraitOptions() RenderOptions {
+	return RenderOptions{Size: 512, Supersample: 2, Portrait: true, PortraitZoom: 1.15}
 }
 
 // RenderCreatureModel resolves a display id, parses its M2, and rasterizes a
@@ -54,7 +67,65 @@ func RenderResolvedModel(cf ClientFiles, cm *CreatureModel, opt RenderOptions) (
 	if err != nil {
 		return nil, err
 	}
-	return RenderM2(cf, cm, m, opt), nil
+	return renderWithFallback(cf, cm, m, opt), nil
+}
+
+// renderWithFallback rasterizes a parsed model and, for a portrait request that
+// frames poorly (no usable portrait camera, or geometry the authored camera
+// can't be reconciled with even after recentering), falls back to the full-body
+// 3/4 view so the result is never blank or badly composed.
+func renderWithFallback(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) *image.RGBA {
+	img := RenderM2(cf, cm, m, opt)
+	if opt.Portrait && !portraitLooksGood(img) {
+		ortho := opt
+		ortho.Portrait = false
+		if ortho.YawDeg == 0 && ortho.PitchDeg == 0 {
+			ortho.YawDeg, ortho.PitchDeg = 35, 10
+		}
+		img = RenderM2(cf, cm, m, ortho)
+	}
+	return img
+}
+
+// RenderCreatureModelToFiles resolves + parses a display once and writes the
+// requested views from that single parse: a full-body render to bodyPath (when
+// non-empty) and a portrait render to portraitPath (when non-empty). An empty
+// path or an already-existing file is skipped. Returns an error only when the
+// display can't be rendered at all (unresolvable, unreadable, or a character
+// model without a baked skin); a per-view encode failure is best-effort.
+func RenderCreatureModelToFiles(cf ClientFiles, displayID int, bodyPath, portraitPath string, bodyOpt, portraitOpt RenderOptions) error {
+	cm, err := ResolveCreatureModel(cf, displayID)
+	if err != nil {
+		return err
+	}
+	if cm.IsCharacter() && cm.BakedSkinPath() == "" {
+		return fmt.Errorf("display %d is a character model without a baked skin", displayID)
+	}
+	mb, _, err := ReadModelFile(cf, cm.ModelPath)
+	if err != nil {
+		return err
+	}
+	m, err := ParseM2(mb)
+	if err != nil {
+		return err
+	}
+	write := func(path string, opt RenderOptions) {
+		if path == "" {
+			return
+		}
+		if _, statErr := os.Stat(path); statErr == nil {
+			return
+		}
+		f, err := os.Create(path)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+		_ = png.Encode(f, renderWithFallback(cf, cm, m, opt))
+	}
+	write(bodyPath, bodyOpt)
+	write(portraitPath, portraitOpt)
+	return nil
 }
 
 // RenderCreatureModelToFile renders a creature display to a PNG file. Returns an
@@ -129,77 +200,144 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		return nil, 0, false, tint
 	}
 
-	// Orthographic camera with yaw+pitch.
-	cx := (m.BoundsMin[0] + m.BoundsMax[0]) / 2
-	cy := (m.BoundsMin[1] + m.BoundsMax[1]) / 2
-	cz := (m.BoundsMin[2] + m.BoundsMax[2]) / 2
-	yaw := opt.YawDeg * math.Pi / 180
-	pitch := opt.PitchDeg * math.Pi / 180
-	sYaw, cYaw := math.Sin(yaw), math.Cos(yaw)
-	sPit, cPit := math.Sin(pitch), math.Cos(pitch)
+	// project maps a model-space (y-up) point to (screenX, screenY, depth); rotN
+	// transforms a normal into the lighting space; light is the light direction
+	// in that same space. perspective marks the portrait path so the rasterizer
+	// can drop triangles behind the camera. Set up per render mode below.
+	var project func([3]float32) (float64, float64, float64)
+	var rotN func([3]float32) [3]float64
+	var light [3]float64
+	perspective := false
 
-	rot := func(x, y, z float64) (float64, float64, float64) {
-		x2 := x*cYaw + z*sYaw
-		z2 := -x*sYaw + z*cYaw
-		y2 := y*cPit - z2*sPit
-		z3 := y*sPit + z2*cPit
-		return x2, y2, z3
-	}
+	pc, hasPortrait := m.PortraitCamera()
+	if opt.Portrait && hasPortrait {
+		// Perspective camera from the model's embedded portrait camera. Eye,
+		// target and FOV are art-authored to frame the head/bust.
+		perspective = true
+		eye := f64v(pc.Position)
+		tgt := f64v(pc.Target)
+		// The portrait camera is authored for the model's animated stand pose,
+		// but we render the static bind pose. For creatures whose idle animation
+		// lifts/moves the body (harpies, wyverns, fish, ...) the authored target
+		// can sit outside the bind-pose geometry and frame empty space. Re-aim at
+		// the real geometry by clamping the target into the bind-pose bbox — with
+		// a little headroom below the top, matching where well-behaved cameras
+		// aim — and translating the eye by the same delta, so the authored view
+		// angle and distance (hence framing scale) are preserved exactly.
+		bmin, bmax := f64v(m.BoundsMin), f64v(m.BoundsMax)
+		h := bmax[1] - bmin[1]
+		clamped := [3]float64{
+			clampf(tgt[0], bmin[0], bmax[0]),
+			clampf(tgt[1], bmin[1], bmax[1]-0.10*h),
+			clampf(tgt[2], bmin[2], bmax[2]),
+		}
+		dx := sub3(clamped, tgt)
+		eye = [3]float64{eye[0] + dx[0], eye[1] + dx[1], eye[2] + dx[2]}
+		tgt = clamped
+		fwd := normalize3(sub3(tgt, eye))
+		right := normalize3(cross3(fwd, [3]float64{0, 1, 0}))
+		up := cross3(right, fwd)
+		fov := float64(pc.FOV)
+		if opt.PortraitZoom > 0 {
+			fov *= opt.PortraitZoom
+		}
+		if fov < 0.05 {
+			fov = 0.785 // guard against a degenerate authored value
+		}
+		focal := 1.0 / math.Tan(fov/2)
+		half := float64(W) / 2
+		view := func(p [3]float32) (float64, float64, float64) {
+			d := [3]float64{float64(p[0]) - eye[0], float64(p[1]) - eye[1], float64(p[2]) - eye[2]}
+			return dot3(d, right), dot3(d, up), dot3(d, fwd)
+		}
+		project = func(p [3]float32) (float64, float64, float64) {
+			vx, vy, vz := view(p)
+			depth := vz
+			if vz < 1e-4 {
+				vz = 1e-4 // avoid div-by-zero; depth stays <=0 so the tri is dropped
+			}
+			sx := half + (vx/vz)*focal*half
+			sy := half - (vy/vz)*focal*half
+			return sx, sy, depth
+		}
+		// Light in view space: upper-left, toward the camera (-fwd component).
+		rotN = func(n [3]float32) [3]float64 {
+			nn := [3]float64{float64(n[0]), float64(n[1]), float64(n[2])}
+			return [3]float64{dot3(nn, right), dot3(nn, up), dot3(nn, fwd)}
+		}
+		light = normalize3([3]float64{-0.4, 0.5, -1.0})
+	} else {
+		// Orthographic camera with yaw+pitch.
+		cx := (m.BoundsMin[0] + m.BoundsMax[0]) / 2
+		cy := (m.BoundsMin[1] + m.BoundsMax[1]) / 2
+		cz := (m.BoundsMin[2] + m.BoundsMax[2]) / 2
+		yaw := opt.YawDeg * math.Pi / 180
+		pitch := opt.PitchDeg * math.Pi / 180
+		sYaw, cYaw := math.Sin(yaw), math.Cos(yaw)
+		sPit, cPit := math.Sin(pitch), math.Cos(pitch)
 
-	// Fit the rotated silhouette: project the 8 bbox corners, take their 2D
-	// extent, and scale/center to that. Works for tall, wide and rotated models
-	// (vs. scaling by a single 3D axis, which mis-frames after rotation).
-	var minX, maxX, minY, maxY float64
-	firstC := true
-	for cxi := 0; cxi < 2; cxi++ {
-		for cyi := 0; cyi < 2; cyi++ {
-			for czi := 0; czi < 2; czi++ {
-				bx := m.BoundsMin[0]
-				if cxi == 1 {
-					bx = m.BoundsMax[0]
+		rot := func(x, y, z float64) (float64, float64, float64) {
+			x2 := x*cYaw + z*sYaw
+			z2 := -x*sYaw + z*cYaw
+			y2 := y*cPit - z2*sPit
+			z3 := y*sPit + z2*cPit
+			return x2, y2, z3
+		}
+
+		// Fit the rotated silhouette: project the 8 bbox corners, take their 2D
+		// extent, and scale/center to that. Works for tall, wide and rotated
+		// models (vs. scaling by a single 3D axis, which mis-frames after rotation).
+		var minX, maxX, minY, maxY float64
+		firstC := true
+		for cxi := 0; cxi < 2; cxi++ {
+			for cyi := 0; cyi < 2; cyi++ {
+				for czi := 0; czi < 2; czi++ {
+					bx := m.BoundsMin[0]
+					if cxi == 1 {
+						bx = m.BoundsMax[0]
+					}
+					by := m.BoundsMin[1]
+					if cyi == 1 {
+						by = m.BoundsMax[1]
+					}
+					bz := m.BoundsMin[2]
+					if czi == 1 {
+						bz = m.BoundsMax[2]
+					}
+					x2, y2, _ := rot(float64(bx-cx), float64(by-cy), float64(bz-cz))
+					if firstC || x2 < minX {
+						minX = x2
+					}
+					if firstC || x2 > maxX {
+						maxX = x2
+					}
+					if firstC || y2 < minY {
+						minY = y2
+					}
+					if firstC || y2 > maxY {
+						maxY = y2
+					}
+					firstC = false
 				}
-				by := m.BoundsMin[1]
-				if cyi == 1 {
-					by = m.BoundsMax[1]
-				}
-				bz := m.BoundsMin[2]
-				if czi == 1 {
-					bz = m.BoundsMax[2]
-				}
-				x2, y2, _ := rot(float64(bx-cx), float64(by-cy), float64(bz-cz))
-				if firstC || x2 < minX {
-					minX = x2
-				}
-				if firstC || x2 > maxX {
-					maxX = x2
-				}
-				if firstC || y2 < minY {
-					minY = y2
-				}
-				if firstC || y2 > maxY {
-					maxY = y2
-				}
-				firstC = false
 			}
 		}
-	}
-	projCx, projCy := (minX+maxX)/2, (minY+maxY)/2
-	fit := maxf(maxX-minX, maxY-minY)
-	if fit <= 0 {
-		fit = 1
-	}
-	scale := float64(W) * 0.85 / fit
+		projCx, projCy := (minX+maxX)/2, (minY+maxY)/2
+		fit := maxf(maxX-minX, maxY-minY)
+		if fit <= 0 {
+			fit = 1
+		}
+		scale := float64(W) * 0.85 / fit
 
-	project := func(p [3]float32) (float64, float64, float64) {
-		x2, y2, z3 := rot(float64(p[0])-float64(cx), float64(p[1])-float64(cy), float64(p[2])-float64(cz))
-		return (x2-projCx)*scale + float64(W)/2, float64(H)/2 - (y2-projCy)*scale, z3
+		project = func(p [3]float32) (float64, float64, float64) {
+			x2, y2, z3 := rot(float64(p[0])-float64(cx), float64(p[1])-float64(cy), float64(p[2])-float64(cz))
+			return (x2-projCx)*scale + float64(W)/2, float64(H)/2 - (y2-projCy)*scale, z3
+		}
+		rotN = func(n [3]float32) [3]float64 {
+			x2, y2, z3 := rot(float64(n[0]), float64(n[1]), float64(n[2]))
+			return [3]float64{x2, y2, z3}
+		}
+		light = normalize3([3]float64{-0.4, 0.7, -0.8}) // upper-left, toward camera
 	}
-	rotN := func(n [3]float32) [3]float64 {
-		x2, y2, z3 := rot(float64(n[0]), float64(n[1]), float64(n[2]))
-		return [3]float64{x2, y2, z3}
-	}
-
-	light := normalize3([3]float64{-0.4, 0.7, -0.8}) // upper-left, toward camera
 
 	// drawMesh rasterizes one parsed model, optionally translated by a model-space
 	// offset (used to place attached items like shoulders at an attachment point).
@@ -232,6 +370,10 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 					vert := mm.Vertices[vi]
 					pos := [3]float32{vert.Pos[0] + offset[0], vert.Pos[1] + offset[1], vert.Pos[2] + offset[2]}
 					sx, sy, depth := project(pos)
+					if perspective && depth <= 1e-3 {
+						ok = false // vertex at/behind the camera — drop the triangle
+						break
+					}
 					li := 1.0 // unlit/emissive (glows, fire) render at full intensity
 					if !unlit {
 						n := rotN(vert.Normal)
@@ -477,6 +619,79 @@ func maxf(a, b float64) float64 {
 func min3(a, b, c float64) float64 { return math.Min(a, math.Min(b, c)) }
 func max3(a, b, c float64) float64 { return math.Max(a, math.Max(b, c)) }
 func dot3(a, b [3]float64) float64 { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] }
+func sub3(a, b [3]float64) [3]float64 { return [3]float64{a[0] - b[0], a[1] - b[1], a[2] - b[2]} }
+func cross3(a, b [3]float64) [3]float64 {
+	return [3]float64{a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]}
+}
+func f64v(v [3]float32) [3]float64 { return [3]float64{float64(v[0]), float64(v[1]), float64(v[2])} }
+func clampf(v, lo, hi float64) float64 {
+	if hi < lo {
+		hi = lo
+	}
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// alphaCoverage is the fraction of pixels with meaningful opacity.
+func alphaCoverage(img *image.RGBA) float64 {
+	if img == nil {
+		return 0
+	}
+	total := img.Bounds().Dx() * img.Bounds().Dy()
+	if total == 0 {
+		return 0
+	}
+	n := 0
+	for i := 3; i < len(img.Pix); i += 4 {
+		if img.Pix[i] > 16 {
+			n++
+		}
+	}
+	return float64(n) / float64(total)
+}
+
+// portraitLooksGood judges whether a portrait render is well-composed: enough of
+// the frame is filled (not near-empty, not edge-to-edge) and the subject is
+// roughly centered. Horizontal/quadruped models whose head isn't near the
+// bbox top (fish, some wyverns) recenter poorly and land off-center or at an
+// edge; those fail here and fall back to the full-body view.
+func portraitLooksGood(img *image.RGBA) bool {
+	if img == nil {
+		return false
+	}
+	W, H := img.Bounds().Dx(), img.Bounds().Dy()
+	if W == 0 || H == 0 {
+		return false
+	}
+	var n, sumX, sumY int
+	for y := 0; y < H; y++ {
+		for x := 0; x < W; x++ {
+			if img.Pix[img.PixOffset(x, y)+3] > 16 {
+				n++
+				sumX += x
+				sumY += y
+			}
+		}
+	}
+	if n == 0 {
+		return false
+	}
+	cov := float64(n) / float64(W*H)
+	if cov < 0.05 || cov > 0.92 {
+		return false
+	}
+	// Vertical centroid offset is the key tell: well-composed portraits keep the
+	// head/mass centered, while quadruped flyers whose head hangs low in the
+	// bind pose (fish, wyverns, chimeras) push the mass to the bottom of frame.
+	offX := math.Abs(float64(sumX)/float64(n)-float64(W)/2) / float64(W)
+	offY := math.Abs(float64(sumY)/float64(n)-float64(H)/2) / float64(H)
+	return offX <= 0.28 && offY <= 0.25
+}
 func normalize3(v [3]float64) [3]float64 {
 	l := math.Sqrt(dot3(v, v))
 	if l == 0 {

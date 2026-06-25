@@ -1484,11 +1484,11 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 // exists). Local render only — a failure (e.g. a humanoid without a baked skin)
 // leaves no file and the UI shows a placeholder. No remote fallback.
 func (s *NpcService) renderDisplayJob(src datatools.ClientFiles, dir string, displayID int, opt datatools.RenderOptions) {
-	out := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
-	if _, statErr := os.Stat(out); statErr == nil {
-		return
-	}
-	_ = datatools.RenderCreatureModelToFile(src, displayID, out, opt)
+	body := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
+	portrait := filepath.Join(dir, fmt.Sprintf("model_portrait_%d.png", displayID))
+	// One resolve + parse produces both the full-body and the portrait (head
+	// shot) view; RenderCreatureModelToFiles skips whichever file already exists.
+	_ = datatools.RenderCreatureModelToFiles(src, displayID, body, portrait, opt, datatools.DefaultPortraitOptions())
 }
 
 // renderCreatureWeaponJob renders a creature's body + armor + held weapons to
@@ -1537,10 +1537,9 @@ func (s *NpcService) RenderModelOnDemand(cf datatools.ClientFiles, entry, displa
 	if entry > 0 {
 		s.renderCreatureWeaponJob(cf, dir, entry, displayID, opt)
 	}
-	out := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
-	if _, statErr := os.Stat(out); statErr != nil {
-		_ = datatools.RenderCreatureModelToFile(cf, displayID, out, opt)
-	}
+	body := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
+	portrait := filepath.Join(dir, fmt.Sprintf("model_portrait_%d.png", displayID))
+	_ = datatools.RenderCreatureModelToFiles(cf, displayID, body, portrait, opt, datatools.DefaultPortraitOptions())
 }
 
 // RequestStop signals the sync process to stop

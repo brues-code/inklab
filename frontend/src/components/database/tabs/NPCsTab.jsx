@@ -1,12 +1,29 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetCreatureTypes, BrowseCreaturesByTypePaged, filterItems } from '../../../utils/databaseApi'
+import { useNpcPortrait } from '../../../services/useImage'
 
 // NPC rank colors
 const getRankColor = (rank) => {
     if (rank >= 3) return '#a335ee' // Boss - Epic purple
     if (rank >= 1) return '#ff8000' // Elite - Legendary orange
     return '#1eff00' // Normal - Uncommon green
+}
+
+// NpcPortraitThumb shows a creature's cached head-shot portrait in list rows.
+// It loads cached-only (generate=false) so scrolling never triggers a render
+// storm; rows without a cached portrait simply show nothing here.
+const NpcPortraitThumb = ({ displayId, rankColor }) => {
+    const { src } = useNpcPortrait(displayId, 0, 0, false)
+    if (!src) return null
+    return (
+        <img
+            src={src}
+            alt=""
+            className="w-8 h-8 rounded-full object-cover border bg-black flex-shrink-0"
+            style={{ borderColor: `${rankColor}66` }}
+        />
+    )
 }
 
 const PAGE_SIZE = 100
@@ -160,8 +177,9 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                                     className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] cursor-pointer transition-colors rounded-r group"
                                     style={{ borderLeftColor: rankColor }}
                                 >
-                                    {/* Level Badge */}
-                                    <EntityIcon 
+                                    {/* Portrait (cached only) + Level Badge */}
+                                    <NpcPortraitThumb displayId={creature.displayId1} rankColor={rankColor} />
+                                    <EntityIcon
                                         label={levelText}
                                         color={rankColor}
                                         size="md"

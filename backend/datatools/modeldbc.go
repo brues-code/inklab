@@ -446,6 +446,32 @@ func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool 
 		return sel
 	}
 	hair := ResolveHairGeoset(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairStyle)
+
+	// Groups 100/200/300 are "facial" groups. On most models these are optional
+	// facial HAIR (beard/moustache/sideburns), hair-textured and shown only when
+	// the creature's facialHair setting selects the variant. But some models
+	// (e.g. the custom Goblin) put the actual FACE/HEAD geometry in these groups,
+	// textured with the body skin — skipping it beheads the model. Distinguish by
+	// texture type: a body-textured facial group is real face geometry and must
+	// always render its default (lowest-id) variant; a hair-textured one is
+	// optional. Precompute, per facial group, its default submesh and whether
+	// it's body-textured.
+	faceDefault := map[int]int{} // group -> submesh index of its lowest id
+	faceIsBody := map[int]bool{} // group -> uses the body skin (real face), not hair
+	for i, s := range m.SubMeshes {
+		g := int(s.ID) / 100 * 100
+		if g != 100 && g != 200 && g != 300 {
+			continue
+		}
+		if cur, ok := faceDefault[g]; !ok || s.ID < m.SubMeshes[cur].ID {
+			faceDefault[g] = i
+		}
+		switch submeshTexType(m, i) {
+		case 0, 1, 2: // hardcoded / body skin / extra body — not hair (type 6)
+			faceIsBody[g] = true
+		}
+	}
+
 	for i, s := range m.SubMeshes {
 		id := int(s.ID)
 		g := id / 100 * 100
@@ -456,11 +482,35 @@ func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool 
 			sel[i] = true
 		case (g == 100 || g == 200 || g == 300) && cm.Extra.FacialHair > 0 && id == g+cm.Extra.FacialHair:
 			sel[i] = true // facial hair (beard/moustache/sideburns) variant
-		case (g == 100 || g == 200 || g == 300):
-			// other facial-group variants are alternates; skip
+		case g == 100 || g == 200 || g == 300:
+			// Body-textured face geometry: always show the default variant so the
+			// head renders. Hair-textured facial hair that wasn't selected above is
+			// an alternate; skip it.
+			if faceIsBody[g] && faceDefault[g] == i {
+				sel[i] = true
+			}
 		case g != 0 && id == g+1: // variant 1 = each group's default "skin" geoset
 			sel[i] = true
 		}
 	}
 	return sel
+}
+
+// submeshTexType returns the primary texture's Type for a submesh (via its
+// texture unit → texture-combo lookup), or -1 if none. Type 6 is hair; 0/1/2
+// are hardcoded/body/extra-body skins.
+func submeshTexType(m *M2Model, sub int) int {
+	for _, tu := range m.TexUnits {
+		if int(tu.SkinSectionIndex) != sub {
+			continue
+		}
+		if int(tu.TextureComboIndex) < len(m.TextureCombos) {
+			ti := m.TextureCombos[tu.TextureComboIndex]
+			if int(ti) < len(m.Textures) {
+				return int(m.Textures[ti].Type)
+			}
+		}
+		return -1
+	}
+	return -1
 }

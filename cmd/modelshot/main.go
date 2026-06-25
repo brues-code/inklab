@@ -26,6 +26,7 @@ func main() {
 	modelPath := flag.String("model", "", "parse+dump an arbitrary model path instead of a display")
 	wdisp := flag.Int("wdisp", 0, "spike: attach a weapon by ItemDisplayInfo id")
 	watt := flag.Int("watt", 1, "spike: weapon attachment id (1=right hand, 2=left hand)")
+	portrait := flag.Bool("portrait", false, "render the model's embedded portrait camera (head shot) instead of the 3/4 body")
 	flag.Parse()
 
 	if *modelPath != "" {
@@ -147,6 +148,10 @@ func main() {
 
 	if *out != "" {
 		opts := datatools.RenderOptions{Size: *size, YawDeg: *yaw, PitchDeg: *pitch}
+		if *portrait {
+			opts = datatools.DefaultPortraitOptions()
+			opts.Size = *size
+		}
 		var img *image.RGBA
 		if *wdisp > 0 {
 			// spike: attach a weapon by its ItemDisplayInfo id at -watt

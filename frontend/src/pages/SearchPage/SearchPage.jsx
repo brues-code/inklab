@@ -1,19 +1,25 @@
 import { useState } from 'react'
 import { AdvancedSearch } from '../../../wailsjs/go/main/App'
-import { useIcon } from '../../services/useImage'
+import { useIcon, useNpcPortrait } from '../../services/useImage'
 import { getQualityColor } from '../../utils/wow'
 
-const SearchResultIcon = ({ iconName, type }) => {
+const SearchResultIcon = ({ iconName, type, displayId }) => {
     const icon = useIcon(iconName)
-    
-    // Fallback based on type
-    let fallback = '/local-icons/inv_misc_questionmark.jpg'
-    
+    // For NPCs, prefer the head-shot portrait, falling back to the generic NPC
+    // icon. Search is bounded (≤50 results) and renders serialize through the
+    // backend mutex, so generate=true here trickles portraits in over a few
+    // seconds rather than storming (the infinite-scroll browse list stays
+    // cached-only).
+    const portrait = useNpcPortrait(type === 'npc' ? displayId : 0, 0, 0, true)
+
+    const fallback = '/local-icons/inv_misc_questionmark.jpg'
+    const src = (type === 'npc' && portrait.src) ? portrait.src : (icon.src || fallback)
+
     return (
         <div className="w-8 h-8 mr-2 bg-black rounded overflow-hidden flex-shrink-0 relative">
             {!icon.loading && (
-                <img 
-                    src={icon.src || fallback}
+                <img
+                    src={src}
                     className="w-full h-full object-cover"
                     alt=""
                 />
@@ -179,7 +185,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                         onMouseLeave={() => item.type === 'item' && onItemClick?.(item.entry, false)}
                     >
                         {/* Icon */}
-                        <SearchResultIcon iconName={item.iconPath} type={item.type} />
+                        <SearchResultIcon iconName={item.iconPath} type={item.type} displayId={item.displayId1} />
                         
                         {/* ID */}
                         <span className="text-gray-500 text-xs font-mono mr-2 min-w-[50px]">

@@ -2,7 +2,7 @@
  * React Hook for loading images with the unified image service
  */
 import { useState, useEffect } from 'react';
-import { loadImage, loadIcon, loadNpcModel, loadZoneMap } from './imageService';
+import { loadImage, loadIcon, loadNpcModel, loadNpcPortrait, loadZoneMap } from './imageService';
 
 /**
  * Hook for loading a single image
@@ -123,6 +123,41 @@ export const useNpcModel = (displayId, reloadKey = 0, creatureEntry = 0) => {
                 setLoading(false);
             });
     }, [displayId, reloadKey, creatureEntry]);
+
+    return { src, loading, error };
+};
+
+/**
+ * Hook for loading an NPC portrait (head shot) render, fully local. Mirrors
+ * useNpcModel but loads the display-keyed portrait image. Sets error=true when
+ * nothing renderable exists (callers fall back to the full-body model or a
+ * placeholder).
+ * @param {number} displayId - creature display id (display_id1)
+ * @param {number} reloadKey - bump to force a reload
+ * @param {number} creatureEntry - creature entry (only used to trigger a render)
+ * @returns {{ src: string | null, loading: boolean, error: boolean }}
+ */
+export const useNpcPortrait = (displayId, reloadKey = 0, creatureEntry = 0, generate = true) => {
+    const [src, setSrc] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        if (!displayId) {
+            setLoading(false);
+            setError(true);
+            return;
+        }
+        setLoading(true);
+        setError(false);
+        loadNpcPortrait(displayId, creatureEntry, generate)
+            .then(result => {
+                if (result) setSrc(result);
+                else setError(true);
+            })
+            .catch(() => setError(true))
+            .finally(() => setLoading(false));
+    }, [displayId, reloadKey, creatureEntry, generate]);
 
     return { src, loading, error };
 };

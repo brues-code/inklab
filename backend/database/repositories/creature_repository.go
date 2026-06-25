@@ -72,9 +72,9 @@ func (r *CreatureRepository) GetCreaturesByType(creatureType int, nameFilter str
 	// Data
 	dataArgs := append(args, limit, offset)
 	dataQuery := fmt.Sprintf(`
-		SELECT entry, name, subname, level_min, level_max, 
+		SELECT entry, name, subname, level_min, level_max,
 			health_min, health_max, mana_min, mana_max,
-			type, rank, faction, npc_flags
+			type, rank, faction, npc_flags, display_id1
 		FROM creature_template
 		%s
 		ORDER BY level_max DESC, name
@@ -94,7 +94,7 @@ func (r *CreatureRepository) GetCreaturesByType(creatureType int, nameFilter str
 		err := rows.Scan(
 			&c.Entry, &c.Name, &subname, &c.LevelMin, &c.LevelMax,
 			&c.HealthMin, &c.HealthMax, &c.ManaMin, &c.ManaMax,
-			&c.Type, &c.Rank, &c.Faction, &c.NPCFlags,
+			&c.Type, &c.Rank, &c.Faction, &c.NPCFlags, &c.DisplayID1,
 		)
 		if err != nil {
 			continue
@@ -118,9 +118,9 @@ func (r *CreatureRepository) SearchCreatures(query string, limit int) ([]*models
 	// Check if query is a number
 	if id, parseErr := strconv.Atoi(query); parseErr == nil {
 		rows, err = r.db.Query(`
-		SELECT entry, name, subname, level_min, level_max, 
+		SELECT entry, name, subname, level_min, level_max,
 			health_min, health_max, mana_min, mana_max,
-			type, rank, faction, npc_flags
+			type, rank, faction, npc_flags, display_id1
 		FROM creature_template
 		WHERE name LIKE ? OR entry = ?
 		ORDER BY length(name), name
@@ -128,9 +128,9 @@ func (r *CreatureRepository) SearchCreatures(query string, limit int) ([]*models
 	`, "%"+query+"%", id, limit)
 	} else {
 		rows, err = r.db.Query(`
-		SELECT entry, name, subname, level_min, level_max, 
+		SELECT entry, name, subname, level_min, level_max,
 			health_min, health_max, mana_min, mana_max,
-			type, rank, faction, npc_flags
+			type, rank, faction, npc_flags, display_id1
 		FROM creature_template
 		WHERE name LIKE ?
 		ORDER BY length(name), name
@@ -150,7 +150,7 @@ func (r *CreatureRepository) SearchCreatures(query string, limit int) ([]*models
 		err := rows.Scan(
 			&c.Entry, &c.Name, &subname, &c.LevelMin, &c.LevelMax,
 			&c.HealthMin, &c.HealthMax, &c.ManaMin, &c.ManaMax,
-			&c.Type, &c.Rank, &c.Faction, &c.NPCFlags,
+			&c.Type, &c.Rank, &c.Faction, &c.NPCFlags, &c.DisplayID1,
 		)
 		if err != nil {
 			continue

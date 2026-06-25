@@ -112,6 +112,40 @@ export const loadNpcModel = async (displayId, creatureEntry = 0) => {
 };
 
 /**
+ * Load an NPC portrait (head shot) render, fully locally. Portraits are
+ * display-keyed (model_portrait_<displayId>.png); they're written alongside the
+ * full-body render, so an on-demand RenderNpcModel produces both. Returns the
+ * portrait data URL, or null when nothing renderable exists (UI placeholder).
+ * @param {number} displayId - creature display id (display_id1)
+ * @param {number} creatureEntry - creature entry (only used to trigger render)
+ * @returns {Promise<string|null>} - Image data URL or null
+ */
+export const loadNpcPortrait = async (displayId, creatureEntry = 0, generate = true) => {
+    if (!displayId) return null;
+    // 1. Cached portrait on disk.
+    const p = await loadImage('npc_model', `model_portrait_${displayId}`);
+    if (p) return p;
+
+    // 2. Generate on demand from the client MPQs (writes body + portrait), then
+    //    re-read the portrait file. Skipped for list thumbnails (generate=false)
+    //    so scrolling a long list doesn't kick off hundreds of renders.
+    if (!generate) return null;
+    const baseDir = getClientBasePath();
+    if (baseDir && window?.go?.main?.App?.RenderNpcModel) {
+        try {
+            const rendered = await window.go.main.App.RenderNpcModel(creatureEntry || 0, displayId, baseDir);
+            if (rendered) {
+                const p2 = await loadImage('npc_model', `model_portrait_${displayId}`);
+                if (p2) return p2;
+            }
+        } catch (e) {
+            // nothing renderable — fall through to null (UI placeholder)
+        }
+    }
+    return null;
+};
+
+/**
  * Load a locally-generated zone map by zone name (texture-folder name).
  * Local-only: there is no remote fallback.
  * @param {string} zoneName - e.g. "Elwynn", "EasternPlaguelands"

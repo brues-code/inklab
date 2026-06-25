@@ -107,10 +107,23 @@ type M2Model struct {
 
 	Bones       []M2Bone       // rest pivots, for attachment placement
 	Attachments []M2Attachment // attachment points (shoulders, hands, ...)
+	Cameras     []M2Camera     // embedded cameras (portrait/paperdoll framing)
 
 	// World-space bounding box (y-up), for camera framing.
 	BoundsMin [3]float32
 	BoundsMax [3]float32
+}
+
+// M2Camera is an embedded camera. Type 0 is the portrait camera (the head/bust
+// framing the game renders in unit frames); type 1 is the paperdoll/character
+// sheet camera; -1/others are cinematic. Position/Target are the static base
+// vectors converted to the model's y-up space; FOV is in radians. The animation
+// tracks (position/target/roll) are skipped — a static portrait uses the bases.
+type M2Camera struct {
+	Type     int32
+	FOV      float32
+	Position [3]float32 // position_base (eye)
+	Target   [3]float32 // target_position_base (look-at)
 }
 
 type m2cur struct {
@@ -183,6 +196,11 @@ func ParseM2(b []byte) (*M2Model, error) {
 	c.arr()      // collision positions
 	c.arr()      // collision normals
 	attN, attOff := c.arr()
+	c.arr() // attachment lookup
+	c.arr() // events
+	c.arr() // lights
+	camN, camOff := c.arr() // cameras
+	// (camera lookup follows; not needed — the Type field identifies the portrait cam)
 
 	// --- vertices (48 bytes each) ---
 	c.seek(int(vtxOff))
@@ -402,5 +420,39 @@ func ParseM2(b []byte) (*M2Model, error) {
 		m.Attachments[i] = M2Attachment{ID: id, Bone: bone, Position: conv(ax, ay, az)}
 	}
 
+	// --- cameras (portrait/paperdoll framing) ---
+	// Vanilla & WotLK M2Camera both carry a `fov` field; it was removed in Cata,
+	// which this parser doesn't target. Stride and the two base-vector offsets
+	// are driven by the track size (28 vanilla / 20 WotLK):
+	//   type u32, fov f32, far f32, near f32, positions track, position_base vec3,
+	//   target_position track, target_position_base vec3, roll track.
+	camStride := 40 + 3*trackSize
+	posBaseOff := 16 + trackSize
+	targetBaseOff := 28 + 2*trackSize
+	m.Cameras = make([]M2Camera, 0, camN)
+	for i := 0; i < int(camN); i++ {
+		base := int(camOff) + i*camStride
+		if base+targetBaseOff+12 > len(b) {
+			break
+		}
+		cam := M2Camera{
+			Type:     int32(binary.LittleEndian.Uint32(b[base:])),
+			FOV:      f32at(base + 4),
+			Position: conv(f32at(base+posBaseOff), f32at(base+posBaseOff+4), f32at(base+posBaseOff+8)),
+			Target:   conv(f32at(base+targetBaseOff), f32at(base+targetBaseOff+4), f32at(base+targetBaseOff+8)),
+		}
+		m.Cameras = append(m.Cameras, cam)
+	}
+
 	return m, nil
+}
+
+// PortraitCamera returns the model's portrait camera (Type 0) if present.
+func (m *M2Model) PortraitCamera() (M2Camera, bool) {
+	for _, c := range m.Cameras {
+		if c.Type == 0 {
+			return c, true
+		}
+	}
+	return M2Camera{}, false
 }

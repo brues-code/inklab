@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
-import { useNpcModel, useZoneMap, useIcon } from "../../../services/useImage";
+import { useNpcModel, useNpcPortrait, useZoneMap, useIcon } from "../../../services/useImage";
 import { evictImage } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
@@ -47,6 +47,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // Pass the creature entry so a per-creature render (with held weapons) is
   // preferred over the shared display render when one exists locally.
   const modelImage = useNpcModel(displayId, imgReload, entry);
+  // Portrait (head shot) for the header avatar — rendered from the model's
+  // embedded portrait camera; written alongside the full-body model.
+  const portraitImage = useNpcPortrait(displayId, imgReload, entry);
   const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
   useEffect(() => {
@@ -72,7 +75,10 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     RefreshNpcImages(entry)
       .then((res) => {
         if (res) setDetail(res);
-        if (displayId) evictImage("npc_model", `model_${displayId}`);
+        if (displayId) {
+          evictImage("npc_model", `model_${displayId}`);
+          evictImage("npc_model", `model_portrait_${displayId}`);
+        }
         evictImage("npc_model", `model_creature_${entry}`);
         setImgReload((n) => n + 1);
       })
@@ -123,19 +129,30 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
       <DetailPageLayout onBack={onBack}>
         {/* --- Header Section --- */}
         <div className="mb-6 flex justify-between items-start">
-          <div>
-            <h1
-              className={`text-2xl font-bold ${getQualityColor(
-                detail.rank >= 1 ? 5 : 1
-              )}`}
-            >
-              {detail.name}
-            </h1>
-            {detail.subname && (
-              <div className="text-sm text-yellow-200 mt-1">
-                &lt;{detail.subname}&gt;
-              </div>
+          <div className="flex items-center gap-3">
+            {/* Portrait avatar (head shot) — falls back to nothing when the
+                model can't be rendered, so the title just sits flush. */}
+            {portraitImage.src && (
+              <img
+                src={portraitImage.src}
+                alt={detail.name}
+                className="w-14 h-14 rounded-full object-cover border-2 border-white/20 bg-black shadow-lg flex-shrink-0"
+              />
             )}
+            <div>
+              <h1
+                className={`text-2xl font-bold ${getQualityColor(
+                  detail.rank >= 1 ? 5 : 1
+                )}`}
+              >
+                {detail.name}
+              </h1>
+              {detail.subname && (
+                <div className="text-sm text-yellow-200 mt-1">
+                  &lt;{detail.subname}&gt;
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <button
