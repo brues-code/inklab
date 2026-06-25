@@ -1312,6 +1312,27 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 	return nil
 }
 
+// looksLikeImage reports whether a downloaded body is an image, via its
+// Content-Type or magic bytes — used to reject soft-404 HTML pages.
+func looksLikeImage(contentType string, b []byte) bool {
+	if strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return true
+	}
+	if len(b) >= 4 {
+		switch {
+		case b[0] == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G': // PNG
+			return true
+		case b[0] == 0xFF && b[1] == 0xD8: // JPEG
+			return true
+		case b[0] == 'G' && b[1] == 'I' && b[2] == 'F': // GIF
+			return true
+		case b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F': // WEBP (RIFF)
+			return true
+		}
+	}
+	return false
+}
+
 func (s *NpcService) downloadImage(url string, dir string, name string) string {
 	if url == "" {
 		return ""
@@ -1363,22 +1384,23 @@ func (s *NpcService) downloadImage(url string, dir string, name string) string {
 		return ""
 	}
 
-	// Create file
-	file, err := os.Create(localPath)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to create file %s: %v\n", localPath, err)
+		fmt.Printf("Failed to read image from %s: %v\n", url, err)
 		return ""
 	}
-	defer file.Close()
 
-	// Copy data
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
+	// Validate the body is actually an image. octowow serves a soft-404 HTML
+	// page (HTTP 200, text/html) for display ids it has no render for; without
+	// this check that HTML would be saved as a .png.
+	if !looksLikeImage(resp.Header.Get("Content-Type"), data) {
+		return ""
+	}
+
+	if err := os.WriteFile(localPath, data, 0644); err != nil {
 		fmt.Printf("Failed to save image to %s: %v\n", localPath, err)
-		os.Remove(localPath) // Clean up partial file
 		return ""
 	}
-
 	return localPath
 }
 
