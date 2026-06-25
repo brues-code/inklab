@@ -49,9 +49,17 @@ func GenerateZoneMapsFrom(cf ClientFiles, outDir string, progress func(zone stri
 		return nil, err
 	}
 
-	overlays := map[string]overlay{}
+	// Overlay placements are scoped to each zone's WorldMapArea id. octo's data
+	// sometimes drops one zone's overlay tiles into another's folder (e.g. Hyjal
+	// ships Tel Abim tiles like TheJaggedIsles); keying placement by area id — not
+	// just texture name — keeps those foreign tiles from bleeding onto the map.
+	areaIDByName := map[string]uint32{}
+	if b, err := cf.ReadDBC("WorldMapArea.dbc"); err == nil {
+		areaIDByName = parseWorldMapAreaIDs(b)
+	}
+	overlaysByArea := map[uint32]map[string]overlay{}
 	if b, err := cf.ReadDBC("WorldMapOverlay.dbc"); err == nil {
-		overlays = parseOverlaysBytes(b)
+		overlaysByArea = parseOverlaysByArea(b)
 	}
 
 	allZones, err := cf.ListZones()
@@ -72,7 +80,7 @@ func GenerateZoneMapsFrom(cf ClientFiles, outDir string, progress func(zone stri
 		if progress != nil {
 			progress(z, i+1, len(zones))
 		}
-		img, err := stitchZone(cf, z, overlays)
+		img, err := stitchZone(cf, z, overlaysByArea[areaIDByName[strings.ToLower(z)]])
 		if err != nil {
 			res.Skipped++
 			res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %v", z, err))
@@ -208,10 +216,48 @@ func overlayCols(n, w, h int) int {
 	return cols
 }
 
-// parseOverlaysBytes parses WorldMapOverlay.dbc bytes -> lowercased textureName
-// -> placement.
-func parseOverlaysBytes(b []byte) map[string]overlay {
-	out := map[string]overlay{}
+// parseWorldMapAreaIDs parses WorldMapArea.dbc -> lowercased areaName (the
+// WorldMap texture-folder name) -> record id, so overlays can be matched to the
+// zone they belong to. Layout (8 fields): id(0), mapID(1), areaID(2), name(3), ...
+func parseWorldMapAreaIDs(b []byte) map[string]uint32 {
+	out := map[string]uint32{}
+	if len(b) < 20 || string(b[0:4]) != "WDBC" {
+		return out
+	}
+	rc := int(binary.LittleEndian.Uint32(b[4:8]))
+	rs := int(binary.LittleEndian.Uint32(b[12:16]))
+	if rc <= 0 || rs < 16 {
+		return out
+	}
+	sb := 20 + rc*rs
+	for r := 0; r < rc; r++ {
+		rec := 20 + r*rs
+		if rec+16 > len(b) {
+			break
+		}
+		id := binary.LittleEndian.Uint32(b[rec : rec+4])
+		off := sb + int(binary.LittleEndian.Uint32(b[rec+12:rec+16]))
+		if off < sb || off >= len(b) {
+			continue
+		}
+		e := off
+		for e < len(b) && b[e] != 0 {
+			e++
+		}
+		if name := strings.ToLower(strings.TrimSpace(string(b[off:e]))); name != "" {
+			out[name] = id
+		}
+	}
+	return out
+}
+
+// parseOverlaysByArea parses WorldMapOverlay.dbc bytes into
+// mapAreaID -> lowercased textureName -> placement. Keying by area id (not just
+// texture name) means a zone only composites the overlays that actually belong
+// to it. Layout (17 fields): id, mapAreaID(1), areaID[2..7], textureName(8),
+// w(9), h(10), offsetX(11), offsetY(12), hitRect[4].
+func parseOverlaysByArea(b []byte) map[uint32]map[string]overlay {
+	out := map[uint32]map[string]overlay{}
 	if len(b) < 20 || string(b[0:4]) != "WDBC" {
 		return out
 	}
@@ -236,14 +282,16 @@ func parseOverlaysBytes(b []byte) map[string]overlay {
 		}
 		return string(b[off:e])
 	}
-	// Layout (17 fields): id, mapAreaID, areaID[6], textureName(8), w(9), h(10),
-	// offsetX(11), offsetY(12), hitRect[4].
 	for r := 0; r < rc; r++ {
 		name := strings.ToLower(strings.TrimSpace(str(r, 8)))
 		if name == "" {
 			continue
 		}
-		out[name] = overlay{
+		area := field(r, 1)
+		if out[area] == nil {
+			out[area] = map[string]overlay{}
+		}
+		out[area][name] = overlay{
 			w: int(field(r, 9)), h: int(field(r, 10)),
 			offX: int(field(r, 11)), offY: int(field(r, 12)),
 		}
