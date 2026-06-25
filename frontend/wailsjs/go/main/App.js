@@ -54,6 +54,10 @@ export function FullSyncItems(arg1, arg2, arg3) {
   return window['go']['main']['App']['FullSyncItems'](arg1, arg2, arg3);
 }
 
+export function FullSyncNpcModels(arg1, arg2) {
+  return window['go']['main']['App']['FullSyncNpcModels'](arg1, arg2);
+}
+
 export function FullSyncNpcs(arg1, arg2) {
   return window['go']['main']['App']['FullSyncNpcs'](arg1, arg2);
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
 import { useNpcModel, useZoneMap, useIcon } from "../../../services/useImage";
-import { evictNpcImages } from "../../../services/imageService";
+import { evictImage } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import {
@@ -40,9 +40,15 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [imgReload, setImgReload] = useState(0);
   const [refreshingImages, setRefreshingImages] = useState(false);
 
-  // Model is fetched from octo; the map is a locally-generated zone map keyed
-  // by the NPC's resolved zone name (data/maps/<zone>.jpg).
-  const modelImage = useNpcModel(entry, detail?.modelImageUrl, imgReload);
+  // Model renders are keyed by CreatureDisplayInfo id and fetched straight from
+  // octowow (/images/models/<displayId>.png) — many NPCs share a display, so
+  // this caches once per display rather than per entry. The map is a
+  // locally-generated zone map keyed by the NPC's resolved zone name.
+  const displayId = detail?.displayId1;
+  const modelUrl = displayId
+    ? `${DATABASE_BASE_URL}/images/models/${displayId}.png`
+    : null;
+  const modelImage = useNpcModel(displayId, modelUrl, imgReload);
   const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
   useEffect(() => {
@@ -68,7 +74,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     RefreshNpcImages(entry)
       .then((res) => {
         if (res) setDetail(res);
-        evictNpcImages(entry);
+        if (displayId) evictImage("npc_model", `model_${displayId}`);
         setImgReload((n) => n + 1);
       })
       .finally(() => setRefreshingImages(false));

@@ -98,13 +98,14 @@ export const loadIcon = async (iconName) => {
 };
 
 /**
- * Load NPC model image
- * @param {number} npcId - NPC entry ID
- * @param {string} remoteUrl - Remote URL from Wowhead
+ * Load an NPC model render, keyed by CreatureDisplayInfo id (octowow serves
+ * these at /images/models/<displayId>.png and many NPCs share a display).
+ * @param {number} displayId - creature display id (display_id1)
+ * @param {string} remoteUrl - octowow model URL
  * @returns {Promise<string>} - Image URL
  */
-export const loadNpcModel = async (npcId, remoteUrl) => {
-    return loadImage('npc_model', `model_${npcId}`, remoteUrl);
+export const loadNpcModel = async (displayId, remoteUrl) => {
+    return loadImage('npc_model', `model_${displayId}`, remoteUrl);
 };
 
 /**

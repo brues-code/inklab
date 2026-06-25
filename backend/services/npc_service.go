@@ -991,24 +991,13 @@ func (s *NpcService) syncNpcImages(entry int) error {
 		scrapedData = &ScrapedNpcData{Infobox: make(map[string]string)}
 	}
 
-	// B. Download images to local storage
-	npcImagesDir := filepath.Join(s.dataDir, "npc_images")
-	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
-		fmt.Printf("Warning: Failed to create npc_images directory: %v\n", err)
-	}
-
-	// Download the model image under the canonical model_<id> name the on-demand
-	// image service reads. We no longer download the scraped location map: the
-	// NPC view renders a locally-generated zone map (data/maps, via the zone
-	// name + spawn coords), so the scraped map_<id>.jpg was never displayed.
+	// Model and map images are no longer downloaded here. Model renders are
+	// loaded on demand (and bulk-synced) by CreatureDisplayInfo id straight from
+	// octowow — see SyncAllNpcModels / useNpcModel — so a per-entry model_<id>.png
+	// would be both redundant and wrongly keyed. The NPC view's map is a
+	// locally-generated zone map. We keep only the scraped metadata below.
 	localModelPath := ""
-	if scrapedData.ModelImageURL != "" {
-		localModelPath = s.downloadImage(scrapedData.ModelImageURL, npcImagesDir, fmt.Sprintf("model_%d", entry))
-		if localModelPath != "" {
-			fmt.Printf("[DEBUG] Model image synced: %s\n", localModelPath)
-		}
-	}
-	localMapPath := "" // scraped map intentionally not downloaded (see above)
+	localMapPath := ""
 
 	// Store Metadata to SQLite
 	// Ensure columns exist (quick dirty adjustment)
@@ -1183,6 +1172,53 @@ func (s *NpcService) GetNpcDetailsContext(ctx context.Context, entry int) (*NpcF
 // downloadImage downloads an image from URL and saves it locally. When name is
 // given it's used as the base filename (the on-demand image service reads NPC
 // images as model_<id>/map_<id>); otherwise an MD5 hash of the URL is used.
+// SyncAllNpcModels downloads NPC model renders from octowow.st, keyed by
+// CreatureDisplayInfo id (octowow serves them at /images/models/<displayId>.png).
+// Many creatures share a display, so we fetch each distinct display once into
+// data/npc_images/model_<displayId>.png. Existing files are skipped, and the
+// throttle only applies to actual downloads. Honors the stop flag.
+func (s *NpcService) SyncAllNpcModels(startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
+	rows, err := s.sqlite.Query(
+		"SELECT DISTINCT display_id1 FROM creature_template WHERE display_id1 >= ? AND display_id1 > 0 ORDER BY display_id1",
+		startFrom)
+	if err != nil {
+		return err
+	}
+	var ids []int
+	for rows.Next() {
+		var d int
+		if rows.Scan(&d) == nil {
+			ids = append(ids, d)
+		}
+	}
+	rows.Close()
+
+	npcImagesDir := filepath.Join(s.dataDir, "npc_images")
+	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
+		return err
+	}
+
+	total := len(ids)
+	for i, d := range ids {
+		if s.IsStopped() {
+			return nil
+		}
+		name := fmt.Sprintf("model_%d", d)
+		if _, err := os.Stat(filepath.Join(npcImagesDir, name+".png")); err != nil {
+			// Not cached yet — fetch from octowow, then throttle.
+			url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
+			s.downloadImage(url, npcImagesDir, name)
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
+		}
+		if progressCb != nil {
+			progressCb(i+1, total, d)
+		}
+	}
+	return nil
+}
+
 func (s *NpcService) downloadImage(url string, dir string, name string) string {
 	if url == "" {
 		return ""

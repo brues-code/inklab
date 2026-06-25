@@ -85,18 +85,18 @@ export const useIcon = (iconName) => {
 };
 
 /**
- * Hook for loading NPC model image
- * @param {number} npcId - NPC entry ID
- * @param {string} remoteUrl - Remote URL from Wowhead
+ * Hook for loading an NPC model render, keyed by creature display id.
+ * @param {number} displayId - creature display id (display_id1)
+ * @param {string} remoteUrl - octowow model URL
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
-export const useNpcModel = (npcId, remoteUrl, reloadKey = 0) => {
+export const useNpcModel = (displayId, remoteUrl, reloadKey = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        if (!npcId) {
+        if (!displayId) {
             setLoading(false);
             setError(true);
             return;
@@ -105,7 +105,7 @@ export const useNpcModel = (npcId, remoteUrl, reloadKey = 0) => {
         setLoading(true);
         setError(false);
 
-        loadNpcModel(npcId, remoteUrl)
+        loadNpcModel(displayId, remoteUrl)
             .then(result => {
                 if (result) {
                     setSrc(result);
@@ -119,7 +119,7 @@ export const useNpcModel = (npcId, remoteUrl, reloadKey = 0) => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [npcId, remoteUrl, reloadKey]);
+    }, [displayId, remoteUrl, reloadKey]);
 
     return { src, loading, error };
 };

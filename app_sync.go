@@ -311,6 +311,33 @@ func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 	return "Started"
 }
 
+// FullSyncNpcModels downloads NPC model images from octowow.st, keyed by
+// display id. Resumable via startFrom (a starting display id).
+func (a *App) FullSyncNpcModels(startFrom int, delayMs int) string {
+	fmt.Printf("[API] FullSyncNpcModels called: startFrom=%d delayMs=%d\n", startFrom, delayMs)
+	if delayMs <= 0 {
+		delayMs = 100
+	}
+	a.npcService.ResetStop()
+
+	go func() {
+		cb := func(current, total, displayID int) {
+			runtime.EventsEmit(a.ctx, "sync:models:progress", map[string]interface{}{
+				"current":  current,
+				"total":    total,
+				"itemId":   displayID,
+				"itemName": fmt.Sprintf("Display %d", displayID),
+			})
+		}
+		if err := a.npcService.SyncAllNpcModels(startFrom, delayMs, cb); err != nil {
+			runtime.EventsEmit(a.ctx, "sync:models_full:error", err.Error())
+		} else {
+			runtime.EventsEmit(a.ctx, "sync:models_full:complete", "NPC model download complete")
+		}
+	}()
+	return "Started"
+}
+
 func (a *App) SyncSingleSpell(spellID int) *services.SyncSpellResult {
 	fmt.Printf("[API] SyncSingleSpell called for spell %d\n", spellID)
 

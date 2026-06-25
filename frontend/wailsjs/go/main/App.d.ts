@@ -30,6 +30,8 @@ export function FixSingleItemIcon(arg1:number):Promise<main.FixMissingIconsResul
 
 export function FullSyncItems(arg1:number,arg2:boolean,arg3:number):Promise<string>;
 
+export function FullSyncNpcModels(arg1:number,arg2:number):Promise<string>;
+
 export function FullSyncNpcs(arg1:number,arg2:number):Promise<string>;
 
 export function FullSyncQuests(arg1:number,arg2:number):Promise<string>;
