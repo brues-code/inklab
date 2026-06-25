@@ -119,95 +119,86 @@ func (a *App) RunCacheImport(baseDir string) ImportReport {
 	return rep
 }
 
-// RunMapImport stitches the client world-map art into data/maps/<zone>.jpg.
-// It reads directly from the client's MPQ archives (in memory) when present,
-// otherwise from loose <baseDir>/BlizzardInterfaceArt/WorldMap +
-// DBFilesClient/WorldMapOverlay.dbc. Output only ever goes to data/maps.
-func (a *App) RunMapImport(baseDir string) ImportReport {
-	out := filepath.Join(a.DataDir, "maps")
-	var (
-		res    *datatools.MapGenResult
-		err    error
-		source string
-	)
-	if src, ok := openClientMPQ(baseDir); ok {
-		defer src.Close()
+// RunClientImport regenerates everything sourced from the WoW client in one
+// pass — DBC reference data (regenerated JSON + re-applied to the DB), icons,
+// and zone maps. It opens the client's MPQ archives once (in memory) when
+// present and reuses them for all three steps; otherwise it falls back to the
+// loose extracted folders per category. Output only ever goes to InkLab's
+// data/ dir; the client directory is never written.
+func (a *App) RunClientImport(baseDir string) ImportReport {
+	mpqSrc, useMPQ := openClientMPQ(baseDir)
+	if useMPQ {
+		defer mpqSrc.Close()
+	}
+	source := "loose folders"
+	if useMPQ {
 		source = "client MPQs"
-		res, err = datatools.GenerateZoneMapsFrom(src, out, nil)
+	}
+
+	// pick returns the shared MPQ source, or the per-category loose source when
+	// no MPQ archives are present.
+	pick := func(loose datatools.ClientFiles) datatools.ClientFiles {
+		if useMPQ {
+			return mpqSrc
+		}
+		return loose
+	}
+
+	rep := ImportReport{Success: true, Title: "Client data imported", Lines: []string{"Source: " + source}}
+	fail := func(msg string) {
+		rep.Success = false
+		rep.Lines = append(rep.Lines, msg)
+	}
+
+	// 1. DBC reference data: regenerate data/*.json, then re-apply to the DB.
+	dbcSrc := pick(datatools.NewDirSourceDBC(filepath.Join(baseDir, "DBFilesClient")))
+	if err := datatools.GenerateDBCJSONFrom(dbcSrc, a.DataDir); err != nil {
+		fail("DBC reference data: " + err.Error())
 	} else {
-		worldMap := filepath.Join(baseDir, "BlizzardInterfaceArt", "WorldMap")
-		overlay := filepath.Join(baseDir, "DBFilesClient", "WorldMapOverlay.dbc")
-		source = "loose folder"
-		res, err = datatools.GenerateZoneMaps(worldMap, overlay, out, nil)
+		a.reapplyReferenceData(&rep)
 	}
-	if err != nil {
-		return ImportReport{Title: "Map generation failed", Lines: []string{err.Error(), "source: " + source}}
+
+	// 2. Icons.
+	iconSrc := pick(datatools.NewDirSourceIcons(filepath.Join(baseDir, "BlizzardInterfaceArt", "Icons")))
+	if res, err := datatools.GenerateIconsFrom(iconSrc, filepath.Join(a.DataDir, "icons"), nil); err != nil {
+		fail("Icons: " + err.Error())
+	} else {
+		line := fmt.Sprintf("%d icons", res.Generated)
+		if res.Skipped > 0 {
+			line += fmt.Sprintf(" (%d skipped)", res.Skipped)
+		}
+		rep.Lines = append(rep.Lines, line)
 	}
-	rep := ImportReport{Success: true, Title: "Maps generated",
-		Lines: []string{fmt.Sprintf("%d zone maps written to data/maps (from %s)", res.Generated, source)}}
-	if res.Skipped > 0 {
-		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped", res.Skipped))
+
+	// 3. Zone maps.
+	mapSrc := pick(datatools.NewDirSourceMaps(filepath.Join(baseDir, "BlizzardInterfaceArt", "WorldMap"), filepath.Join(baseDir, "DBFilesClient")))
+	if res, err := datatools.GenerateZoneMapsFrom(mapSrc, filepath.Join(a.DataDir, "maps"), nil); err != nil {
+		fail("Zone maps: " + err.Error())
+	} else {
+		line := fmt.Sprintf("%d zone maps", res.Generated)
+		if res.Skipped > 0 {
+			line += fmt.Sprintf(" (%d skipped)", res.Skipped)
+		}
+		rep.Lines = append(rep.Lines, line)
+	}
+
+	if !rep.Success {
+		rep.Title = "Client import finished with errors"
 	}
 	return rep
 }
 
-// RunIconImport decodes client icon art into data/icons/<name>.jpg (lowercased).
-// It reads directly from the client's MPQ archives (in memory) when present,
-// otherwise from loose <baseDir>/BlizzardInterfaceArt/Icons.
-func (a *App) RunIconImport(baseDir string) ImportReport {
-	out := filepath.Join(a.DataDir, "icons")
-	var (
-		res    *datatools.IconGenResult
-		err    error
-		source string
-	)
-	if src, ok := openClientMPQ(baseDir); ok {
-		defer src.Close()
-		source = "client MPQs"
-		res, err = datatools.GenerateIconsFrom(src, out, nil)
-	} else {
-		iconsDir := filepath.Join(baseDir, "BlizzardInterfaceArt", "Icons")
-		source = "loose folder"
-		res, err = datatools.GenerateIcons(iconsDir, out, nil)
-	}
-	if err != nil {
-		return ImportReport{Title: "Icon import failed", Lines: []string{err.Error(), "source: " + source}}
-	}
-	rep := ImportReport{Success: true, Title: "Icons extracted",
-		Lines: []string{fmt.Sprintf("%d icons written to data/icons (from %s)", res.Generated, source)}}
-	if res.Skipped > 0 {
-		rep.Lines = append(rep.Lines, fmt.Sprintf("%d skipped (unsupported format)", res.Skipped))
-	}
-	return rep
-}
-
-// RunDbcImport regenerates data/*.json from the client DBCs and re-applies the
-// JSON-fed reference tables (zones, skills, quest sorts, factions, item sets,
-// icons, spell backfill) to the live DB. DBCs are read directly from the
-// client's MPQ archives (in memory) when present, otherwise from loose
-// <baseDir>/DBFilesClient. It does NOT touch the MySQL-sourced templates.
-func (a *App) RunDbcImport(baseDir string) ImportReport {
-	var err error
-	if src, ok := openClientMPQ(baseDir); ok {
-		defer src.Close()
-		err = datatools.GenerateDBCJSONFrom(src, a.DataDir)
-	} else {
-		dbcDir := filepath.Join(baseDir, "DBFilesClient")
-		err = datatools.GenerateDBCJSON(dbcDir, a.DataDir)
-	}
-	if err != nil {
-		return ImportReport{Title: "DBC regen failed", Lines: []string{err.Error()}}
-	}
-
-	var lines []string
+// reapplyReferenceData re-applies the JSON-fed reference tables (zones, skills,
+// quest sorts, factions, item sets, icons, spell backfill) to the live DB after
+// the DBC JSON has been regenerated. It does NOT touch MySQL-sourced templates.
+func (a *App) reapplyReferenceData(rep *ImportReport) {
 	add := func(label string, err error) {
 		if err != nil {
-			lines = append(lines, label+": "+err.Error())
+			rep.Lines = append(rep.Lines, label+": "+err.Error())
 		} else {
-			lines = append(lines, label+" refreshed")
+			rep.Lines = append(rep.Lines, label+" refreshed")
 		}
 	}
-
 	// Skills / zones / quest sorts (REPLACE-based, idempotent).
 	add("zones / skills / quest sorts", database.NewMetadataImporter(a.db).ImportAll(a.DataDir))
 	// Item sets & factions skip when present, so clear then re-import.
@@ -220,7 +211,5 @@ func (a *App) RunDbcImport(baseDir string) ImportReport {
 	_ = gen.ImportMissingSpells(filepath.Join(a.DataDir, "spells_enhanced.json"))
 	_ = gen.ImportItemIcons(filepath.Join(a.DataDir, "item_icons.json"))
 	_ = gen.ImportSpellIcons(filepath.Join(a.DataDir, "spells_enhanced.json"))
-	lines = append(lines, "icons + spell text refreshed")
-
-	return ImportReport{Success: true, Title: "DBC import complete", Lines: lines}
+	rep.Lines = append(rep.Lines, "icons + spell text refreshed")
 }

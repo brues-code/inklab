@@ -14,28 +14,12 @@ const IMPORTS = [
       "Patch item / quest / creature / gameobject data from your client's WDB caches — everything you've queried in-game. Overlays the freshest server values; existing data is never wiped.",
   },
   {
-    id: "maps",
-    name: "Zone Maps",
-    fn: "RunMapImport",
-    sub: "Data\\*.MPQ (or loose BlizzardInterfaceArt\\WorldMap)",
+    id: "client",
+    name: "Client Data (icons, maps, DBC)",
+    fn: "RunClientImport",
+    sub: "Data\\*.MPQ (or loose DBFilesClient\\ + BlizzardInterfaceArt\\)",
     desc:
-      "Generate fully-revealed zone maps from the client world-map art into data/maps. Read straight from the client's MPQ archives (in memory) when present. These power the map in the NPC view (kept local, never shipped).",
-  },
-  {
-    id: "icons",
-    name: "Icons",
-    fn: "RunIconImport",
-    sub: "Data\\*.MPQ (or loose BlizzardInterfaceArt\\Icons)",
-    desc:
-      "Decode item/spell/ability icons from the client art into data/icons. Read straight from the client's MPQ archives (in memory) when present. Resolves icons locally without downloading from the web.",
-  },
-  {
-    id: "dbc",
-    name: "DBC Reference Data",
-    fn: "RunDbcImport",
-    sub: "Data\\*.MPQ (or loose DBFilesClient\\*.dbc)",
-    desc:
-      "Regenerate reference data from the client DBCs (zones, skills, quest sorts, factions, item sets, icons, spell text) and re-apply it to the database. Read straight from the client's MPQ archives (in memory) when present. Does not touch creature/item/quest templates.",
+      "One pass over your WoW client: decode icons → data/icons, build fully-revealed zone maps → data/maps, and regenerate reference data (zones, skills, quest sorts, factions, item sets, spell text) into the database. Reads straight from the client's MPQ archives in memory when present (nothing is written back).",
   },
 ];
 
@@ -181,7 +165,49 @@ function ToolsPage({ onNavigate }) {
           </p>
         </div>
 
-        {/* What's New — diff of the live DB vs the last committed baseline */}
+        {IMPORTS.map((imp) => {
+          const rep = reports[imp.id];
+          const busy = running === imp.id;
+          return (
+            <div key={imp.id} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-white font-semibold">{imp.name}</h3>
+                  <p className="text-gray-400 text-sm mt-1">{imp.desc}</p>
+                  <p className="text-[11px] text-gray-600 font-mono mt-1">{imp.sub}</p>
+                </div>
+                <button
+                  onClick={() => run(imp)}
+                  disabled={!!running}
+                  className="shrink-0 bg-wow-gold/90 hover:bg-wow-gold text-black font-bold px-5 py-2 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {busy ? "Running…" : "Run"}
+                </button>
+              </div>
+              {rep && (
+                <div
+                  className={`mt-3 rounded border p-3 ${
+                    rep.success
+                      ? "border-green-500/30 bg-green-500/5"
+                      : "border-red-500/30 bg-red-500/5"
+                  }`}
+                >
+                  <div className={`font-bold text-sm ${rep.success ? "text-green-400" : "text-red-400"}`}>
+                    {rep.title}
+                  </div>
+                  {rep.lines?.map((l, i) => (
+                    <div key={i} className="text-gray-300 font-mono text-xs mt-0.5 break-all">
+                      {l}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* What's New — diff of the live DB vs the baseline. Placed last: it's
+            noise for a brand-new user who hasn't imported anything yet. */}
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -253,47 +279,6 @@ function ToolsPage({ onNavigate }) {
             </div>
           )}
         </div>
-
-        {IMPORTS.map((imp) => {
-          const rep = reports[imp.id];
-          const busy = running === imp.id;
-          return (
-            <div key={imp.id} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="text-white font-semibold">{imp.name}</h3>
-                  <p className="text-gray-400 text-sm mt-1">{imp.desc}</p>
-                  <p className="text-[11px] text-gray-600 font-mono mt-1">{imp.sub}</p>
-                </div>
-                <button
-                  onClick={() => run(imp)}
-                  disabled={!!running}
-                  className="shrink-0 bg-wow-gold/90 hover:bg-wow-gold text-black font-bold px-5 py-2 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {busy ? "Running…" : "Run"}
-                </button>
-              </div>
-              {rep && (
-                <div
-                  className={`mt-3 rounded border p-3 ${
-                    rep.success
-                      ? "border-green-500/30 bg-green-500/5"
-                      : "border-red-500/30 bg-red-500/5"
-                  }`}
-                >
-                  <div className={`font-bold text-sm ${rep.success ? "text-green-400" : "text-red-400"}`}>
-                    {rep.title}
-                  </div>
-                  {rep.lines?.map((l, i) => (
-                    <div key={i} className="text-gray-300 font-mono text-xs mt-0.5 break-all">
-                      {l}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
       </div>
     </PageLayout>
   );
