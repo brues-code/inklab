@@ -89,7 +89,7 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 
 	// Quest Givers: NPCs that start or end any of this faction's rep quests.
 	giverRows, _ := r.db.Query(`
-		SELECT DISTINCT c.entry, c.name, c.level_min, c.level_max
+		SELECT DISTINCT c.entry, c.name, COALESCE(c.subname, ''), c.level_min, c.level_max
 		FROM creature_template c
 		JOIN (
 			SELECT id FROM creature_questrelation WHERE quest IN (
@@ -109,7 +109,7 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 		defer giverRows.Close()
 		for giverRows.Next() {
 			n := &models.FactionNpc{}
-			if err := giverRows.Scan(&n.Entry, &n.Name, &n.LevelMin, &n.LevelMax); err == nil {
+			if err := giverRows.Scan(&n.Entry, &n.Name, &n.Subname, &n.LevelMin, &n.LevelMax); err == nil {
 				f.QuestGivers = append(f.QuestGivers, n)
 			}
 		}
@@ -119,7 +119,7 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 	// Requires faction_template (imported from FactionTemplate.dbc); empty until
 	// the client import has generated it.
 	memberRows, _ := r.db.Query(`
-		SELECT entry, name, level_min, level_max
+		SELECT entry, name, COALESCE(subname, ''), level_min, level_max
 		FROM creature_template
 		WHERE faction IN (SELECT template_id FROM faction_template WHERE faction_id = ?)
 		ORDER BY name
@@ -129,7 +129,7 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 		defer memberRows.Close()
 		for memberRows.Next() {
 			n := &models.FactionNpc{}
-			if err := memberRows.Scan(&n.Entry, &n.Name, &n.LevelMin, &n.LevelMax); err == nil {
+			if err := memberRows.Scan(&n.Entry, &n.Name, &n.Subname, &n.LevelMin, &n.LevelMax); err == nil {
 				f.Members = append(f.Members, n)
 			}
 		}

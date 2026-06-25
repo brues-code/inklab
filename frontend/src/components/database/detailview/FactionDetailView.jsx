@@ -12,9 +12,11 @@ import {
 const FactionDetailView = ({ id, onBack, onNavigate }) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(null);
 
   useEffect(() => {
     setLoading(true);
+    setActiveTab(null);
     GetFactionDetail(id).then((res) => {
       setDetail(res);
       setLoading(false);
@@ -28,6 +30,14 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
   const questGivers = detail.questGivers || [];
   const members = detail.members || [];
 
+  // Tabs for the relationship tables (only those with data).
+  const tabs = [
+    quests.length > 0 && { id: "quests", label: `Reputation Quests (${quests.length})` },
+    questGivers.length > 0 && { id: "givers", label: `Quest Givers (${questGivers.length})` },
+    members.length > 0 && { id: "members", label: `Faction Members (${members.length})` },
+  ].filter(Boolean);
+  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
+
   const npcGrid = (npcs) => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
       {npcs.map((n) => (
@@ -36,8 +46,13 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
           onClick={() => onNavigate("npc", n.entry)}
           className="p-3 flex items-center justify-between gap-2 bg-white/[0.02] hover:bg-white/5 border border-white/5 rounded cursor-pointer transition-colors"
         >
-          <span className="text-wow-gold hover:text-yellow-300 font-medium truncate">
-            {n.name}
+          <span className="min-w-0 truncate">
+            <span className="text-wow-gold hover:text-yellow-300 font-medium">
+              {n.name}
+            </span>
+            {n.subname && (
+              <span className="text-gray-500 text-xs ml-1">&lt;{n.subname}&gt;</span>
+            )}
           </span>
           <span className="text-xs text-gray-500 whitespace-nowrap">
             Lvl {n.levelMin}
@@ -121,37 +136,45 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
         </DetailSection>
       </div>
 
-      {/* Quests that reward reputation */}
-      {quests.length > 0 && (
-        <DetailSection title={`Reputation Quests (${quests.length})`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {quests.map((q) => (
-              <div
-                key={q.entry}
-                onClick={() => onNavigate("quest", q.entry)}
-                className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 rounded cursor-pointer transition-colors"
+      {/* Relationship tables — tabbed */}
+      {tabs.length > 0 && (
+        <div className="mt-8">
+          <div className="border-b border-white/20 mb-4 flex gap-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 text-sm font-bold transition-all relative top-[1px] ${
+                  currentTab === tab.id
+                    ? "tab-btn-active text-white border-b-2 border-wow-gold"
+                    : "tab-btn-inactive text-gray-400 hover:text-gray-200"
+                }`}
               >
-                <span className="text-wow-gold hover:text-yellow-300 font-medium">
-                  [{q.level}] {q.title}
-                </span>
-              </div>
+                {tab.label}
+              </button>
             ))}
           </div>
-        </DetailSection>
-      )}
 
-      {/* NPCs that give this faction's reputation quests */}
-      {questGivers.length > 0 && (
-        <DetailSection title={`Quest Givers (${questGivers.length})`}>
-          {npcGrid(questGivers)}
-        </DetailSection>
-      )}
-
-      {/* NPCs belonging to this faction (from FactionTemplate) */}
-      {members.length > 0 && (
-        <DetailSection title={`Faction Members (${members.length})`}>
-          {npcGrid(members)}
-        </DetailSection>
+          <div className="animate-fade-in">
+            {currentTab === "quests" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {quests.map((q) => (
+                  <div
+                    key={q.entry}
+                    onClick={() => onNavigate("quest", q.entry)}
+                    className="p-3 bg-white/[0.02] hover:bg-white/5 border border-white/5 rounded cursor-pointer transition-colors"
+                  >
+                    <span className="text-wow-gold hover:text-yellow-300 font-medium">
+                      [{q.level}] {q.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {currentTab === "givers" && npcGrid(questGivers)}
+            {currentTab === "members" && npcGrid(members)}
+          </div>
+        </div>
       )}
     </DetailPageLayout>
   );

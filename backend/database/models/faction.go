@@ -36,6 +36,7 @@ type FactionDetail struct {
 type FactionNpc struct {
 	Entry    int    `json:"entry"`
 	Name     string `json:"name"`
+	Subname  string `json:"subname"`
 	LevelMin int    `json:"levelMin"`
 	LevelMax int    `json:"levelMax"`
 }
