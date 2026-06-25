@@ -74,7 +74,7 @@ function TalentTooltip({ talent, rank, treeName, reqText, x, y }) {
                     <div className="text-zinc-300 whitespace-pre-wrap leading-snug">{nextDesc}</div>
                 </div>
             )}
-            {reqText && <div className="mt-1.5 text-red-400">{reqText}</div>}
+            {reqText && <div className="mt-1.5 text-red-400 whitespace-pre-line">{reqText}</div>}
             {!reqText && rank === 0 && (
                 <div className="mt-1.5 text-emerald-400/80 text-xs">Click to learn</div>
             )}
