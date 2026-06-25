@@ -3,7 +3,6 @@ import { GetZoneDetail } from "../../../utils/databaseApi";
 import { useZoneMap } from "../../../services/useImage";
 import {
   DetailPageLayout,
-  DetailSection,
   DetailLoading,
   DetailError,
 } from "../../ui";
@@ -274,7 +273,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
 
         <div className="min-h-[200px] animate-fade-in">
           {activeTab === "npcs" && (
-            <DetailSection title={`NPCs (${npcs.length})`}>
+            <>
               {npcs.length > 0 ? (
                 <div className="bg-bg-sub rounded border border-border-light">
                   {npcs.map((n, i) => (
@@ -310,11 +309,11 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
               ) : (
                 <div className="text-gray-500 italic">No NPCs recorded in this zone.</div>
               )}
-            </DetailSection>
+            </>
           )}
 
           {activeTab === "quests" && (
-            <DetailSection title={`Quests (${quests.length})`}>
+            <>
               {quests.length > 0 ? (
                 <div className="bg-bg-sub rounded border border-border-light">
                   {quests.map((q, i) => (
@@ -344,11 +343,11 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
               ) : (
                 <div className="text-gray-500 italic">No quests in this zone.</div>
               )}
-            </DetailSection>
+            </>
           )}
 
           {activeTab === "objects" && (
-            <DetailSection title={`Objects (${objects.length})`}>
+            <>
               {objects.length > 0 ? (
                 <div className="bg-bg-sub rounded border border-border-light">
                   {objects.map((o, i) => (
@@ -378,7 +377,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
               ) : (
                 <div className="text-gray-500 italic">No objects recorded in this zone.</div>
               )}
-            </DetailSection>
+            </>
           )}
         </div>
       </DetailPageLayout>
