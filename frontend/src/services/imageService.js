@@ -108,16 +108,6 @@ export const loadNpcModel = async (npcId, remoteUrl) => {
 };
 
 /**
- * Load NPC map image
- * @param {number} npcId - NPC entry ID
- * @param {string} remoteUrl - Remote URL from Wowhead
- * @returns {Promise<string>} - Image URL
- */
-export const loadNpcMap = async (npcId, remoteUrl) => {
-    return loadImage('npc_map', `map_${npcId}`, remoteUrl);
-};
-
-/**
  * Load a locally-generated zone map by zone name (texture-folder name).
  * Local-only: there is no remote fallback.
  * @param {string} zoneName - e.g. "Elwynn", "EasternPlaguelands"

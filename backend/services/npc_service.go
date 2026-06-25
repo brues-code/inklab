@@ -822,8 +822,10 @@ func (s *NpcService) syncNpcImages(entry int) error {
 		fmt.Printf("Warning: Failed to create npc_images directory: %v\n", err)
 	}
 
-	// Download model/map images under the canonical model_<id>/map_<id> names
-	// the on-demand image service reads, so there's a single clean file per NPC.
+	// Download the model image under the canonical model_<id> name the on-demand
+	// image service reads. We no longer download the scraped location map: the
+	// NPC view renders a locally-generated zone map (data/maps, via the zone
+	// name + spawn coords), so the scraped map_<id>.jpg was never displayed.
 	localModelPath := ""
 	if scrapedData.ModelImageURL != "" {
 		localModelPath = s.downloadImage(scrapedData.ModelImageURL, npcImagesDir, fmt.Sprintf("model_%d", entry))
@@ -831,14 +833,7 @@ func (s *NpcService) syncNpcImages(entry int) error {
 			fmt.Printf("[DEBUG] Model image synced: %s\n", localModelPath)
 		}
 	}
-
-	localMapPath := ""
-	if scrapedData.MapURL != "" {
-		localMapPath = s.downloadImage(scrapedData.MapURL, npcImagesDir, fmt.Sprintf("map_%d", entry))
-		if localMapPath != "" {
-			fmt.Printf("[DEBUG] Map image synced: %s\n", localMapPath)
-		}
-	}
+	localMapPath := "" // scraped map intentionally not downloaded (see above)
 
 	// Store Metadata to SQLite
 	// Ensure columns exist (quick dirty adjustment)
