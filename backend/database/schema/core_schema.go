@@ -269,5 +269,19 @@ func CoreSchema() string {
 		UNIQUE(creature_entry, map_id, position_x, position_y)
 	);
 	CREATE INDEX IF NOT EXISTS idx_creature_spawn_entry ON creature_spawn(creature_entry);
+
+	-- GameObject Spawns (Synced from MySQL)
+	CREATE TABLE IF NOT EXISTS gameobject_spawn (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		gameobject_entry INTEGER,
+		map_id INTEGER,
+		zone_id INTEGER,
+		zone_name TEXT,
+		position_x REAL,
+		position_y REAL,
+		position_z REAL,
+		UNIQUE(gameobject_entry, map_id, position_x, position_y)
+	);
+	CREATE INDEX IF NOT EXISTS idx_gameobject_spawn_entry ON gameobject_spawn(gameobject_entry);
 	`
 }

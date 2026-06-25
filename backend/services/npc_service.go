@@ -760,6 +760,125 @@ func (s *NpcService) SyncAllCreatureSpawns(progressCb func(current, total int, i
 	return nil
 }
 
+// syncGameObjectSpawnsFromMySQL syncs game-object spawn coordinates from the
+// MySQL `gameobject` table (id = gameobject_template.entry), converting world
+// coords to 0-100 map percentages — the same pipeline as creature spawns.
+func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
+	if s.mysql == nil {
+		return
+	}
+
+	// Replace existing spawns for this object.
+	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
+
+	rows, err := s.mysql.DB().Query(`
+		SELECT map, AVG(position_x) as avg_x, AVG(position_y) as avg_y, AVG(position_z) as avg_z
+		FROM gameobject
+		WHERE id = ?
+		GROUP BY map, ROUND(position_x, -1), ROUND(position_y, -1)
+		LIMIT 50
+	`, entry)
+	if err != nil {
+		fmt.Printf("Warning: Could not query gameobject spawns from MySQL: %v\n", err)
+		return
+	}
+	defer rows.Close()
+
+	spawnCount := 0
+	for rows.Next() {
+		var mapId int
+		var worldX, worldY, z float64
+		if err := rows.Scan(&mapId, &worldX, &worldY, &z); err != nil {
+			continue
+		}
+		zoneName, mapX, mapY := s.convertWorldToMapCoords(mapId, 0, worldX, worldY)
+		if _, err := s.sqlite.Exec(`
+			INSERT INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, entry, mapId, 0, zoneName, mapX, mapY, z); err == nil {
+			spawnCount++
+		}
+	}
+	if spawnCount > 0 {
+		fmt.Printf("  ✓ Synced %d spawn points for gameobject %d\n", spawnCount, entry)
+	}
+}
+
+// SyncObjectSpawnsFromWeb scrapes a game object's spawn points from octowow.st
+// and replaces its gameobject_spawn rows. Unlike the MySQL path this needs no
+// coordinate conversion — aowow already provides per-zone map percentages — and
+// it groups by the authoritative zone areatableID, which we resolve to a folder
+// name. This is the spawn source for users without a MySQL connection.
+func (s *NpcService) SyncObjectSpawnsFromWeb(entry int) (int, error) {
+	if s.scraper == nil {
+		return 0, fmt.Errorf("no scraper available")
+	}
+	points, err := s.scraper.ScrapeObjectSpawns(entry)
+	if err != nil {
+		return 0, err
+	}
+
+	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
+
+	n := 0
+	for _, p := range points {
+		zoneName := s.zoneNameByID(p.ZoneID)
+		if _, err := s.sqlite.Exec(`
+			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, entry, 0, p.ZoneID, zoneName, p.X, p.Y, 0); err == nil {
+			n++
+		}
+	}
+	fmt.Printf("✓ Web-synced %d spawn points for gameobject %d\n", n, entry)
+	return n, nil
+}
+
+// zoneNameByID resolves an areatableID to its client texture-folder name via
+// quest_categories_enhanced (populated from zones.json). Zone 0 is the
+// continent/world bucket aowow uses for unzoned spawns.
+func (s *NpcService) zoneNameByID(zoneID int) string {
+	if zoneID == 0 {
+		return "Azeroth"
+	}
+	var name string
+	s.sqlite.QueryRow("SELECT name FROM quest_categories_enhanced WHERE id = ?", zoneID).Scan(&name)
+	return name
+}
+
+// SyncAllGameObjectSpawns syncs spawn points for all game objects.
+func (s *NpcService) SyncAllGameObjectSpawns(progressCb func(current, total int, id int)) error {
+	if s.mysql == nil {
+		return fmt.Errorf("no mysql connection")
+	}
+
+	rows, err := s.sqlite.Query("SELECT entry FROM gameobject_template ORDER BY entry")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var entries []int
+	for rows.Next() {
+		var e int
+		if err := rows.Scan(&e); err == nil {
+			entries = append(entries, e)
+		}
+	}
+
+	total := len(entries)
+	for i, entry := range entries {
+		s.syncGameObjectSpawnsFromMySQL(entry)
+		if progressCb != nil && i%10 == 0 {
+			progressCb(i+1, total, entry)
+		}
+	}
+	if progressCb != nil {
+		progressCb(total, total, 0)
+	}
+	return nil
+}
+
 // FullSyncNpcs performs a full sync (scrape + DB) for all NPCs starting from a specific ID
 func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
 	// Get all entries starting from startFrom

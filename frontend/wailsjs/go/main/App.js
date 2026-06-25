@@ -286,6 +286,10 @@ export function SyncNpcData(arg1) {
   return window['go']['main']['App']['SyncNpcData'](arg1);
 }
 
+export function SyncObjectSpawns(arg1) {
+  return window['go']['main']['App']['SyncObjectSpawns'](arg1);
+}
+
 export function SyncQuestData(arg1) {
   return window['go']['main']['App']['SyncQuestData'](arg1);
 }

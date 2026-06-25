@@ -725,6 +725,24 @@ export namespace models {
 	        this.data = source["data"];
 	    }
 	}
+	export class ObjectSpawn {
+	    mapId: number;
+	    zoneName: string;
+	    x: number;
+	    y: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ObjectSpawn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mapId = source["mapId"];
+	        this.zoneName = source["zoneName"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	    }
+	}
 	export class GameObjectDetail {
 	    entry: number;
 	    name: string;
@@ -739,6 +757,7 @@ export namespace models {
 	    startsQuests?: QuestRelation[];
 	    endsQuests?: QuestRelation[];
 	    contains?: LootItem[];
+	    spawns?: ObjectSpawn[];
 	
 	    static createFrom(source: any = {}) {
 	        return new GameObjectDetail(source);
@@ -759,6 +778,7 @@ export namespace models {
 	        this.startsQuests = this.convertValues(source["startsQuests"], QuestRelation);
 	        this.endsQuests = this.convertValues(source["endsQuests"], QuestRelation);
 	        this.contains = this.convertValues(source["contains"], LootItem);
+	        this.spawns = this.convertValues(source["spawns"], ObjectSpawn);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1304,6 +1324,7 @@ export namespace models {
 	        this.bonuses = source["bonuses"];
 	    }
 	}
+	
 	
 	
 	export class ObjectType {

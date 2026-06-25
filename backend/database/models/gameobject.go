@@ -53,4 +53,15 @@ type GameObjectDetail struct {
 	StartsQuests []*QuestRelation `json:"startsQuests,omitempty"`
 	EndsQuests   []*QuestRelation `json:"endsQuests,omitempty"`
 	Contains     []*LootItem      `json:"contains,omitempty"`
+	Spawns       []*ObjectSpawn   `json:"spawns,omitempty"`
+}
+
+// ObjectSpawn is a single game-object spawn point in map-percentage coords
+// (0-100). JSON shape matches the NPC spawn payload so the map-marker UI can be
+// shared between the NPC and Object detail views.
+type ObjectSpawn struct {
+	MapID    int     `json:"mapId"`
+	ZoneName string  `json:"zoneName"`
+	X        float64 `json:"x"`
+	Y        float64 `json:"y"`
 }

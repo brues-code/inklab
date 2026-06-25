@@ -146,6 +146,8 @@ export function SyncMissingAtlasLoot(arg1:number,arg2:number):Promise<services.I
 
 export function SyncNpcData(arg1:number):Promise<services.NpcFullDetails>;
 
+export function SyncObjectSpawns(arg1:number):Promise<models.GameObjectDetail>;
+
 export function SyncQuestData(arg1:number):Promise<models.QuestDetail>;
 
 export function SyncSingleItem(arg1:number):Promise<services.SyncItemResult>;

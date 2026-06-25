@@ -205,6 +205,22 @@ func (a *App) startup(ctx context.Context) {
 		} else {
 			fmt.Printf("⏭️  creature_spawn already has %d rows, skipping startup sync\n", spawnCount)
 		}
+
+		// Same one-time sync for game-object spawns.
+		var goSpawnCount int
+		a.db.DB().QueryRow("SELECT COUNT(*) FROM gameobject_spawn").Scan(&goSpawnCount)
+		if goSpawnCount == 0 {
+			fmt.Println("⚡ Starting async gameobject spawn sync (First Run)...")
+			go func() {
+				if err := a.npcService.SyncAllGameObjectSpawns(nil); err != nil {
+					fmt.Printf("Startup gameobject spawn sync warning: %v\n", err)
+				} else {
+					fmt.Println("✓ GameObject spawn sync complete")
+				}
+			}()
+		} else {
+			fmt.Printf("⏭️  gameobject_spawn already has %d rows, skipping startup sync\n", goSpawnCount)
+		}
 	}
 
 	fmt.Println("✓ InkLab ready!")

@@ -238,6 +238,25 @@ func (r *GameObjectRepository) GetObjectDetail(entry int) (*models.GameObjectDet
 		}
 	}
 
+	// Spawn points (synced from MySQL into gameobject_spawn), in map-percentage
+	// coords for plotting on the zone map.
+	spawnRows, _ := r.db.Query(`
+		SELECT map_id, zone_name, position_x, position_y
+		FROM gameobject_spawn
+		WHERE gameobject_entry = ?
+		ORDER BY id
+		LIMIT 50
+	`, entry)
+	if spawnRows != nil {
+		defer spawnRows.Close()
+		for spawnRows.Next() {
+			sp := &models.ObjectSpawn{}
+			if err := spawnRows.Scan(&sp.MapID, &sp.ZoneName, &sp.X, &sp.Y); err == nil {
+				obj.Spawns = append(obj.Spawns, sp)
+			}
+		}
+	}
+
 	// Get loot (if type is Chest - type 3)
 	if obj.Type == 3 && obj.Data1 > 0 {
 		lootRows, _ := r.db.Query(`

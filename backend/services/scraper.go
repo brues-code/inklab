@@ -163,6 +163,31 @@ func (s *ScraperService) scrapeFromWowhead(npcID int) (*ScrapedNpcData, error) {
 	return parsers.ParseNpcData(resp.Body)
 }
 
+// ScrapeObjectSpawns scrapes a game object's spawn points from octowow.st. The
+// page embeds them as per-zone myMapper.update({zone, coords}) calls with
+// already-computed 0-100 map percentages — authoritative server data, grouped
+// by the real zone areatableID.
+func (s *ScraperService) ScrapeObjectSpawns(objectID int) ([]parsers.SpawnPoint, error) {
+	url := fmt.Sprintf(DatabaseBaseURL+"/?object=%d", objectID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("octowow returned status %d", resp.StatusCode)
+	}
+	return parsers.ParseSpawnPoints(resp.Body)
+}
+
 // ScrapeQuestData scrapes Quest data from TurtleCraft
 func (s *ScraperService) ScrapeQuestData(entry int) (*parsers.ScrapedQuestData, error) {
 	url := fmt.Sprintf(DatabaseBaseURL+"/?quest=%d", entry)
