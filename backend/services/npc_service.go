@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"inklab/backend/database"
+	"inklab/backend/datatools"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1208,6 +1209,67 @@ func (s *NpcService) SyncAllNpcModels(startFrom, delayMs int, progressCb func(cu
 			// Not cached yet — fetch from octowow, then throttle.
 			url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
 			s.downloadImage(url, npcImagesDir, name)
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
+		}
+		if progressCb != nil {
+			progressCb(i+1, total, d)
+		}
+	}
+	return nil
+}
+
+// RenderAllNpcModels renders creature models from the client MPQs (at
+// <baseDir>/Data) into data/npc_images/model_<displayId>.png. For displays the
+// software renderer can't handle (humanoid Character\ models, parse failures) it
+// falls back to downloading octowow's pre-rendered image. Existing files are
+// skipped; honors the stop flag. delayMs throttles only the network fallback.
+func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
+	src, err := datatools.NewMpqSource(filepath.Join(baseDir, "Data"))
+	if err != nil {
+		return fmt.Errorf("open client MPQs at %s: %w", baseDir, err)
+	}
+	defer src.Close()
+
+	rows, err := s.sqlite.Query(
+		"SELECT DISTINCT display_id1 FROM creature_template WHERE display_id1 >= ? AND display_id1 > 0 ORDER BY display_id1",
+		startFrom)
+	if err != nil {
+		return err
+	}
+	var ids []int
+	for rows.Next() {
+		var d int
+		if rows.Scan(&d) == nil {
+			ids = append(ids, d)
+		}
+	}
+	rows.Close()
+
+	npcImagesDir := filepath.Join(s.dataDir, "npc_images")
+	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
+		return err
+	}
+	opt := datatools.DefaultRenderOptions()
+
+	total := len(ids)
+	for i, d := range ids {
+		if s.IsStopped() {
+			return nil
+		}
+		out := filepath.Join(npcImagesDir, fmt.Sprintf("model_%d.png", d))
+		if _, err := os.Stat(out); err == nil {
+			if progressCb != nil {
+				progressCb(i+1, total, d)
+			}
+			continue // already have it
+		}
+		// Try to render the creature locally; on failure (character model, etc.)
+		// fall back to octowow's pre-rendered image.
+		if err := datatools.RenderCreatureModelToFile(src, d, out, opt); err != nil {
+			url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
+			s.downloadImage(url, npcImagesDir, fmt.Sprintf("model_%d", d))
 			if delayMs > 0 {
 				time.Sleep(time.Duration(delayMs) * time.Millisecond)
 			}

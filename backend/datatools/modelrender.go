@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
 	"math"
+	"os"
 	"strings"
 )
 
@@ -45,6 +47,22 @@ func RenderCreatureModel(cf ClientFiles, displayID int, opt RenderOptions) (*ima
 		return nil, err
 	}
 	return RenderM2(cf, cm, m, opt), nil
+}
+
+// RenderCreatureModelToFile renders a creature display to a PNG file. Returns an
+// error (without creating the file) for character models or any parse/render
+// failure, so callers can fall back to another source.
+func RenderCreatureModelToFile(cf ClientFiles, displayID int, outPath string, opt RenderOptions) error {
+	img, err := RenderCreatureModel(cf, displayID, opt)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(outPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return png.Encode(f, img)
 }
 
 type screenVert struct {
