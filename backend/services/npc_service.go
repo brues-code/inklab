@@ -119,7 +119,9 @@ type NpcFullDetails struct {
 	Infobox       map[string]string `json:"infobox"`
 	MapURL        string            `json:"mapUrl"`
 	ModelImageURL string            `json:"modelImageUrl"`
-	ZoneName      string            `json:"zoneName"` // New
+	FactionName   string            `json:"factionName"` // resolved from the faction template
+	FactionID     int               `json:"factionId"`   // resolved Faction.dbc id
+	ZoneName      string            `json:"zoneName"`    // New
 	X             float64           `json:"x"`        // New
 	Y             float64           `json:"y"`        // New
 	Loot          []NpcLoot         `json:"loot"`
@@ -179,6 +181,17 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 		Loot:      []NpcLoot{},
 		Quests:    []NpcQuest{},
 		Abilities: []NpcAbility{},
+	}
+
+	// Resolve the faction name from the creature's faction template
+	// (creature.faction is a FactionTemplate id -> Faction.dbc id -> name).
+	if creature.Faction > 0 {
+		s.sqlite.QueryRow(`
+			SELECT f.id, f.name
+			FROM faction_template ft
+			JOIN factions f ON ft.faction_id = f.id
+			WHERE ft.template_id = ?
+		`, creature.Faction).Scan(&details.FactionID, &details.FactionName)
 	}
 
 	// Load Metadata

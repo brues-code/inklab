@@ -347,7 +347,25 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     </tr>
                     <tr>
                       <th>Faction:</th>
-                      <td>{detail.faction}</td>
+                      <td>
+                        {detail.factionName ? (
+                          <>
+                            <span
+                              onClick={() =>
+                                onNavigate("faction", detail.factionId)
+                              }
+                              className="text-wow-gold hover:text-yellow-300 cursor-pointer"
+                            >
+                              {detail.factionName}
+                            </span>
+                            <span className="text-gray-500 ml-1">
+                              ({detail.faction})
+                            </span>
+                          </>
+                        ) : (
+                          detail.faction
+                        )}
+                      </td>
                     </tr>
                     <tr>
                       <th>Health:</th>
