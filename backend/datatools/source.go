@@ -401,24 +401,23 @@ func (m *mpqSource) ListZoneFiles(zone string) ([]string, error) {
 		out = append(out, file)
 	}
 
-	// Fallback: this zone's folder isn't in the (listfile) (its archive's
-	// listfile failed to scan), so the loop above found nothing. The base tiles
-	// are read directly by name elsewhere; here we synthesize the overlay tile
-	// names from WorldMapOverlay.dbc so explored-area overlays still composite.
-	// One file per overlay base name is enough — stitchZone reads the rest by
-	// name via the overlay's DBC dimensions.
-	if len(out) == 0 {
-		for _, tex := range m.overlayTextures(zone) {
-			name := tex + "1.blp"
-			if seen[strings.ToLower(name)] {
-				continue
-			}
-			if _, err := m.ReadZoneFile(zone, name); err != nil {
-				continue // overlay not actually present in this client
-			}
-			seen[strings.ToLower(name)] = true
-			out = append(out, name)
+	// Augment with WorldMapOverlay.dbc overlays. Some overlay tiles (often
+	// octo-added sub-areas like Wetlands' DunAgrath / HawksVigil) live in a
+	// patch archive whose (listfile) failed to scan, so they're absent from the
+	// enumeration above even though they're readable by name. Without this their
+	// explored-area overlay never composites, leaving a blank spot on the map.
+	// One file per overlay base name is enough — stitchZone reads the remaining
+	// tiles by name. Already-listed overlays are skipped via `seen`.
+	for _, tex := range m.overlayTextures(zone) {
+		name := tex + "1.blp"
+		if seen[strings.ToLower(name)] {
+			continue
 		}
+		if _, err := m.ReadZoneFile(zone, name); err != nil {
+			continue // overlay not actually present in this client
+		}
+		seen[strings.ToLower(name)] = true
+		out = append(out, name)
 	}
 	return out, nil
 }

@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -149,21 +150,16 @@ const (
 	mapHeight = 668
 )
 
-// compositeOverlay decodes an overlay's tiles and alpha-blends them onto canvas
-// at the overlay's map offset. Tiles are numbered row-major, ceil(w/256) wide.
-// The read is capped to the DBC's cols*rows: some octo-custom zones ship more
-// physical tiles than their WorldMapOverlay dimensions describe, and reading
-// the extras would place them a row too low (bleeding into the next area).
+// compositeOverlay decodes an overlay's tiles (numbered row-major from 1) and
+// alpha-blends them onto canvas at the overlay's map offset, with 256px tile
+// spacing. It reads every tile actually present rather than capping to the DBC
+// dimensions — octo upscaled some overlays' art (e.g. Stonetalon's
+// WindshearCrag, Webwinderpath) without updating WorldMapOverlay.dbc, so the
+// stored w/h describe fewer tiles than ship. overlayCols recovers the true
+// column count so the extra tiles land in the right grid cells.
 func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov overlay) {
-	cols := (ov.w + 255) / 256
-	rows := (ov.h + 255) / 256
-	if cols < 1 {
-		cols = 1
-	}
-	if rows < 1 {
-		rows = 1
-	}
-	for i := 1; i <= cols*rows; i++ {
+	var tiles []*image.RGBA
+	for i := 1; i <= 64; i++ {
 		b, err := cf.ReadZoneFile(zone, fmt.Sprintf("%s%d.blp", base, i))
 		if err != nil {
 			break
@@ -172,10 +168,44 @@ func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov 
 		if err != nil {
 			break
 		}
-		col := (i - 1) % cols
-		row := (i - 1) / cols
+		tiles = append(tiles, tile)
+	}
+	cols := overlayCols(len(tiles), ov.w, ov.h)
+	for i, tile := range tiles {
+		col := i % cols
+		row := i / cols
 		blitAlpha(canvas, tile, ov.offX+col*256, ov.offY+row*256)
 	}
+}
+
+// overlayCols infers an overlay's column count from the n tiles present and its
+// DBC dimensions. When the dimensions account for the tiles
+// (ceil(w/256)*ceil(h/256) >= n) they're trusted directly; otherwise the art
+// was upscaled past its stale DBC entry, so the grid shape is recovered from the
+// aspect ratio: cols ≈ round(sqrt(n * w/h)).
+func overlayCols(n, w, h int) int {
+	if n <= 1 || w <= 0 || h <= 0 {
+		return 1
+	}
+	cc := (w + 255) / 256
+	cr := (h + 255) / 256
+	if cc < 1 {
+		cc = 1
+	}
+	if cr < 1 {
+		cr = 1
+	}
+	if n <= cc*cr {
+		return cc
+	}
+	cols := int(math.Round(math.Sqrt(float64(n) * float64(w) / float64(h))))
+	if cols < 1 {
+		cols = 1
+	}
+	if cols > n {
+		cols = n
+	}
+	return cols
 }
 
 // parseOverlaysBytes parses WorldMapOverlay.dbc bytes -> lowercased textureName
