@@ -93,7 +93,8 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 	// Decode each submesh's texture once (cache by path); also report its
 	// material blend mode (0/1 opaque/key, 2 alpha, 3 additive).
 	texCache := map[string]*image.RGBA{}
-	texFor := func(sub int) (tex *image.RGBA, blend int, unlit bool) {
+	texFor := func(sub int) (tex *image.RGBA, blend int, unlit bool, tint [4]float64) {
+		tint = [4]float64{1, 1, 1, 1}
 		for _, tu := range m.TexUnits {
 			if int(tu.SkinSectionIndex) != sub {
 				continue
@@ -103,18 +104,23 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 				blend = int(mat.Blend)
 				unlit = mat.Flags&0x01 != 0 // 0x01 = unlit (emissive)
 			}
+			// Material color tint (effect textures are grayscale, tinted here).
+			if tu.ColorIndex != 0xFFFF && int(tu.ColorIndex) < len(m.Colors) {
+				cl := m.Colors[tu.ColorIndex]
+				tint = [4]float64{float64(cl.RGB[0]), float64(cl.RGB[1]), float64(cl.RGB[2]), float64(cl.Alpha)}
+			}
 			p := cm.TextureForUnit(m, tu)
 			if p == "" {
-				return nil, blend, unlit
+				return nil, blend, unlit, tint
 			}
 			if t, ok := texCache[p]; ok {
-				return t, blend, unlit
+				return t, blend, unlit, tint
 			}
 			t := loadBLPTexture(cf, p)
 			texCache[p] = t
-			return t, blend, unlit
+			return t, blend, unlit, tint
 		}
-		return nil, 0, false
+		return nil, 0, false, tint
 	}
 
 	// Orthographic camera with yaw+pitch.
@@ -196,7 +202,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		if !selected[si] {
 			continue
 		}
-		tex, blend, unlit := texFor(si)
+		tex, blend, unlit, tint := texFor(si)
 		// On character models, an untextured submesh (e.g. hair we can't resolve)
 		// would draw as a gray blob — skip it instead.
 		if tex == nil && isChar {
@@ -230,7 +236,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 				verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
 			}
 			if ok {
-				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex, blend)
+				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex, blend, tint)
 			}
 		}
 	}
@@ -272,7 +278,7 @@ func downscale(src *image.RGBA, outSize, ss int) *image.RGBA {
 
 // rasterTri fills a triangle: barycentric coverage, z-test, texture sampling
 // (alpha-tested), and per-vertex Lambert shading.
-func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, tex *image.RGBA, blend int) {
+func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, tex *image.RGBA, blend int, tint [4]float64) {
 	minX := int(math.Floor(min3(a.x, b.x, c.x)))
 	maxX := int(math.Ceil(max3(a.x, b.x, c.x)))
 	minY := int(math.Floor(min3(a.y, b.y, c.y)))
@@ -313,15 +319,21 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 			}
 			u := l0*float64(a.u) + l1*float64(b.u) + l2*float64(c.u)
 			v := l0*float64(a.v) + l1*float64(b.v) + l2*float64(c.v)
-			var cr, cg, cb uint8 = 200, 200, 200
-			var ca uint8 = 255
+			var fr, fg, fb, fa float64 = 200, 200, 200, 255
 			if tex != nil {
-				cr, cg, cb, ca = sampleTex(tex, u, v)
+				cr, cg, cb, ctex := sampleTex(tex, u, v)
+				fr, fg, fb, fa = float64(cr), float64(cg), float64(cb), float64(ctex)
 			}
+			// Apply the material color tint (effect textures are grayscale).
+			fr *= tint[0]
+			fg *= tint[1]
+			fb *= tint[2]
+			fa *= tint[3]
+			ca := uint8(clamp255(fa))
 			li := l0*a.light + l1*b.light + l2*c.light
-			sr := clamp255(float64(cr) * li)
-			sg := clamp255(float64(cg) * li)
-			sb := clamp255(float64(cb) * li)
+			sr := clamp255(fr * li)
+			sg := clamp255(fg * li)
+			sb := clamp255(fb * li)
 			dst := img.RGBAAt(x, y)
 
 			// M2 blendingMode: 0 opaque, 1 alpha-key, 2 alpha, 3 no-alpha-add,

@@ -63,6 +63,14 @@ type M2Material struct {
 	Blend uint16
 }
 
+// M2Color is a material color tint (RGB 0-1) + alpha, taken from the peak
+// keyframe of the color/alpha tracks (effect models animate these; the texture
+// itself is often grayscale).
+type M2Color struct {
+	RGB   [3]float32
+	Alpha float32
+}
+
 // M2Model is the parsed subset needed to render a static model.
 type M2Model struct {
 	Name     string
@@ -78,6 +86,7 @@ type M2Model struct {
 	Textures      []M2Texture
 	Materials     []M2Material
 	TextureCombos []uint16 // textureComboIndex → texture index
+	Colors        []M2Color // material color tracks (peak keyframe)
 
 	// World-space bounding box (y-up), for camera framing.
 	BoundsMin [3]float32
@@ -131,7 +140,7 @@ func ParseM2(b []byte) (*M2Model, error) {
 	c.arr() // key bone lookup
 	vtxN, vtxOff := c.arr()
 	viewsN, viewsOff := c.arr()
-	c.arr() // colors
+	colorsN, colorsOff := c.arr()
 	texN, texOff := c.arr()
 	c.arr() // texture weights
 	if vanilla {
@@ -267,6 +276,55 @@ func ParseM2(b []byte) (*M2Model, error) {
 	m.TextureCombos = make([]uint16, comboN)
 	for i := range m.TextureCombos {
 		m.TextureCombos[i] = c.u16()
+	}
+
+	// --- colors (each: a color track [float3] + alpha track [int16]) ---
+	// Each entry is two inline M2Tracks of 28 bytes; within a track the values
+	// array (count, offset) sits at byte 20. We take the peak keyframe so an
+	// animated tint reads at full strength rather than at a (possibly dark) frame 0.
+	f32at := func(off int) float32 {
+		if off+4 > len(b) {
+			return 0
+		}
+		return math.Float32frombits(binary.LittleEndian.Uint32(b[off:]))
+	}
+	u32at := func(off int) int {
+		if off+4 > len(b) {
+			return 0
+		}
+		return int(binary.LittleEndian.Uint32(b[off:]))
+	}
+	m.Colors = make([]M2Color, colorsN)
+	for i := range m.Colors {
+		col := M2Color{RGB: [3]float32{1, 1, 1}, Alpha: 1}
+		base := int(colorsOff) + i*56
+		// color track values
+		cCount, cOff := u32at(base+20), u32at(base+24)
+		bestLum := -1.0
+		for k := 0; k < cCount; k++ {
+			p := cOff + k*12
+			r, g, bl := f32at(p), f32at(p+4), f32at(p+8)
+			if lum := float64(r) + float64(g) + float64(bl); lum > bestLum {
+				bestLum = lum
+				col.RGB = [3]float32{r, g, bl}
+			}
+		}
+		// alpha track values (int16 fixed-point, /32767)
+		aCount, aOff := u32at(base+48), u32at(base+52)
+		amax, found := int16(0), false
+		for k := 0; k < aCount; k++ {
+			p := aOff + k*2
+			if p+2 > len(b) {
+				break
+			}
+			if v := int16(binary.LittleEndian.Uint16(b[p:])); !found || v > amax {
+				amax, found = v, true
+			}
+		}
+		if found {
+			col.Alpha = float32(amax) / 32767
+		}
+		m.Colors[i] = col
 	}
 
 	return m, nil
