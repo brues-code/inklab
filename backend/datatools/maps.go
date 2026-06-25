@@ -160,11 +160,20 @@ const (
 
 // compositeOverlay decodes an overlay's tiles (numbered row-major from 1) and
 // alpha-blends them onto canvas at the overlay's map offset, with 256px tile
-// spacing. It reads every tile actually present rather than capping to the DBC
-// dimensions — octo upscaled some overlays' art (e.g. Stonetalon's
-// WindshearCrag, Webwinderpath) without updating WorldMapOverlay.dbc, so the
-// stored w/h describe fewer tiles than ship. overlayCols recovers the true
-// column count so the extra tiles land in the right grid cells.
+// spacing.
+//
+// Tile count handling has two cases. Normally each row of the overlay ends in a
+// partial-width (<256) edge tile, since an overlay's width is rarely a multiple
+// of 256 — that edge tile marks the true column count and the end of each row.
+// octo sometimes appends unrelated tiles after the real overlay (e.g. Icepoint's
+// "kaneqnuun" is a 3x2 island overlay followed by 6 foreign tiles, including an
+// opaque one, that corrupt the map); a full-width tile where a row's edge tile
+// should be marks where that junk begins, so we stop there.
+//
+// When no partial-width tile exists at all (uniform 256px tiles), the art was
+// upscaled past its stale DBC entry (e.g. Stonetalon's WindshearCrag ships 4
+// tiles for a 1-tile rect); there's no edge to key on, so overlayCols recovers
+// the column count from the aspect ratio and every tile is used.
 func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov overlay) {
 	var tiles []*image.RGBA
 	for i := 1; i <= 64; i++ {
@@ -178,11 +187,53 @@ func compositeOverlay(canvas *image.RGBA, cf ClientFiles, zone, base string, ov 
 		}
 		tiles = append(tiles, tile)
 	}
-	cols := overlayCols(len(tiles), ov.w, ov.h)
-	for i, tile := range tiles {
+	if len(tiles) == 0 {
+		return
+	}
+
+	// Column count from the first partial-width edge tile, if any.
+	cols, edged := 0, false
+	for i, t := range tiles {
+		if t.Bounds().Dx() < 256 {
+			cols, edged = i+1, true
+			break
+		}
+	}
+
+	limit := len(tiles)
+	if edged && cols > 0 {
+		// Keep only the leading rows that each end in an edge tile; stop at the
+		// first row whose final column is full-width (appended foreign tiles).
+		rows := 0
+		for r := 0; r*cols < len(tiles); r++ {
+			last := r*cols + cols - 1
+			if last >= len(tiles) {
+				rows = r + 1 // ragged final row — keep what's there
+				break
+			}
+			if tiles[last].Bounds().Dx() < 256 {
+				rows = r + 1
+			} else {
+				break
+			}
+		}
+		if rows > 0 {
+			limit = rows * cols
+		}
+	} else {
+		cols = overlayCols(len(tiles), ov.w, ov.h)
+	}
+	if cols < 1 {
+		cols = 1
+	}
+	if limit > len(tiles) {
+		limit = len(tiles)
+	}
+
+	for i := 0; i < limit; i++ {
 		col := i % cols
 		row := i / cols
-		blitAlpha(canvas, tile, ov.offX+col*256, ov.offY+row*256)
+		blitAlpha(canvas, tiles[i], ov.offX+col*256, ov.offY+row*256)
 	}
 }
 
