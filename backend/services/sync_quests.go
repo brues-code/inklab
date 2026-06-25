@@ -5,6 +5,7 @@ import (
 	"io"
 	"inklab/backend/database/models"
 	"inklab/backend/parsers"
+	"sync"
 	"time"
 )
 
@@ -266,35 +267,58 @@ func (s *SyncService) FullSyncQuests(delayMs int, startFrom int, progressCb Prog
 		StartFromID: startFrom,
 	}
 
-	fmt.Printf("[FullSync] Starting full sync of %d quests...\n", len(questIDs))
+	// Worker pool to parallelize the network-bound scrape, like the item sync.
+	const numWorkers = 10
+	total := len(questIDs)
+	fmt.Printf("[FullSync] Starting parallel sync of %d quests with %d workers...\n", total, numWorkers)
 
-	for i, questID := range questIDs {
-		// Check for stop request
-		if s.IsStopped() {
-			result.Message = "Sync stopped by user"
-			return result
-		}
+	jobs := make(chan int, total)
+	var wg sync.WaitGroup
+	var mu sync.Mutex // guards result + progress
+	processed := 0
 
-		res := s.FetchAndImportQuest(questID)
-		if res.Success {
-			result.Updated++
-		} else {
-			result.Failed++
-			if len(result.Errors) < 10 {
-				result.Errors = append(result.Errors, fmt.Sprintf("Quest %d: %s", questID, res.Error))
+	worker := func() {
+		defer wg.Done()
+		for questID := range jobs {
+			if s.IsStopped() {
+				return
 			}
-		}
-		result.LastSyncedID = questID
-
-		if progressCb != nil {
-			progressCb(i+1, len(questIDs), questID, res.Title)
-		}
-
-		if delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			res := s.FetchAndImportQuest(questID)
+			mu.Lock()
+			if res.Success {
+				result.Updated++
+			} else {
+				result.Failed++
+				if len(result.Errors) < 10 {
+					result.Errors = append(result.Errors, fmt.Sprintf("Quest %d: %s", questID, res.Error))
+				}
+			}
+			result.LastSyncedID = questID
+			processed++
+			if progressCb != nil {
+				progressCb(processed, total, questID, res.Title)
+			}
+			mu.Unlock()
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
 		}
 	}
 
-	result.Message = "Full quest sync complete"
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, id := range questIDs {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+
+	if s.IsStopped() {
+		result.Message = "Sync stopped by user"
+	} else {
+		result.Message = "Full quest sync complete"
+	}
 	return result
 }

@@ -933,7 +933,10 @@ func (s *NpcService) SyncAllGameObjectSpawns(progressCb func(current, total int,
 	return nil
 }
 
-// FullSyncNpcs performs a full sync (scrape + DB) for all NPCs starting from a specific ID
+// FullSyncNpcs performs a full sync (scrape + DB) for all NPCs starting from a
+// specific ID. NPC sync is network-bound (web scrape + MySQL), so it runs over a
+// worker pool like the item sync; sql.DB is safe for concurrent use and mu guards
+// the shared progress counter. Honors the stop flag.
 func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
 	// Get all entries starting from startFrom
 	rows, err := s.sqlite.Query("SELECT entry FROM creature_template WHERE entry >= ? ORDER BY entry", startFrom)
@@ -951,23 +954,40 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	}
 
 	total := len(entries)
-	for i, entry := range entries {
-		// Check for stop request
-		if s.IsStopped() {
-			return nil
-		}
+	const numWorkers = 10
+	jobs := make(chan int, total)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	processed := 0
 
-		// Perform full sync (scrape + DB)
-		s.SyncNpcData(entry)
-
-		if progressCb != nil {
-			progressCb(i+1, total, entry)
-		}
-
-		if delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	worker := func() {
+		defer wg.Done()
+		for entry := range jobs {
+			if s.IsStopped() {
+				return
+			}
+			s.SyncNpcData(entry)
+			mu.Lock()
+			processed++
+			if progressCb != nil {
+				progressCb(processed, total, entry)
+			}
+			mu.Unlock()
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
 		}
 	}
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, entry := range entries {
+		jobs <- entry
+	}
+	close(jobs)
+	wg.Wait()
 
 	return nil
 }

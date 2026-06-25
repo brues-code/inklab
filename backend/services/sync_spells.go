@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"inklab/backend/parsers"
+	"sync"
 	"time"
 )
 
@@ -212,28 +213,51 @@ func (s *SyncService) FullSyncSpells(delayMs int, fixIcons bool, iconDir string,
 		StartFromID: startFrom,
 	}
 
-	fmt.Printf("[FullSync] Starting full sync of %d spells...\n", len(spellIDs))
+	// Worker pool to parallelize the network-bound scrape, like the item sync.
+	const numWorkers = 10
+	total := len(spellIDs)
+	fmt.Printf("[FullSync] Starting parallel sync of %d spells with %d workers...\n", total, numWorkers)
 
-	for i, spellID := range spellIDs {
-		// Check for stop request
-		if s.IsStopped() {
-			result.Message = "Sync stopped by user"
-			return result
-		}
+	jobs := make(chan int, total)
+	var wg sync.WaitGroup
+	var mu sync.Mutex // guards result + progress
+	processed := 0
 
-		s.SyncSpell(spellID, iconDir, "")
-		result.Updated++
-		result.LastSyncedID = spellID
-
-		if progressCb != nil {
-			progressCb(i+1, len(spellIDs), spellID, fmt.Sprintf("Spell %d", spellID))
-		}
-
-		if delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	worker := func() {
+		defer wg.Done()
+		for spellID := range jobs {
+			if s.IsStopped() {
+				return
+			}
+			s.SyncSpell(spellID, iconDir, "")
+			mu.Lock()
+			result.Updated++
+			result.LastSyncedID = spellID
+			processed++
+			if progressCb != nil {
+				progressCb(processed, total, spellID, fmt.Sprintf("Spell %d", spellID))
+			}
+			mu.Unlock()
+			if delayMs > 0 {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
 		}
 	}
 
-	result.Message = "Full spell sync complete"
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, id := range spellIDs {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+
+	if s.IsStopped() {
+		result.Message = "Sync stopped by user"
+	} else {
+		result.Message = "Full spell sync complete"
+	}
 	return result
 }

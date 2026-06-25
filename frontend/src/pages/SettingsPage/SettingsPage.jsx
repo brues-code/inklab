@@ -362,7 +362,7 @@ function SettingsPage() {
                     🚀 Optimization
                 </h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                    Item synchronization uses a multi-threaded worker pool (10 workers) to significantly speed up the download process.
+                    All synchronization (NPCs, items, spells, quests) uses a multi-threaded worker pool (10 workers) to significantly speed up the download process.
                 </p>
             </div>
         </div>
