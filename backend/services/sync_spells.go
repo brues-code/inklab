@@ -1,78 +1,19 @@
 package services
 
+// Spell descriptions are resolved entirely locally from the DBC fields already
+// in the database (spell_template + spell_durations/spell_radius) — see
+// spelldesc.go. There is no spell web scraping: the data is identical to what
+// the site served, and the placeholders ($s1/$d/$o1/...) resolve from our own
+// columns.
+
 import (
 	"fmt"
-	"io"
-	"net/http"
-	"inklab/backend/parsers"
-	"sync"
-	"time"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
-// SyncSpell fetches and imports a spell if it's missing from the database
-// Also fixes the spell icon if iconDir is provided
-// fallbackDesc is used when the spell page doesn't have a description (common for custom spells)
-func (s *SyncService) SyncSpell(spellID int, iconDir string, fallbackDesc string) {
-	if spellID == 0 {
-		return
-	}
-
-	// Always fetch to check for description update if missing
-	fmt.Printf("[SyncService] Syncing missing/incomplete spell %d...\n", spellID)
-
-	// Fetch spell details
-	url := fmt.Sprintf(DatabaseBaseURL+"/?spell=%d", spellID)
-	resp, err := http.Get(url)
-	if err != nil {
-		fmt.Printf("Error fetching spell %d: %v\n", spellID, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	content := string(bodyBytes)
-
-	// Use parser
-	name, description := parsers.ParseSpell(content)
-
-	// Use fallback description if spell page doesn't have one
-	if description == "" && fallbackDesc != "" {
-		description = fallbackDesc
-		fmt.Printf("  Using fallback description from item page for spell %d\n", spellID)
-	}
-
-	if name != "" {
-		// Insert or Update logic to handle filling in missing descriptions
-		_, err = s.db.Exec(`
-			INSERT INTO spell_template (entry, name, description)
-			VALUES (?, ?, ?)
-			ON CONFLICT(entry) DO UPDATE SET
-				name = excluded.name,
-				description = excluded.description
-			WHERE description = '' OR description IS NULL OR length(description) < 5
-		`, spellID, name, description)
-
-		if err != nil {
-			fmt.Printf("Error inserting/updating spell %d: %v\n", spellID, err)
-		} else {
-			fmt.Printf("✓ Synced Spell %d: %s (Desc len: %d)\n", spellID, name, len(description))
-
-			// Fix spell icon if iconDir is provided
-			if iconDir != "" {
-				iconFixService := NewIconFixService(s.db, iconDir)
-				success, iconName, _ := iconFixService.FixSingleSpell(s.db, spellID)
-				if success {
-					fmt.Printf("  ✓ Fixed spell icon: %s\n", iconName)
-				}
-			}
-		}
-	}
-}
-
-// SyncSpellResult represents the result of syncing a single spell
+// SyncSpellResult represents the result of resolving a single spell.
 type SyncSpellResult struct {
 	Success     bool   `json:"success"`
 	SpellID     int    `json:"spellId"`
@@ -81,183 +22,198 @@ type SyncSpellResult struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// FetchAndImportSpell fetches a single spell from turtlecraft.gg and imports it to local database
-func (s *SyncService) FetchAndImportSpell(spellID int, iconDir string) *SyncSpellResult {
-	if spellID == 0 {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   "Invalid spell ID",
-		}
-	}
+const spellVarCols = `durationIndex,
+	effectBasePoints1, effectBasePoints2, effectBasePoints3,
+	effectDieSides1, effectDieSides2, effectDieSides3,
+	effectAmplitude1, effectAmplitude2, effectAmplitude3,
+	effectChainTarget1, effectChainTarget2, effectChainTarget3,
+	effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
+	procChance`
 
-	fmt.Printf("[SyncService] FetchAndImportSpell called for spell %d\n", spellID)
-
-	// Fetch spell details from remote database
-	url := fmt.Sprintf(DatabaseBaseURL+"/?spell=%d", spellID)
-	resp, err := http.Get(url)
+func (s *SyncService) loadDurationMap() map[int]int {
+	m := map[int]int{}
+	rows, err := s.db.Query("SELECT id, duration_base FROM spell_durations")
 	if err != nil {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   fmt.Sprintf("Failed to fetch: %v", err),
-		}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   fmt.Sprintf("HTTP error: %d", resp.StatusCode),
-		}
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   fmt.Sprintf("Failed to read response: %v", err),
-		}
-	}
-	content := string(bodyBytes)
-
-	// Use parser to extract spell data
-	name, description := parsers.ParseSpell(content)
-
-	if name == "" {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   "Spell not found or has no name",
-		}
-	}
-
-	// Insert or Update spell
-	_, err = s.db.Exec(`
-		INSERT INTO spell_template (entry, name, description)
-		VALUES (?, ?, ?)
-		ON CONFLICT(entry) DO UPDATE SET
-			name = excluded.name,
-			description = CASE 
-				WHEN excluded.description != '' THEN excluded.description 
-				ELSE spell_template.description 
-			END
-	`, spellID, name, description)
-
-	if err != nil {
-		return &SyncSpellResult{
-			Success: false,
-			SpellID: spellID,
-			Error:   fmt.Sprintf("Database error: %v", err),
-		}
-	}
-
-	fmt.Printf("✓ Synced Spell %d: %s (Desc len: %d)\n", spellID, name, len(description))
-
-	// Fix spell icon if iconDir is provided
-	if iconDir != "" {
-		iconFixService := NewIconFixService(s.db, iconDir)
-		success, iconName, _ := iconFixService.FixSingleSpell(s.db, spellID)
-		if success {
-			fmt.Printf("  ✓ Fixed spell icon: %s\n", iconName)
-		}
-	}
-
-	return &SyncSpellResult{
-		Success:     true,
-		SpellID:     spellID,
-		Name:        name,
-		Description: description,
-	}
-}
-
-// FullSyncSpells re-syncs all spells referenced by items
-func (s *SyncService) FullSyncSpells(delayMs int, fixIcons bool, iconDir string, startFrom int, progressCb ProgressCallback) *FullSyncResult {
-	if delayMs <= 0 {
-		delayMs = 200
-	}
-
-	// Get all unique spell IDs referenced by items
-	rows, err := s.db.Query(`
-		SELECT DISTINCT spell_id FROM (
-			SELECT spellid_1 AS spell_id FROM item_template WHERE spellid_1 > 0
-			UNION
-			SELECT spellid_2 AS spell_id FROM item_template WHERE spellid_2 > 0
-			UNION
-			SELECT spellid_3 AS spell_id FROM item_template WHERE spellid_3 > 0
-		) ORDER BY spell_id
-	`)
-	if err != nil {
-		return &FullSyncResult{
-			Message: fmt.Sprintf("Error querying spells: %v", err),
-			Errors:  []string{err.Error()},
-		}
+		return m
 	}
 	defer rows.Close()
+	for rows.Next() {
+		var id, base int
+		if rows.Scan(&id, &base) == nil {
+			m[id] = base
+		}
+	}
+	return m
+}
 
-	var spellIDs []int
+func (s *SyncService) loadRadiusMap() map[int]float64 {
+	m := map[int]float64{}
+	rows, err := s.db.Query("SELECT id, radius_base FROM spell_radius")
+	if err != nil {
+		return m
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var id int
-		if err := rows.Scan(&id); err == nil {
-			if startFrom <= 0 || id >= startFrom {
-				spellIDs = append(spellIDs, id)
+		var base float64
+		if rows.Scan(&id, &base) == nil {
+			m[id] = base
+		}
+	}
+	return m
+}
+
+// scanSpellVars reads the spellVarCols (in order) plus a leading entry id into a
+// spellVars, resolving the duration/radius indices via the aux maps.
+func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap map[int]float64) (int, spellVars, error) {
+	var entry, durIdx, proc int
+	var bp, die, amp, chain, radIdx [3]int
+	err := scan(&entry, &durIdx,
+		&bp[0], &bp[1], &bp[2],
+		&die[0], &die[1], &die[2],
+		&amp[0], &amp[1], &amp[2],
+		&chain[0], &chain[1], &chain[2],
+		&radIdx[0], &radIdx[1], &radIdx[2],
+		&proc)
+	if err != nil {
+		return 0, spellVars{}, err
+	}
+	v := spellVars{basePoints: bp, dieSides: die, amplitude: amp, chainTarget: chain, procChance: proc}
+	v.durationMs = durMap[durIdx]
+	for i := 0; i < 3; i++ {
+		v.radiusYd[i] = radMap[radIdx[i]]
+	}
+	return entry, v, nil
+}
+
+// loadAllSpellVars loads every spell's resolver fields into a map (for the batch
+// pass, where any spell may be referenced by any other via $<id>TOK).
+func (s *SyncService) loadAllSpellVars(durMap map[int]int, radMap map[int]float64) map[int]spellVars {
+	out := map[int]spellVars{}
+	rows, err := s.db.Query("SELECT entry, " + spellVarCols + " FROM spell_template")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		entry, v, err := scanSpellVars(rows.Scan, durMap, radMap)
+		if err == nil {
+			out[entry] = v
+		}
+	}
+	return out
+}
+
+// loadSpellVarsByIDs loads the resolver fields for a specific set of spell ids.
+func (s *SyncService) loadSpellVarsByIDs(ids []int, durMap map[int]int, radMap map[int]float64) map[int]spellVars {
+	out := map[int]spellVars{}
+	for _, id := range ids {
+		row := s.db.QueryRow("SELECT entry, "+spellVarCols+" FROM spell_template WHERE entry = ?", id)
+		entry, v, err := scanSpellVars(row.Scan, durMap, radMap)
+		if err == nil {
+			out[entry] = v
+		}
+	}
+	return out
+}
+
+var reRefIDs = regexp.MustCompile(`\$(\d+)[a-zA-Z]`)
+
+// refIDsIn returns the spell ids referenced by $<id>TOK tokens in a description.
+func refIDsIn(desc string) []int {
+	var ids []int
+	for _, m := range reRefIDs.FindAllStringSubmatch(desc, -1) {
+		if id, err := strconv.Atoi(m[1]); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// ResolveSpellByID resolves one spell's description in place from local DBC data.
+// fallbackDesc (e.g. a resolved description scraped from an item page) is used
+// only when the spell has no usable description of its own.
+func (s *SyncService) ResolveSpellByID(spellID int, fallbackDesc string) *SyncSpellResult {
+	if spellID == 0 {
+		return &SyncSpellResult{Success: false, SpellID: spellID, Error: "invalid spell id"}
+	}
+	var name, desc string
+	err := s.db.QueryRow("SELECT COALESCE(name,''), COALESCE(description,'') FROM spell_template WHERE entry = ?", spellID).Scan(&name, &desc)
+	if err != nil {
+		return &SyncSpellResult{Success: false, SpellID: spellID, Error: "spell not in database"}
+	}
+
+	// Back-fill an empty description from the item-page fallback if provided.
+	if len(desc) < 5 && fallbackDesc != "" {
+		desc = fallbackDesc
+		s.db.Exec("UPDATE spell_template SET description = ? WHERE entry = ?", desc, spellID)
+	}
+
+	if strings.Contains(desc, "$") {
+		durMap, radMap := s.loadDurationMap(), s.loadRadiusMap()
+		ids := append(refIDsIn(desc), spellID)
+		vars := s.loadSpellVarsByIDs(ids, durMap, radMap)
+		resolved := ResolveSpellDescription(desc, vars[spellID], vars)
+		if resolved != desc {
+			if _, err := s.db.Exec("UPDATE spell_template SET description = ? WHERE entry = ?", resolved, spellID); err == nil {
+				desc = resolved
 			}
 		}
 	}
+	return &SyncSpellResult{Success: true, SpellID: spellID, Name: name, Description: desc}
+}
 
-	result := &FullSyncResult{
-		TotalItems:  len(spellIDs),
-		Errors:      []string{},
-		StartFromID: startFrom,
+// FullSyncSpells resolves the $-placeholder descriptions of every spell locally
+// from DBC data. The delayMs/fixIcons/iconDir args are retained for API
+// compatibility but unused — there is no network access. startFrom resumes from
+// a spell id. Honors the stop flag.
+func (s *SyncService) FullSyncSpells(delayMs int, fixIcons bool, iconDir string, startFrom int, progressCb ProgressCallback) *FullSyncResult {
+	result := &FullSyncResult{Errors: []string{}, StartFromID: startFrom}
+
+	durMap, radMap := s.loadDurationMap(), s.loadRadiusMap()
+	allVars := s.loadAllSpellVars(durMap, radMap)
+
+	rows, err := s.db.Query(
+		"SELECT entry, description FROM spell_template WHERE description LIKE '%$%' AND entry >= ? ORDER BY entry",
+		startFrom)
+	if err != nil {
+		result.Message = fmt.Sprintf("Error querying spells: %v", err)
+		result.Errors = append(result.Errors, err.Error())
+		return result
 	}
+	type job struct {
+		id   int
+		desc string
+	}
+	var todo []job
+	for rows.Next() {
+		var j job
+		if rows.Scan(&j.id, &j.desc) == nil {
+			todo = append(todo, j)
+		}
+	}
+	rows.Close()
 
-	// Worker pool to parallelize the network-bound scrape, like the item sync.
-	const numWorkers = 10
-	total := len(spellIDs)
-	fmt.Printf("[FullSync] Starting parallel sync of %d spells with %d workers...\n", total, numWorkers)
+	result.TotalItems = len(todo)
+	fmt.Printf("[ResolveSpells] Resolving %d spell descriptions locally...\n", len(todo))
 
-	jobs := make(chan int, total)
-	var wg sync.WaitGroup
-	var mu sync.Mutex // guards result + progress
-	processed := 0
-
-	worker := func() {
-		defer wg.Done()
-		for spellID := range jobs {
-			if s.IsStopped() {
-				return
+	for i, j := range todo {
+		if s.IsStopped() {
+			result.Message = "Resolve stopped by user"
+			return result
+		}
+		resolved := ResolveSpellDescription(j.desc, allVars[j.id], allVars)
+		if resolved != j.desc {
+			if _, err := s.db.Exec("UPDATE spell_template SET description = ? WHERE entry = ?", resolved, j.id); err == nil {
+				result.Updated++
 			}
-			s.SyncSpell(spellID, iconDir, "")
-			mu.Lock()
-			result.Updated++
-			result.LastSyncedID = spellID
-			processed++
-			if progressCb != nil {
-				progressCb(processed, total, spellID, fmt.Sprintf("Spell %d", spellID))
-			}
-			mu.Unlock()
-			if delayMs > 0 {
-				time.Sleep(time.Duration(delayMs) * time.Millisecond)
-			}
+		}
+		result.LastSyncedID = j.id
+		if progressCb != nil {
+			progressCb(i+1, len(todo), j.id, fmt.Sprintf("Spell %d", j.id))
 		}
 	}
 
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go worker()
-	}
-	for _, id := range spellIDs {
-		jobs <- id
-	}
-	close(jobs)
-	wg.Wait()
-
-	if s.IsStopped() {
-		result.Message = "Sync stopped by user"
-	} else {
-		result.Message = "Full spell sync complete"
-	}
+	result.Message = fmt.Sprintf("Resolved %d spell descriptions locally", result.Updated)
 	return result
 }

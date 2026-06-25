@@ -146,15 +146,8 @@ func (s *SyncService) CheckNewItems(maxChecks int, delayMs int, progressChan cha
 				if err := s.UpsertItemSet(itemSet); err != nil {
 					fmt.Printf("  Error importing item set %d: %v\n", itemSet.ID, err)
 				}
-
-				// Sync set bonus spells
-				iconDir := filepath.Join("data", "icons")
-				spells := []int{itemSet.Spell1, itemSet.Spell2, itemSet.Spell3, itemSet.Spell4, itemSet.Spell5, itemSet.Spell6, itemSet.Spell7, itemSet.Spell8}
-				for _, spellID := range spells {
-					if spellID > 0 {
-						s.SyncSpell(spellID, iconDir, "")
-					}
-				}
+				// Spell descriptions are resolved locally (ResolveSpellByID /
+				// FullSyncSpells), not fetched here.
 			}
 		}
 
@@ -229,37 +222,13 @@ func (s *SyncService) FetchAndImportItem(itemID int) *SyncItemResult {
 
 	// Note: icon_path is no longer in item_template. Icons are handling via display_id join.
 
-	// Sync missing spells (with icon fix)
-	// Pass fallback descriptions extracted from item page when spell pages don't have them
 	iconDir := filepath.Join("data", "icons")
-	if item.Spellid1 > 0 {
-		s.SyncSpell(item.Spellid1, iconDir, item.SpellDescriptions[item.Spellid1])
-	}
-	if item.Spellid2 > 0 {
-		s.SyncSpell(item.Spellid2, iconDir, item.SpellDescriptions[item.Spellid2])
-	}
-	if item.Spellid3 > 0 {
-		s.SyncSpell(item.Spellid3, iconDir, item.SpellDescriptions[item.Spellid3])
-	}
-	if item.Spellid4 > 0 {
-		s.SyncSpell(item.Spellid4, iconDir, item.SpellDescriptions[item.Spellid4])
-	}
-	if item.Spellid5 > 0 {
-		s.SyncSpell(item.Spellid5, iconDir, item.SpellDescriptions[item.Spellid5])
-	}
 
-	// Sync item set info
+	// Sync item set info. Spell descriptions (item + set bonuses) are resolved
+	// locally from DBC data (ResolveSpellByID / FullSyncSpells), not fetched here.
 	if itemSet != nil {
 		if err := s.UpsertItemSet(itemSet); err != nil {
 			fmt.Printf("  Error importing item set %d: %v\n", itemSet.ID, err)
-		} else {
-			// Sync set bonus spells
-			spells := []int{itemSet.Spell1, itemSet.Spell2, itemSet.Spell3, itemSet.Spell4, itemSet.Spell5, itemSet.Spell6, itemSet.Spell7, itemSet.Spell8}
-			for _, spellID := range spells {
-				if spellID > 0 {
-					s.SyncSpell(spellID, iconDir, "")
-				}
-			}
 		}
 	}
 
@@ -530,8 +499,7 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 
 	jobs := make(chan int, len(filteredIDs))
 	var wg sync.WaitGroup
-	var mu sync.Mutex           // Protects result, progress, console output
-	var spellSeenCache sync.Map // Cache to prevent duplicate syncs of same spell
+	var mu sync.Mutex // Protects result, progress, console output
 
 	processedCount := 0
 	totalFiltered := len(filteredIDs)
@@ -702,38 +670,10 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 				}
 				mu.Unlock()
 
-				// Sync Spells (with duplication check)
-				spellIconDir := ""
-				if fixIcons {
-					spellIconDir = iconDir
-				}
-
-				syncSpellSafe := func(sid int, desc string) {
-					if sid > 0 {
-						if _, loaded := spellSeenCache.LoadOrStore(sid, true); !loaded {
-							s.SyncSpell(sid, spellIconDir, desc)
-						}
-					}
-				}
-
-				syncSpellSafe(item.Spellid1, item.SpellDescriptions[item.Spellid1])
-				syncSpellSafe(item.Spellid2, item.SpellDescriptions[item.Spellid2])
-				syncSpellSafe(item.Spellid3, item.SpellDescriptions[item.Spellid3])
-				syncSpellSafe(item.Spellid4, item.SpellDescriptions[item.Spellid4])
-				syncSpellSafe(item.Spellid5, item.SpellDescriptions[item.Spellid5])
-
-				// Sync Set + Set Bonuses
+				// Sync Set + Set Bonuses. Spell descriptions are resolved locally
+				// from DBC data (FullSyncSpells), not fetched per item here.
 				if itemSet != nil {
-					if err := s.UpsertItemSet(itemSet); err == nil {
-						syncSpellSafe(itemSet.Spell1, "")
-						syncSpellSafe(itemSet.Spell2, "")
-						syncSpellSafe(itemSet.Spell3, "")
-						syncSpellSafe(itemSet.Spell4, "")
-						syncSpellSafe(itemSet.Spell5, "")
-						syncSpellSafe(itemSet.Spell6, "")
-						syncSpellSafe(itemSet.Spell7, "")
-						syncSpellSafe(itemSet.Spell8, "")
-					}
+					_ = s.UpsertItemSet(itemSet)
 				}
 
 				// Fix icon for item

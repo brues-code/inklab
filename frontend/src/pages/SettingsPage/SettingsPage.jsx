@@ -362,7 +362,7 @@ function SettingsPage() {
                     🚀 Optimization
                 </h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                    All synchronization (NPCs, items, spells, quests) uses a multi-threaded worker pool (10 workers) to significantly speed up the download process.
+                    NPC, item, and quest sync use a multi-threaded worker pool (10 workers) to speed up downloads. Spell descriptions are resolved locally from client (DBC) data — no download needed.
                 </p>
             </div>
         </div>

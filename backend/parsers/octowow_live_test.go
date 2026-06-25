@@ -82,17 +82,6 @@ func TestOctowowTradeGoodLive(t *testing.T) {
 	}
 }
 
-func TestOctowowSpellLive(t *testing.T) {
-	content := liveGet(t, octowowBase+"/?spell=133") // Fireball
-	name, desc := ParseSpell(content)
-	if name != "Fireball" {
-		t.Errorf("spell name = %q; want Fireball", name)
-	}
-	if len(desc) == 0 {
-		t.Errorf("spell description is empty")
-	}
-}
-
 func TestOctowowNpcLive(t *testing.T) {
 	content := liveGet(t, octowowBase+"/?npc=448") // Hogger
 	data, err := ParseNpcDataTurtlecraft(strings.NewReader(content))

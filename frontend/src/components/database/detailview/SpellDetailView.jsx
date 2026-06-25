@@ -124,9 +124,9 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
                                     : 'bg-green-700 hover:bg-green-600 text-white'
                             }`}
-                            title="Sync spell from TurtleCraft"
+                            title="Resolve this spell's description from local DBC data"
                         >
-                            {syncing ? '⏳ Syncing...' : '🔄 Sync'}
+                            {syncing ? '⏳ Resolving...' : '🔄 Resolve'}
                         </button>
                         <a
                             href={`${DATABASE_BASE_URL}/?spell=${entry}`}

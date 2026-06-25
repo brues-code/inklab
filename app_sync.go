@@ -254,7 +254,8 @@ func (a *App) FullSyncItems(delayMs int, fixIcons bool, startFrom int) string {
 	return "Started"
 }
 
-// FullSyncSpells re-syncs all spells referenced by items
+// FullSyncSpells resolves all spell descriptions locally from DBC data (the
+// delayMs/fixIcons args are kept for API/binding compatibility but unused).
 func (a *App) FullSyncSpells(delayMs int, fixIcons bool, startFrom int) string {
 	fmt.Printf("[API] FullSyncSpells called with delayMs=%d, fixIcons=%v, startFrom=%d\n", delayMs, fixIcons, startFrom)
 
@@ -341,9 +342,8 @@ func (a *App) RenderNpcModels(baseDir string, startFrom int, delayMs int) string
 
 func (a *App) SyncSingleSpell(spellID int) *services.SyncSpellResult {
 	fmt.Printf("[API] SyncSingleSpell called for spell %d\n", spellID)
-
-	iconDir := filepath.Join(a.DataDir, "icons")
-	return a.syncService.FetchAndImportSpell(spellID, iconDir)
+	// Resolve the spell's description locally from DBC data (no web scrape).
+	return a.syncService.ResolveSpellByID(spellID, "")
 }
 
 // StopSync requests all ongoing sync processes to stop
