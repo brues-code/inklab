@@ -93,27 +93,28 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 	// Decode each submesh's texture once (cache by path); also report its
 	// material blend mode (0/1 opaque/key, 2 alpha, 3 additive).
 	texCache := map[string]*image.RGBA{}
-	texFor := func(sub int) (*image.RGBA, int) {
+	texFor := func(sub int) (tex *image.RGBA, blend int, unlit bool) {
 		for _, tu := range m.TexUnits {
 			if int(tu.SkinSectionIndex) != sub {
 				continue
 			}
-			blend := 0
 			if int(tu.MaterialIndex) < len(m.Materials) {
-				blend = int(m.Materials[tu.MaterialIndex].Blend)
+				mat := m.Materials[tu.MaterialIndex]
+				blend = int(mat.Blend)
+				unlit = mat.Flags&0x01 != 0 // 0x01 = unlit (emissive)
 			}
 			p := cm.TextureForUnit(m, tu)
 			if p == "" {
-				return nil, blend
+				return nil, blend, unlit
 			}
 			if t, ok := texCache[p]; ok {
-				return t, blend
+				return t, blend, unlit
 			}
 			t := loadBLPTexture(cf, p)
 			texCache[p] = t
-			return t, blend
+			return t, blend, unlit
 		}
-		return nil, 0
+		return nil, 0, false
 	}
 
 	// Orthographic camera with yaw+pitch.
@@ -195,7 +196,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		if !selected[si] {
 			continue
 		}
-		tex, blend := texFor(si)
+		tex, blend, unlit := texFor(si)
 		// On character models, an untextured submesh (e.g. hair we can't resolve)
 		// would draw as a gray blob — skip it instead.
 		if tex == nil && isChar {
@@ -218,10 +219,13 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 				}
 				vert := m.Vertices[vi]
 				sx, sy, depth := project(vert.Pos)
-				n := rotN(vert.Normal)
-				li := 0.4 + 0.7*math.Max(0, dot3(n, light))
-				if li > 1 {
-					li = 1
+				li := 1.0 // unlit/emissive (glows, fire) render at full intensity
+				if !unlit {
+					n := rotN(vert.Normal)
+					li = 0.4 + 0.7*math.Max(0, dot3(n, light))
+					if li > 1 {
+						li = 1
+					}
 				}
 				verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
 			}
