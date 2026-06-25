@@ -286,6 +286,10 @@ func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool 
 			sel[i] = true
 		case g == 0 && id == hair: // selected hairstyle
 			sel[i] = true
+		case (g == 100 || g == 200 || g == 300) && cm.Extra.FacialHair > 0 && id == g+cm.Extra.FacialHair:
+			sel[i] = true // facial hair (beard/moustache/sideburns) variant
+		case (g == 100 || g == 200 || g == 300):
+			// other facial-group variants are alternates; skip
 		case g != 0 && id == g+1: // variant 1 = each group's default "skin" geoset
 			sel[i] = true
 		}
