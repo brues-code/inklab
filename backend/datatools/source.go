@@ -20,6 +20,7 @@ import (
 // WorldMap zone folder and file). All access is read-only.
 type ClientFiles interface {
 	ReadDBC(name string) ([]byte, error)        // DBFilesClient\<name>
+	ReadFile(path string) ([]byte, error)       // arbitrary client path (models, textures)
 	ListIcons() ([]string, error)               // Interface\Icons\*.blp -> base names (no ext)
 	ReadIcon(base string) ([]byte, error)       // Interface\Icons\<base>.blp
 	ListZones() ([]string, error)               // Interface\WorldMap\<zone> folder names
@@ -34,6 +35,7 @@ type dirSource struct {
 	dbcDir      string
 	iconsDir    string
 	worldMapDir string
+	rootDir     string // client root, for arbitrary ReadFile paths
 }
 
 // NewDirSourceDBC builds a ClientFiles that reads DBCs from a loose
@@ -52,6 +54,16 @@ func NewDirSourceMaps(worldMapDir, dbcDir string) ClientFiles {
 
 func (d *dirSource) ReadDBC(name string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(d.dbcDir, name))
+}
+
+// ReadFile resolves an arbitrary client path against the root dir. Backslashes
+// (client convention) are normalized to the OS separator.
+func (d *dirSource) ReadFile(path string) ([]byte, error) {
+	if d.rootDir == "" {
+		return nil, fmt.Errorf("dirSource has no root dir for %q", path)
+	}
+	p := strings.ReplaceAll(path, `\`, string(filepath.Separator))
+	return os.ReadFile(filepath.Join(d.rootDir, p))
 }
 
 func (d *dirSource) ListIcons() ([]string, error) {
@@ -222,6 +234,12 @@ func silenceStdout() func() {
 
 func (m *mpqSource) ReadDBC(name string) ([]byte, error) {
 	return m.read(`DBFilesClient\` + name)
+}
+
+// ReadFile reads an arbitrary client path from the MPQ set (by name, via the
+// hash table — works regardless of listfile health).
+func (m *mpqSource) ReadFile(path string) ([]byte, error) {
+	return m.read(path)
 }
 
 func (m *mpqSource) ListIcons() ([]string, error) {

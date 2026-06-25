@@ -1,0 +1,282 @@
+package datatools
+
+// Software rasterizer for vanilla creature M2 models: orthographic, textured,
+// z-buffered, with simple Lambert lighting. Renders a static (bind-pose) view
+// to an RGBA image with a transparent background. Humanoid Character\ models
+// (composite skins + geoset selection) are out of scope here — this targets
+// creature skins (texture type 0 / 11-13).
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"math"
+	"strings"
+)
+
+// RenderOptions controls a model render.
+type RenderOptions struct {
+	Size     int     // output is Size x Size
+	YawDeg   float64 // rotation around the up axis (3/4 view)
+	PitchDeg float64
+}
+
+// DefaultRenderOptions is a front-3/4 portrait framing.
+func DefaultRenderOptions() RenderOptions {
+	return RenderOptions{Size: 512, YawDeg: 35, PitchDeg: 10}
+}
+
+// RenderCreatureModel resolves a display id, parses its M2, and rasterizes a
+// textured static view.
+func RenderCreatureModel(cf ClientFiles, displayID int, opt RenderOptions) (*image.RGBA, error) {
+	cm, err := ResolveCreatureModel(cf, displayID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasPrefix(strings.ToLower(cm.ModelPath), "character\\") {
+		return nil, fmt.Errorf("display %d is a character model (%s); creature renderer only", displayID, cm.ModelPath)
+	}
+	mb, _, err := ReadModelFile(cf, cm.ModelPath)
+	if err != nil {
+		return nil, err
+	}
+	m, err := ParseM2(mb)
+	if err != nil {
+		return nil, err
+	}
+	return RenderM2(cf, cm, m, opt), nil
+}
+
+type screenVert struct {
+	x, y, depth float64
+	u, v        float32
+	light       float64
+}
+
+// RenderM2 rasterizes a parsed model using the display's texture variations.
+func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) *image.RGBA {
+	if opt.Size <= 0 {
+		opt.Size = 512
+	}
+	W, H := opt.Size, opt.Size
+	img := image.NewRGBA(image.Rect(0, 0, W, H))
+	zbuf := make([]float64, W*H)
+	for i := range zbuf {
+		zbuf[i] = math.Inf(1)
+	}
+
+	// Decode each submesh's texture once (cache by path).
+	texCache := map[string]*image.RGBA{}
+	texFor := func(sub int) *image.RGBA {
+		for _, tu := range m.TexUnits {
+			if int(tu.SkinSectionIndex) != sub {
+				continue
+			}
+			p := cm.TextureForUnit(m, tu)
+			if p == "" {
+				return nil
+			}
+			if t, ok := texCache[p]; ok {
+				return t
+			}
+			t := loadBLPTexture(cf, p)
+			texCache[p] = t
+			return t
+		}
+		return nil
+	}
+
+	// Orthographic camera, framing the bounding box, with yaw+pitch.
+	cx := (m.BoundsMin[0] + m.BoundsMax[0]) / 2
+	cy := (m.BoundsMin[1] + m.BoundsMax[1]) / 2
+	cz := (m.BoundsMin[2] + m.BoundsMax[2]) / 2
+	ext := maxf(float64(m.BoundsMax[0]-m.BoundsMin[0]),
+		maxf(float64(m.BoundsMax[1]-m.BoundsMin[1]), float64(m.BoundsMax[2]-m.BoundsMin[2])))
+	if ext <= 0 {
+		ext = 1
+	}
+	scale := float64(opt.Size) * 0.82 / float64(ext)
+	yaw := opt.YawDeg * math.Pi / 180
+	pitch := opt.PitchDeg * math.Pi / 180
+	sYaw, cYaw := math.Sin(yaw), math.Cos(yaw)
+	sPit, cPit := math.Sin(pitch), math.Cos(pitch)
+
+	rot := func(x, y, z float64) (float64, float64, float64) {
+		x2 := x*cYaw + z*sYaw
+		z2 := -x*sYaw + z*cYaw
+		y2 := y*cPit - z2*sPit
+		z3 := y*sPit + z2*cPit
+		return x2, y2, z3
+	}
+	project := func(p [3]float32) (float64, float64, float64) {
+		x2, y2, z3 := rot(float64(p[0])-float64(cx), float64(p[1])-float64(cy), float64(p[2])-float64(cz))
+		return x2*scale + float64(W)/2, float64(H)/2 - y2*scale, z3
+	}
+	rotN := func(n [3]float32) [3]float64 {
+		x2, y2, z3 := rot(float64(n[0]), float64(n[1]), float64(n[2]))
+		return [3]float64{x2, y2, z3}
+	}
+
+	light := normalize3([3]float64{-0.4, 0.7, -0.8}) // upper-left, toward camera
+
+	for si, sub := range m.SubMeshes {
+		tex := texFor(si)
+		triEnd := sub.TriangleStart + uint32(sub.TriangleCount)
+		for t := sub.TriangleStart; t+2 < triEnd && int(t+2) < len(m.Triangles); t += 3 {
+			var verts [3]screenVert
+			ok := true
+			for k := 0; k < 3; k++ {
+				ti := m.Triangles[t+uint32(k)]
+				if int(ti) >= len(m.Indices) {
+					ok = false
+					break
+				}
+				vi := m.Indices[ti]
+				if int(vi) >= len(m.Vertices) {
+					ok = false
+					break
+				}
+				vert := m.Vertices[vi]
+				sx, sy, depth := project(vert.Pos)
+				n := rotN(vert.Normal)
+				li := 0.4 + 0.7*math.Max(0, dot3(n, light))
+				if li > 1 {
+					li = 1
+				}
+				verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
+			}
+			if ok {
+				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex)
+			}
+		}
+	}
+	return img
+}
+
+// rasterTri fills a triangle: barycentric coverage, z-test, texture sampling
+// (alpha-tested), and per-vertex Lambert shading.
+func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, tex *image.RGBA) {
+	minX := int(math.Floor(min3(a.x, b.x, c.x)))
+	maxX := int(math.Ceil(max3(a.x, b.x, c.x)))
+	minY := int(math.Floor(min3(a.y, b.y, c.y)))
+	maxY := int(math.Ceil(max3(a.y, b.y, c.y)))
+	if minX < 0 {
+		minX = 0
+	}
+	if minY < 0 {
+		minY = 0
+	}
+	if maxX >= W {
+		maxX = W - 1
+	}
+	if maxY >= H {
+		maxY = H - 1
+	}
+	area := edge(a, b, c)
+	if area == 0 {
+		return
+	}
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			px := screenVert{x: float64(x) + 0.5, y: float64(y) + 0.5}
+			w0 := edge(b, c, px)
+			w1 := edge(c, a, px)
+			w2 := edge(a, b, px)
+			// inside test (allow either winding)
+			if !((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+				continue
+			}
+			l0, l1, l2 := w0/area, w1/area, w2/area
+			depth := l0*a.depth + l1*b.depth + l2*c.depth
+			idx := y*W + x
+			if depth >= zbuf[idx] {
+				continue
+			}
+			u := l0*float64(a.u) + l1*float64(b.u) + l2*float64(c.u)
+			v := l0*float64(a.v) + l1*float64(b.v) + l2*float64(c.v)
+			var cr, cg, cb uint8 = 200, 200, 200
+			var ca uint8 = 255
+			if tex != nil {
+				cr, cg, cb, ca = sampleTex(tex, u, v)
+				if ca < 128 {
+					continue // alpha test
+				}
+			}
+			li := l0*a.light + l1*b.light + l2*c.light
+			zbuf[idx] = depth
+			img.SetRGBA(x, y, color.RGBA{
+				uint8(clamp255(float64(cr) * li)),
+				uint8(clamp255(float64(cg) * li)),
+				uint8(clamp255(float64(cb) * li)),
+				255,
+			})
+		}
+	}
+}
+
+// edge is the signed area of the triangle (p0,p1,p2) (positive = CCW).
+func edge(p0, p1, p2 screenVert) float64 {
+	return (p1.x-p0.x)*(p2.y-p0.y) - (p1.y-p0.y)*(p2.x-p0.x)
+}
+
+func sampleTex(t *image.RGBA, u, v float64) (uint8, uint8, uint8, uint8) {
+	w, h := t.Bounds().Dx(), t.Bounds().Dy()
+	// wrap
+	u = u - math.Floor(u)
+	v = v - math.Floor(v)
+	x := int(u * float64(w))
+	y := int(v * float64(h))
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	if x >= w {
+		x = w - 1
+	}
+	if y >= h {
+		y = h - 1
+	}
+	c := t.RGBAAt(x, y)
+	return c.R, c.G, c.B, c.A
+}
+
+// loadBLPTexture reads + decodes a BLP path to RGBA, or nil on failure.
+func loadBLPTexture(cf ClientFiles, blpPath string) *image.RGBA {
+	b, err := cf.ReadFile(blpPath)
+	if err != nil {
+		return nil
+	}
+	img, err := decodeBLP2Bytes(b)
+	if err != nil {
+		return nil
+	}
+	return img
+}
+
+func maxf(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+func min3(a, b, c float64) float64 { return math.Min(a, math.Min(b, c)) }
+func max3(a, b, c float64) float64 { return math.Max(a, math.Max(b, c)) }
+func dot3(a, b [3]float64) float64 { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] }
+func normalize3(v [3]float64) [3]float64 {
+	l := math.Sqrt(dot3(v, v))
+	if l == 0 {
+		return v
+	}
+	return [3]float64{v[0] / l, v[1] / l, v[2] / l}
+}
+func clamp255(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return v
+}
