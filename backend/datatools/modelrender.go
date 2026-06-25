@@ -90,37 +90,36 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		zbuf[i] = math.Inf(1)
 	}
 
-	// Decode each submesh's texture once (cache by path).
+	// Decode each submesh's texture once (cache by path); also report its
+	// material blend mode (0/1 opaque/key, 2 alpha, 3 additive).
 	texCache := map[string]*image.RGBA{}
-	texFor := func(sub int) *image.RGBA {
+	texFor := func(sub int) (*image.RGBA, int) {
 		for _, tu := range m.TexUnits {
 			if int(tu.SkinSectionIndex) != sub {
 				continue
 			}
+			blend := 0
+			if int(tu.MaterialIndex) < len(m.Materials) {
+				blend = int(m.Materials[tu.MaterialIndex].Blend)
+			}
 			p := cm.TextureForUnit(m, tu)
 			if p == "" {
-				return nil
+				return nil, blend
 			}
 			if t, ok := texCache[p]; ok {
-				return t
+				return t, blend
 			}
 			t := loadBLPTexture(cf, p)
 			texCache[p] = t
-			return t
+			return t, blend
 		}
-		return nil
+		return nil, 0
 	}
 
-	// Orthographic camera, framing the bounding box, with yaw+pitch.
+	// Orthographic camera with yaw+pitch.
 	cx := (m.BoundsMin[0] + m.BoundsMax[0]) / 2
 	cy := (m.BoundsMin[1] + m.BoundsMax[1]) / 2
 	cz := (m.BoundsMin[2] + m.BoundsMax[2]) / 2
-	ext := maxf(float64(m.BoundsMax[0]-m.BoundsMin[0]),
-		maxf(float64(m.BoundsMax[1]-m.BoundsMin[1]), float64(m.BoundsMax[2]-m.BoundsMin[2])))
-	if ext <= 0 {
-		ext = 1
-	}
-	scale := float64(W) * 0.82 / float64(ext)
 	yaw := opt.YawDeg * math.Pi / 180
 	pitch := opt.PitchDeg * math.Pi / 180
 	sYaw, cYaw := math.Sin(yaw), math.Cos(yaw)
@@ -133,9 +132,54 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		z3 := y*sPit + z2*cPit
 		return x2, y2, z3
 	}
+
+	// Fit the rotated silhouette: project the 8 bbox corners, take their 2D
+	// extent, and scale/center to that. Works for tall, wide and rotated models
+	// (vs. scaling by a single 3D axis, which mis-frames after rotation).
+	var minX, maxX, minY, maxY float64
+	firstC := true
+	for cxi := 0; cxi < 2; cxi++ {
+		for cyi := 0; cyi < 2; cyi++ {
+			for czi := 0; czi < 2; czi++ {
+				bx := m.BoundsMin[0]
+				if cxi == 1 {
+					bx = m.BoundsMax[0]
+				}
+				by := m.BoundsMin[1]
+				if cyi == 1 {
+					by = m.BoundsMax[1]
+				}
+				bz := m.BoundsMin[2]
+				if czi == 1 {
+					bz = m.BoundsMax[2]
+				}
+				x2, y2, _ := rot(float64(bx-cx), float64(by-cy), float64(bz-cz))
+				if firstC || x2 < minX {
+					minX = x2
+				}
+				if firstC || x2 > maxX {
+					maxX = x2
+				}
+				if firstC || y2 < minY {
+					minY = y2
+				}
+				if firstC || y2 > maxY {
+					maxY = y2
+				}
+				firstC = false
+			}
+		}
+	}
+	projCx, projCy := (minX+maxX)/2, (minY+maxY)/2
+	fit := maxf(maxX-minX, maxY-minY)
+	if fit <= 0 {
+		fit = 1
+	}
+	scale := float64(W) * 0.85 / fit
+
 	project := func(p [3]float32) (float64, float64, float64) {
 		x2, y2, z3 := rot(float64(p[0])-float64(cx), float64(p[1])-float64(cy), float64(p[2])-float64(cz))
-		return x2*scale + float64(W)/2, float64(H)/2 - y2*scale, z3
+		return (x2-projCx)*scale + float64(W)/2, float64(H)/2 - (y2-projCy)*scale, z3
 	}
 	rotN := func(n [3]float32) [3]float64 {
 		x2, y2, z3 := rot(float64(n[0]), float64(n[1]), float64(n[2]))
@@ -151,7 +195,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 		if !selected[si] {
 			continue
 		}
-		tex := texFor(si)
+		tex, blend := texFor(si)
 		// On character models, an untextured submesh (e.g. hair we can't resolve)
 		// would draw as a gray blob — skip it instead.
 		if tex == nil && isChar {
@@ -182,7 +226,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 				verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
 			}
 			if ok {
-				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex)
+				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex, blend)
 			}
 		}
 	}
@@ -224,7 +268,7 @@ func downscale(src *image.RGBA, outSize, ss int) *image.RGBA {
 
 // rasterTri fills a triangle: barycentric coverage, z-test, texture sampling
 // (alpha-tested), and per-vertex Lambert shading.
-func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, tex *image.RGBA) {
+func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, tex *image.RGBA, blend int) {
 	minX := int(math.Floor(min3(a.x, b.x, c.x)))
 	maxX := int(math.Ceil(max3(a.x, b.x, c.x)))
 	minY := int(math.Floor(min3(a.y, b.y, c.y)))
@@ -258,6 +302,8 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 			l0, l1, l2 := w0/area, w1/area, w2/area
 			depth := l0*a.depth + l1*b.depth + l2*c.depth
 			idx := y*W + x
+			// Depth test against opaque geometry (transparent layers don't write z,
+			// so multiple translucent/additive layers can stack).
 			if depth >= zbuf[idx] {
 				continue
 			}
@@ -267,20 +313,49 @@ func rasterTri(img *image.RGBA, zbuf []float64, W, H int, a, b, c screenVert, te
 			var ca uint8 = 255
 			if tex != nil {
 				cr, cg, cb, ca = sampleTex(tex, u, v)
-				if ca < 128 {
-					continue // alpha test
-				}
 			}
 			li := l0*a.light + l1*b.light + l2*c.light
-			zbuf[idx] = depth
-			img.SetRGBA(x, y, color.RGBA{
-				uint8(clamp255(float64(cr) * li)),
-				uint8(clamp255(float64(cg) * li)),
-				uint8(clamp255(float64(cb) * li)),
-				255,
-			})
+			sr := clamp255(float64(cr) * li)
+			sg := clamp255(float64(cg) * li)
+			sb := clamp255(float64(cb) * li)
+			dst := img.RGBAAt(x, y)
+
+			switch blend {
+			case 2: // alpha blend (translucent) — over existing, no z-write
+				af := float64(ca) / 255
+				img.SetRGBA(x, y, color.RGBA{
+					uint8(sr*af + float64(dst.R)*(1-af)),
+					uint8(sg*af + float64(dst.G)*(1-af)),
+					uint8(sb*af + float64(dst.B)*(1-af)),
+					maxU8(dst.A, ca),
+				})
+			case 3: // additive (glows, auras) — order-independent, no z-write
+				af := float64(ca) / 255
+				// Alpha tracks the brightness added, so dark additive texels stay
+				// transparent (no dark panel) and bright glows show on any backdrop.
+				addLum := maxf(sr, maxf(sg, sb)) * af
+				img.SetRGBA(x, y, color.RGBA{
+					uint8(clamp255(float64(dst.R) + sr*af)),
+					uint8(clamp255(float64(dst.G) + sg*af)),
+					uint8(clamp255(float64(dst.B) + sb*af)),
+					maxU8(dst.A, uint8(clamp255(addLum))),
+				})
+			default: // 0 opaque / 1 alpha-key — alpha-tested, writes z
+				if ca < 128 {
+					continue
+				}
+				zbuf[idx] = depth
+				img.SetRGBA(x, y, color.RGBA{uint8(sr), uint8(sg), uint8(sb), 255})
+			}
 		}
 	}
+}
+
+func maxU8(a, b uint8) uint8 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // edge is the signed area of the triangle (p0,p1,p2) (positive = CCW).
