@@ -67,6 +67,7 @@ func RenderResolvedModel(cf ClientFiles, cm *CreatureModel, opt RenderOptions) (
 	if err != nil {
 		return nil, err
 	}
+	m.PoseToStand() // render the natural standing pose, not the raw bind pose
 	return renderWithFallback(cf, cm, m, opt), nil
 }
 
@@ -119,6 +120,7 @@ func RenderResolvedModelToFiles(cf ClientFiles, cm *CreatureModel, bodyPath, por
 	if err != nil {
 		return err
 	}
+	m.PoseToStand() // render the natural standing pose, not the raw bind pose
 	write := func(path string, opt RenderOptions) {
 		if path == "" {
 			return

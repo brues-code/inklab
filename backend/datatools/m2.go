@@ -71,13 +71,18 @@ type M2Color struct {
 	Alpha float32
 }
 
-// M2Bone is the subset of a bone needed to place attachments in the bind pose:
-// its rest pivot (model space, y-up) and parent index. Animation tracks are
-// skipped — at rest every bone matrix collapses to identity, so the pivot is the
-// bone's model-space position.
+// M2Bone is the subset of a bone needed to place attachments and pose the model
+// in its natural Stand frame: its rest pivot (model space, y-up), parent index,
+// and the bone's local translation/rotation/scale evaluated at the first
+// keyframe of the Stand animation. Most creatures stand in their bind pose
+// (identity TRS), but serpentine/coiled models (naga, salamanders) author a
+// straight bind pose and rely on Stand to bend the body, so we capture it.
 type M2Bone struct {
 	Parent int16
 	Pivot  [3]float32
+	Trans  [3]float32 // stand-pose local translation (y-up)
+	Rot    [4]float32 // stand-pose local rotation quaternion (x,y,z,w), y-up
+	Scale  [3]float32 // stand-pose local scale
 }
 
 // M2Attachment is an attachment point (e.g. shoulders, weapon hands): an ID, the
@@ -164,7 +169,7 @@ func ParseM2(b []byte) (*M2Model, error) {
 	m.Name = readStr(nameOff, nameN)
 	c.u32()  // flags
 	c.arr()  // global loops
-	c.arr()  // animations
+	animN, animOff := c.arr() // animations
 	c.arr()  // animation lookup
 	if vanilla {
 		c.arr() // playable animation lookup (vanilla only)
@@ -391,6 +396,49 @@ func ParseM2(b []byte) (*M2Model, error) {
 		pivotOff += 4
 	}
 	conv := func(x, y, z float32) [3]float32 { return [3]float32{x, z, -y} } // z-up → y-up
+
+	// Find the Stand animation's index (animID 0). Bone tracks store keyframes on
+	// a single timeline; the per-track "interpolation ranges" map an animation
+	// index to its [first,last] keyframe range, so we read each bone's TRS at the
+	// first keyframe of Stand. Only vanilla (single-timeline tracks, 68-byte
+	// animation structs) is handled — newer formats index tracks per-animation
+	// differently, so they fall back to the identity bind pose (Trans 0, Rot
+	// identity, Scale 1), which is the prior behaviour.
+	standIdx := 0
+	if vanilla {
+		const animStride = 68
+		for i := 0; i < int(animN); i++ {
+			a := int(animOff) + i*animStride
+			if a+2 > len(b) {
+				break
+			}
+			if binary.LittleEndian.Uint16(b[a:]) == 0 { // animID 0 = Stand
+				standIdx = i
+				break
+			}
+		}
+	}
+	// standValueOff returns the byte offset of the Stand-frame value in a bone
+	// track (header at trackBase), or -1 if the track has no keyframes.
+	standValueOff := func(trackBase, elemSize int) int {
+		valN := int(u32(b, trackBase+20))
+		valOff := int(u32(b, trackBase+24))
+		if valN == 0 {
+			return -1
+		}
+		key := 0
+		if int16(u16(b, trackBase+2)) < 0 { // globalSequence < 0 → per-animation ranges
+			rngN := int(u32(b, trackBase+4))
+			rngOff := int(u32(b, trackBase+8))
+			if standIdx < rngN {
+				key = int(u32(b, rngOff+standIdx*8)) // range .first = first keyframe index
+			}
+		}
+		if key < 0 || key >= valN {
+			key = 0
+		}
+		return valOff + key*elemSize
+	}
 	m.Bones = make([]M2Bone, bonesN)
 	for i := range m.Bones {
 		base := int(bonesOff) + i*boneSize
@@ -401,7 +449,32 @@ func ParseM2(b []byte) (*M2Model, error) {
 		px := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff:]))
 		py := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff+4:]))
 		pz := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff+8:]))
-		m.Bones[i] = M2Bone{Parent: parent, Pivot: conv(px, py, pz)}
+		bone := M2Bone{
+			Parent: parent,
+			Pivot:  conv(px, py, pz),
+			Trans:  [3]float32{0, 0, 0},
+			Rot:    [4]float32{0, 0, 0, 1},
+			Scale:  [3]float32{1, 1, 1},
+		}
+		if vanilla {
+			transBase := base + 12               // first track (translation)
+			rotBase := transBase + trackSize     // rotation
+			scaleBase := transBase + 2*trackSize // scale
+			if o := standValueOff(transBase, 12); o >= 0 {
+				bone.Trans = conv(float32(f32(b, o)), float32(f32(b, o+4)), float32(f32(b, o+8)))
+			}
+			if o := standValueOff(rotBase, 16); o >= 0 {
+				// quaternion (x,y,z,w) float32; rotate axis into y-up like a vector.
+				qx, qy, qz, qw := float32(f32(b, o)), float32(f32(b, o+4)), float32(f32(b, o+8)), float32(f32(b, o+12))
+				bone.Rot = [4]float32{qx, qz, -qy, qw}
+			}
+			if o := standValueOff(scaleBase, 12); o >= 0 {
+				// scale is per-axis magnitude; permute axes (y↔z) without sign flip.
+				sx, sy, sz := float32(f32(b, o)), float32(f32(b, o+4)), float32(f32(b, o+8))
+				bone.Scale = [3]float32{sx, sz, sy}
+			}
+		}
+		m.Bones[i] = bone
 	}
 
 	// Attachment: id u32, bone u16, unknown u16, position float3, then a track.
