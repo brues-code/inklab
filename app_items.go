@@ -133,6 +133,31 @@ func (a *App) AdvancedSearch(filter database.SearchFilter) *database.SearchResul
 				}
 			}
 		}
+
+		// Search Game Objects (by ID if numeric, then by name)
+		if id, err := strconv.Atoi(filter.Query); err == nil && id > 0 {
+			if d, _ := a.objectRepo.GetObjectDetail(id); d != nil && d.Entry > 0 {
+				result.Objects = append(result.Objects, &database.GameObject{
+					Entry: d.Entry, Name: d.Name, Type: d.Type, TypeName: d.TypeName,
+					DisplayID: d.DisplayID, Size: d.Size,
+				})
+			}
+		}
+		objects, err := a.objectRepo.SearchObjects(filter.Query)
+		if err == nil {
+			for _, o := range objects {
+				dup := false
+				for _, ex := range result.Objects {
+					if ex.Entry == o.Entry {
+						dup = true
+						break
+					}
+				}
+				if !dup {
+					result.Objects = append(result.Objects, o)
+				}
+			}
+		}
 	}
 
 	return result

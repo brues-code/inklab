@@ -173,6 +173,7 @@ func (r *GameObjectRepository) SearchObjects(query string) ([]*models.GameObject
 		if err := rows.Scan(&o.Entry, &o.Name, &o.Type, &o.DisplayID, &o.Size); err != nil {
 			continue
 		}
+		o.TypeName = objectTypeNames[o.Type]
 		objects = append(objects, o)
 	}
 	return objects, nil

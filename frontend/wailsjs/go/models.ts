@@ -1627,6 +1627,7 @@ export namespace models {
 	    creatures?: Creature[];
 	    quests?: Quest[];
 	    spells?: Spell[];
+	    objects?: GameObject[];
 	    totalCount: number;
 	
 	    static createFrom(source: any = {}) {
@@ -1639,6 +1640,7 @@ export namespace models {
 	        this.creatures = this.convertValues(source["creatures"], Creature);
 	        this.quests = this.convertValues(source["quests"], Quest);
 	        this.spells = this.convertValues(source["spells"], Spell);
+	        this.objects = this.convertValues(source["objects"], GameObject);
 	        this.totalCount = source["totalCount"];
 	    }
 	

@@ -48,9 +48,10 @@ type SearchFilter struct {
 
 // SearchResult represents the search output
 type SearchResult struct {
-	Items      []*Item     `json:"items"`
-	Creatures  []*Creature `json:"creatures,omitempty"`
-	Quests     []*Quest    `json:"quests,omitempty"`
-	Spells     []*Spell    `json:"spells,omitempty"`
-	TotalCount int         `json:"totalCount"`
+	Items      []*Item       `json:"items"`
+	Creatures  []*Creature   `json:"creatures,omitempty"`
+	Quests     []*Quest      `json:"quests,omitempty"`
+	Spells     []*Spell      `json:"spells,omitempty"`
+	Objects    []*GameObject `json:"objects,omitempty"`
+	TotalCount int           `json:"totalCount"`
 }

@@ -20,7 +20,7 @@ const SearchResultIcon = ({ iconName, type }) => {
             )}
             {/* Type Badge */}
             <div className="absolute bottom-0 right-0 text-[8px] font-bold px-1 bg-black/80 text-white uppercase leading-tight">
-                {type === 'npc' ? 'NPC' : type === 'quest' ? 'Q' : type === 'spell' ? 'S' : ''}
+                {type === 'npc' ? 'NPC' : type === 'quest' ? 'Q' : type === 'spell' ? 'S' : type === 'object' ? 'OBJ' : ''}
             </div>
         </div>
     )
@@ -96,6 +96,18 @@ function SearchPage({ onItemClick, onNavigate }) {
                     })
                 }
 
+                // Process Objects
+                if (res.objects) {
+                    res.objects.forEach(o => {
+                        combined.push({
+                            ...o,
+                            type: 'object',
+                            iconPath: 'inv_box_01', // Generic object icon
+                            quality: 1
+                        })
+                    })
+                }
+
                 // Process Items
                 if (res.items) {
                     res.items.forEach(i => {
@@ -104,7 +116,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                 }
 
                 setResults(combined)
-                setTotalCount((res.items?.length || 0) + (res.creatures?.length || 0) + (res.quests?.length || 0) + (res.spells?.length || 0))
+                setTotalCount((res.items?.length || 0) + (res.creatures?.length || 0) + (res.quests?.length || 0) + (res.spells?.length || 0) + (res.objects?.length || 0))
                 setLoading(false)
             })
             .catch(err => {
@@ -134,7 +146,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                         type="text" 
                         value={query} 
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Search Items, NPCs, Quests (ID supported)..."
+                        placeholder="Search Items, NPCs, Quests, Objects, Spells (ID supported)..."
                         className="flex-1 px-4 py-2 bg-bg-main border border-border-dark rounded text-white text-base outline-none focus:border-wow-rare transition-colors"
                         onKeyDown={e => e.key === 'Enter' && handleSearch()}
                     />
@@ -178,7 +190,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                         <div className="flex-1 min-w-0">
                             <div 
                                 className="font-bold truncate"
-                                style={{ color: item.type === 'item' ? getQualityColor(item.quality) : (item.type === 'npc' ? '#FFD100' : (item.type === 'spell' ? '#a855f7' : '#fff')) }}
+                                style={{ color: item.type === 'item' ? getQualityColor(item.quality) : (item.type === 'npc' ? '#FFD100' : (item.type === 'spell' ? '#a855f7' : (item.type === 'object' ? '#00B4FF' : '#fff'))) }}
                             >
                                 {item.name}
                             </div>
@@ -187,6 +199,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                                 {item.type === 'npc' && `Level ${item.levelMin}${item.levelMin !== item.levelMax ? '-'+item.levelMax : ''}`}
                                 {item.type === 'quest' && `Level ${item.QuestLevel} (Req ${item.MinLevel})`}
                                 {item.type === 'spell' && (item.description ? item.description.substring(0, 50) + (item.description.length > 50 ? '...' : '') : 'Spell')}
+                                {item.type === 'object' && (item.typeName || 'Object')}
                             </div>
                         </div>
                     </div>
