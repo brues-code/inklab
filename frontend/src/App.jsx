@@ -8,7 +8,7 @@ import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
 import { TabButton, UpdateBanner, DataStatusBanner } from './components/ui'
 
 function App() {
-    const [activeTab, setActiveTab] = useState('atlas')
+    const [activeTab, setActiveTab] = useState('database')
     
     // Pending navigation target (from SearchPage to Database)
     const [pendingNavigation, setPendingNavigation] = useState(null)
@@ -38,16 +38,16 @@ function App() {
                     </h1>
                     <nav className="flex gap-1">
                         <TabButton 
-                            active={activeTab === 'atlas'} 
-                            onClick={() => setActiveTab('atlas')}
-                        >
-                            AtlasLoot
-                        </TabButton>
-                        <TabButton 
                             active={activeTab === 'database'} 
                             onClick={() => setActiveTab('database')}
                         >
                             Database
+                        </TabButton>
+                        <TabButton 
+                            active={activeTab === 'atlas'} 
+                            onClick={() => setActiveTab('atlas')}
+                        >
+                            AtlasLoot
                         </TabButton>
                         <TabButton 
                             active={activeTab === 'favorites'} 
