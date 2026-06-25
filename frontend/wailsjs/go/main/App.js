@@ -242,16 +242,8 @@ export function RunCacheImport(arg1) {
   return window['go']['main']['App']['RunCacheImport'](arg1);
 }
 
-export function RunDbcImport(arg1) {
-  return window['go']['main']['App']['RunDbcImport'](arg1);
-}
-
-export function RunIconImport(arg1) {
-  return window['go']['main']['App']['RunIconImport'](arg1);
-}
-
-export function RunMapImport(arg1) {
-  return window['go']['main']['App']['RunMapImport'](arg1);
+export function RunClientImport(arg1) {
+  return window['go']['main']['App']['RunClientImport'](arg1);
 }
 
 export function SearchCreatures(arg1) {
