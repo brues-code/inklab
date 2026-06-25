@@ -134,6 +134,9 @@ type mpqSource struct {
 
 	ovOnce   sync.Once
 	ovByZone map[string][]string // lower(WorldMap folder name) -> overlay texture names
+
+	iconOnce  sync.Once
+	iconNames []string // icon base names recovered from SpellIcon/ItemDisplayInfo DBCs
 }
 
 // NewMpqSource opens the client's MPQ archives under dataDir (e.g.
@@ -270,7 +273,94 @@ func (m *mpqSource) ListIcons() ([]string, error) {
 		seen[key] = true
 		out = append(out, base)
 	}
+
+	// Augment with icon names referenced by SpellIcon.dbc / ItemDisplayInfo.dbc.
+	// Custom icons added in a patch archive whose (listfile) failed to scan
+	// (e.g. octo's inv_misc_octopuss_purple) are readable by name via the hash
+	// table but absent from the enumeration above, so they never get extracted.
+	// Recover them from those DBCs, verifying each is actually present in this
+	// client before adding it (so the generator's skip count stays honest).
+	for _, base := range m.dbcIconNames() {
+		key := strings.ToLower(base)
+		if seen[key] {
+			continue
+		}
+		if _, err := m.ReadIcon(base); err != nil {
+			continue // referenced but not present in this client
+		}
+		seen[key] = true
+		out = append(out, base)
+	}
 	return out, nil
+}
+
+// dbcIconNames recovers icon base names referenced by SpellIcon.dbc (full
+// "Interface\Icons\<name>" texture paths) and ItemDisplayInfo.dbc (bare
+// inventoryIcon names). Both DBCs are readable by name even when a patch
+// archive's (listfile) can't be scanned, so they surface custom icons the
+// listfile enumeration misses. Cached after first build.
+func (m *mpqSource) dbcIconNames() []string {
+	m.iconOnce.Do(func() {
+		seen := map[string]bool{}
+		add := func(s string) {
+			// SpellIcon stores a full path; ItemDisplayInfo stores a bare name.
+			if i := strings.LastIndexAny(s, `\/`); i >= 0 {
+				s = s[i+1:]
+			}
+			s = strings.TrimSuffix(s, filepath.Ext(s))
+			if s == "" {
+				return
+			}
+			k := strings.ToLower(s)
+			if seen[k] {
+				return
+			}
+			seen[k] = true
+			m.iconNames = append(m.iconNames, s)
+		}
+		m.dbcStringField("SpellIcon.dbc", []int{1}, add)         // field 1: texture path
+		m.dbcStringField("ItemDisplayInfo.dbc", []int{5, 6}, add) // fields 5,6: inventoryIcon[0,1]
+	})
+	return m.iconNames
+}
+
+// dbcStringField invokes add with the string value of each of the given field
+// indices for every record in a DBC. Empty / out-of-range strings are skipped.
+func (m *mpqSource) dbcStringField(name string, fields []int, add func(string)) {
+	b, err := m.ReadDBC(name)
+	if err != nil || len(b) < 20 || string(b[0:4]) != "WDBC" {
+		return
+	}
+	rc := int(binary.LittleEndian.Uint32(b[4:8]))
+	fc := int(binary.LittleEndian.Uint32(b[8:12]))
+	rs := int(binary.LittleEndian.Uint32(b[12:16]))
+	if rc <= 0 || fc <= 0 || rs < fc*4 {
+		return
+	}
+	sb := 20 + rc*rs
+	for r := 0; r < rc; r++ {
+		rec := 20 + r*rs
+		for _, f := range fields {
+			if f < 0 || f >= fc {
+				continue
+			}
+			off := rec + f*4
+			if off+4 > len(b) {
+				continue
+			}
+			so := sb + int(binary.LittleEndian.Uint32(b[off:off+4]))
+			if so < sb || so >= len(b) {
+				continue
+			}
+			e := so
+			for e < len(b) && b[e] != 0 {
+				e++
+			}
+			if s := string(b[so:e]); s != "" {
+				add(s)
+			}
+		}
+	}
 }
 
 func (m *mpqSource) ReadIcon(base string) ([]byte, error) {
