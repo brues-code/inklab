@@ -18,14 +18,15 @@ import (
 
 // RenderOptions controls a model render.
 type RenderOptions struct {
-	Size     int     // output is Size x Size
-	YawDeg   float64 // rotation around the up axis (3/4 view)
-	PitchDeg float64
+	Size        int     // output is Size x Size
+	YawDeg      float64 // rotation around the up axis (3/4 view)
+	PitchDeg    float64
+	Supersample int // SSAA factor; render at Size*ss then downscale (default 2)
 }
 
-// DefaultRenderOptions is a front-3/4 portrait framing.
+// DefaultRenderOptions is a front-3/4 portrait framing with 2x SSAA.
 func DefaultRenderOptions() RenderOptions {
-	return RenderOptions{Size: 512, YawDeg: 35, PitchDeg: 10}
+	return RenderOptions{Size: 512, YawDeg: 35, PitchDeg: 10, Supersample: 2}
 }
 
 // RenderCreatureModel resolves a display id, parses its M2, and rasterizes a
@@ -76,7 +77,12 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 	if opt.Size <= 0 {
 		opt.Size = 512
 	}
-	W, H := opt.Size, opt.Size
+	ss := opt.Supersample
+	if ss < 1 {
+		ss = 1
+	}
+	// Render at ss× resolution, then box-downscale for anti-aliasing + soft edges.
+	W, H := opt.Size*ss, opt.Size*ss
 	img := image.NewRGBA(image.Rect(0, 0, W, H))
 	zbuf := make([]float64, W*H)
 	for i := range zbuf {
@@ -113,7 +119,7 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 	if ext <= 0 {
 		ext = 1
 	}
-	scale := float64(opt.Size) * 0.82 / float64(ext)
+	scale := float64(W) * 0.82 / float64(ext)
 	yaw := opt.YawDeg * math.Pi / 180
 	pitch := opt.PitchDeg * math.Pi / 180
 	sYaw, cYaw := math.Sin(yaw), math.Cos(yaw)
@@ -168,7 +174,40 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 			}
 		}
 	}
+	if ss > 1 {
+		return downscale(img, opt.Size, ss)
+	}
 	return img
+}
+
+// downscale box-filters a ss× supersampled image to outSize, averaging RGBA with
+// premultiplied color so transparent edges don't darken the silhouette.
+func downscale(src *image.RGBA, outSize, ss int) *image.RGBA {
+	dst := image.NewRGBA(image.Rect(0, 0, outSize, outSize))
+	n := ss * ss
+	for y := 0; y < outSize; y++ {
+		for x := 0; x < outSize; x++ {
+			var rsum, gsum, bsum, asum int
+			for dy := 0; dy < ss; dy++ {
+				for dx := 0; dx < ss; dx++ {
+					c := src.RGBAAt(x*ss+dx, y*ss+dy)
+					a := int(c.A)
+					rsum += int(c.R) * a // premultiplied
+					gsum += int(c.G) * a
+					bsum += int(c.B) * a
+					asum += a
+				}
+			}
+			out := color.RGBA{A: uint8(asum / n)}
+			if asum > 0 {
+				out.R = uint8(rsum / asum)
+				out.G = uint8(gsum / asum)
+				out.B = uint8(bsum / asum)
+			}
+			dst.SetRGBA(x, y, out)
+		}
+	}
+	return dst
 }
 
 // rasterTri fills a triangle: barycentric coverage, z-test, texture sampling
