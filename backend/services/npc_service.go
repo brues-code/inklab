@@ -42,13 +42,44 @@ type zoneBound struct {
 }
 
 func NewNpcService(sqlite *sql.DB, mysql *database.MySQLConnection, scraper *ScraperService, itemRepo *database.ItemRepository, creatureRepo *database.CreatureRepository, dataDir string) *NpcService {
-	return &NpcService{
+	s := &NpcService{
 		sqlite:       sqlite,
 		mysql:        mysql,
 		scraper:      scraper,
 		itemRepo:     itemRepo,
 		creatureRepo: creatureRepo,
 		dataDir:      dataDir,
+	}
+	s.ensureSchema()
+	return s
+}
+
+// ensureSchema creates the spawn tables and adds the creature_metadata columns
+// once, at startup. These used to run on every per-NPC sync call, which is fine
+// serially but causes write-lock contention (and SQLITE_BUSY failures that abort
+// the sync) when the full sync runs them concurrently across the worker pool.
+func (s *NpcService) ensureSchema() {
+	s.sqlite.Exec(`
+		CREATE TABLE IF NOT EXISTS creature_spawn (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			creature_entry INTEGER NOT NULL,
+			map_id INTEGER DEFAULT 0,
+			zone_id INTEGER DEFAULT 0,
+			zone_name TEXT DEFAULT '',
+			position_x REAL DEFAULT 0,
+			position_y REAL DEFAULT 0,
+			position_z REAL DEFAULT 0,
+			UNIQUE(creature_entry, map_id, position_x, position_y)
+		)`)
+	for _, col := range []string{
+		"ALTER TABLE creature_metadata ADD COLUMN model_image_url TEXT",
+		"ALTER TABLE creature_metadata ADD COLUMN model_image_local TEXT",
+		"ALTER TABLE creature_metadata ADD COLUMN map_image_local TEXT",
+		"ALTER TABLE creature_metadata ADD COLUMN zone_name TEXT",
+		"ALTER TABLE creature_metadata ADD COLUMN x REAL",
+		"ALTER TABLE creature_metadata ADD COLUMN y REAL",
+	} {
+		s.sqlite.Exec(col) // ignore "duplicate column" errors
 	}
 }
 
@@ -391,22 +422,7 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 		return
 	}
 
-	// Ensure creature_spawn table exists
-	_, _ = s.sqlite.Exec(`
-		CREATE TABLE IF NOT EXISTS creature_spawn (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			creature_entry INTEGER NOT NULL,
-			map_id INTEGER DEFAULT 0,
-			zone_id INTEGER DEFAULT 0,
-			zone_name TEXT DEFAULT '',
-			position_x REAL DEFAULT 0,
-			position_y REAL DEFAULT 0,
-			position_z REAL DEFAULT 0,
-			UNIQUE(creature_entry, map_id, position_x, position_y)
-		)
-	`)
-
-	// Delete existing spawns for this creature (we replce them)
+	// creature_spawn is created once in ensureSchema. Replace this creature's rows.
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 
 	spawnCount := 0
@@ -1017,15 +1033,7 @@ func (s *NpcService) syncNpcImages(entry int) error {
 	localModelPath := ""
 	localMapPath := ""
 
-	// Store Metadata to SQLite
-	// Ensure columns exist (quick dirty adjustment)
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN model_image_url TEXT")
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN model_image_local TEXT")
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN map_image_local TEXT")
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN zone_name TEXT")
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN x REAL")
-	_, _ = s.sqlite.Exec("ALTER TABLE creature_metadata ADD COLUMN y REAL")
-
+	// Store Metadata to SQLite (columns are ensured once in ensureSchema).
 	infoboxBytes, _ := json.Marshal(scrapedData.Infobox)
 	_, err = s.sqlite.Exec(`
 		INSERT INTO creature_metadata (entry, map_url, infobox_json, model_image_url, model_image_local, map_image_local, zone_name, x, y)
@@ -1047,9 +1055,12 @@ func (s *NpcService) syncNpcImages(entry int) error {
 }
 
 func (s *NpcService) SyncNpcData(entry int) error {
-	// A. Scrape + images + metadata (no creature_template changes).
+	// A. Scrape + metadata (no creature_template changes). Non-fatal: a failure
+	// here (e.g. scrape hiccup, transient write contention) must NOT skip the
+	// MySQL stats + spawn sync below — that's how a full sync could leave an NPC
+	// without its spawn/zone while a manual re-sync fixed it.
 	if err := s.syncNpcImages(entry); err != nil {
-		return err
+		fmt.Printf("[SyncNpcData] metadata step failed for %d (continuing to MySQL sync): %v\n", entry, err)
 	}
 	var err error
 

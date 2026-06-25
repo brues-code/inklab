@@ -19,8 +19,14 @@ type SQLiteDB struct {
 
 // NewSQLiteDB creates a new SQLite database connection
 func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
-	// Add busy_timeout to prevent lock issues
-	db, err := sql.Open("sqlite", dbPath+"?_busy_timeout=5000")
+	// modernc.org/sqlite uses the "_pragma=" DSN form — NOT mattn's
+	// "_busy_timeout=" param, which it silently ignores. These pragmas must be
+	// set via the DSN so they apply to EVERY pooled connection: a connection-only
+	// `PRAGMA busy_timeout` (via db.Exec) leaves the other pooled connections at
+	// timeout 0, so concurrent writers (e.g. the parallel sync workers) fail
+	// immediately with SQLITE_BUSY instead of waiting for the write lock.
+	dsn := dbPath + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -29,14 +35,9 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
 
-	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, fmt.Errorf("failed to set WAL mode: %w", err)
-	}
-
-	// Enable foreign keys
-	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	// Verify the connection (and apply the DSN pragmas on the first conn).
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	return &SQLiteDB{db: db}, nil
