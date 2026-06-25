@@ -531,6 +531,53 @@ func (s *NpcService) zoneFromJSON(mapId int, worldX, worldY float64) (name strin
 	return best.Name, mapX, mapY, bestArea, true
 }
 
+// continentBound returns the largest-area zone on a map — i.e. the continent
+// itself (Azeroth on map 0, Kalimdor on map 1), which dwarfs every subzone.
+func (s *NpcService) continentBound(mapID int) *zoneBound {
+	var best *zoneBound
+	var bestArea float64
+	for i := range s.zoneBounds {
+		z := &s.zoneBounds[i]
+		if z.MapID != mapID || (z.XMin == 0 && z.XMax == 0) {
+			continue
+		}
+		if a := (z.XMax - z.XMin) * (z.YMax - z.YMin); a > bestArea {
+			bestArea = a
+			best = z
+		}
+	}
+	return best
+}
+
+// resolveContinentSpawn converts a continent-map percentage — what octowow
+// reports (under zone 0) for spawns it can't pin to a subzone — back to world
+// coordinates and finds the specific zone containing it. It tries both
+// continents and keeps the most specific (smallest-area) match, which recovers
+// custom octo zones (e.g. ThalassianHighlands) that aowow lumps into "Azeroth".
+// Returns the zone's folder name and local 0-100 coords, or ok=false if no
+// subzone contains the point on either continent.
+func (s *NpcService) resolveContinentSpawn(cx, cy float64) (zoneName string, x, y float64, ok bool) {
+	s.loadZoneBounds()
+	bestArea := math.MaxFloat64
+	for _, mapID := range []int{0, 1} {
+		c := s.continentBound(mapID)
+		if c == nil {
+			continue
+		}
+		// Invert the continent projection (note the WoW axis swap: map X comes
+		// from world Y and vice-versa).
+		worldY := c.YMax - (cx/100)*(c.YMax-c.YMin)
+		worldX := c.XMax - (cy/100)*(c.XMax-c.XMin)
+		name, mx, my, area, found := s.zoneFromJSON(mapID, worldX, worldY)
+		// Reject matches that resolve to the continent itself (no real subzone).
+		if found && name != c.Name && area < bestArea {
+			bestArea = area
+			zoneName, x, y, ok = name, mx, my, true
+		}
+	}
+	return zoneName, x, y, ok
+}
+
 func clampPct(v float64) float64 {
 	if v < 0 {
 		return 0
@@ -823,10 +870,19 @@ func (s *NpcService) SyncObjectSpawnsFromWeb(entry int) (int, error) {
 	n := 0
 	for _, p := range points {
 		zoneName := s.zoneNameByID(p.ZoneID)
+		x, y := p.X, p.Y
+		// octowow buckets spawns it can't map to a subzone under zone 0 (the
+		// continent) with continent-level coords. Recover the real zone + local
+		// coords from the geometry — aowow lacks the custom octo zones, we don't.
+		if p.ZoneID == 0 {
+			if zn, zx, zy, ok := s.resolveContinentSpawn(p.X, p.Y); ok {
+				zoneName, x, y = zn, zx, zy
+			}
+		}
 		if _, err := s.sqlite.Exec(`
 			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, entry, 0, p.ZoneID, zoneName, p.X, p.Y, 0); err == nil {
+		`, entry, 0, p.ZoneID, zoneName, x, y, 0); err == nil {
 			n++
 		}
 	}
