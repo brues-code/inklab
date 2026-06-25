@@ -84,7 +84,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                             type: 'quest',
                             iconPath: 'inv_misc_book_11', // Generic Quest icon
                             quality: 1,
-                            name: q.Title // Map Title to Name
+                            name: q.title // Map title to name
                         })
                     })
                 }
@@ -203,7 +203,7 @@ function SearchPage({ onItemClick, onNavigate }) {
                             <div className="text-xs text-gray-500">
                                 {item.type === 'item' && `Item Lv ${item.itemLevel} (Req ${item.requiredLevel})`}
                                 {item.type === 'npc' && `Level ${item.levelMin}${item.levelMin !== item.levelMax ? '-'+item.levelMax : ''}`}
-                                {item.type === 'quest' && `Level ${item.QuestLevel} (Req ${item.MinLevel})`}
+                                {item.type === 'quest' && `Level ${item.questLevel} (Req ${item.minLevel})`}
                                 {item.type === 'spell' && (item.description ? item.description.substring(0, 50) + (item.description.length > 50 ? '...' : '') : 'Spell')}
                                 {item.type === 'object' && (item.typeName || 'Object')}
                             </div>
