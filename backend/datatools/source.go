@@ -1,6 +1,7 @@
 package datatools
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -111,6 +112,9 @@ type mpqSource struct {
 	set      *mpq.Set
 	listOnce sync.Once
 	entries  []string // combined listfile paths (original case)
+
+	ovOnce   sync.Once
+	ovByZone map[string][]string // lower(WorldMap folder name) -> overlay texture names
 }
 
 // NewMpqSource opens the client's MPQ archives under dataDir (e.g.
@@ -250,9 +254,22 @@ func (m *mpqSource) ReadIcon(base string) ([]byte, error) {
 
 func (m *mpqSource) ListZones() ([]string, error) {
 	m.loadList()
-	const pre = `interface\worldmap\`
 	seen := map[string]bool{}
 	var out []string
+	add := func(zone string) {
+		if zone == "" {
+			return
+		}
+		k := strings.ToLower(zone)
+		if seen[k] {
+			return
+		}
+		seen[k] = true
+		out = append(out, zone)
+	}
+
+	// 1. WorldMap folders enumerated from the combined (listfile).
+	const pre = `interface\worldmap\`
 	for _, p := range m.entries {
 		lp := strings.ToLower(p)
 		if !strings.HasPrefix(lp, pre) {
@@ -263,14 +280,104 @@ func (m *mpqSource) ListZones() ([]string, error) {
 		if i <= 0 {
 			continue // file directly under WorldMap, not a zone folder
 		}
-		zone := rest[:i]
-		if seen[strings.ToLower(zone)] {
-			continue
-		}
-		seen[strings.ToLower(zone)] = true
-		out = append(out, zone)
+		add(rest[:i])
+	}
+
+	// 2. WorldMapArea.dbc area names. This is authoritative and readable by name
+	//    via the hash table even when an archive's (listfile) failed to scan, so
+	//    it surfaces zones the listfile pass missed (e.g. octo-custom zones like
+	//    TimbermawTunnels added in a patch MPQ with an unreadable listfile). The
+	//    caller already filters to zones that have a readable base tile.
+	for _, z := range m.worldMapAreas() {
+		add(z)
 	}
 	return out, nil
+}
+
+// worldMapAreas parses WorldMapArea.dbc and returns recordID -> AreaName (the
+// WorldMap texture-folder name). Returns nil if the DBC is missing or malformed.
+// Layout (1.12, 8 fields): id, mapID, areaID, areaName(3), locLeft, locRight,
+// locTop, locBottom.
+func (m *mpqSource) worldMapAreas() map[uint32]string {
+	b, err := m.ReadDBC("WorldMapArea.dbc")
+	if err != nil || len(b) < 20 || string(b[0:4]) != "WDBC" {
+		return nil
+	}
+	rc := int(binary.LittleEndian.Uint32(b[4:8]))
+	rs := int(binary.LittleEndian.Uint32(b[12:16]))
+	if rc <= 0 || rs < 16 {
+		return nil
+	}
+	sb := 20 + rc*rs
+	out := make(map[uint32]string, rc)
+	for r := 0; r < rc; r++ {
+		rec := 20 + r*rs
+		if rec+16 > len(b) {
+			break
+		}
+		id := binary.LittleEndian.Uint32(b[rec : rec+4])
+		off := sb + int(binary.LittleEndian.Uint32(b[rec+3*4:rec+4*4])) // AreaName
+		if off < sb || off >= len(b) {
+			continue
+		}
+		e := off
+		for e < len(b) && b[e] != 0 {
+			e++
+		}
+		if name := string(b[off:e]); name != "" {
+			out[id] = name
+		}
+	}
+	return out
+}
+
+// overlayTextures returns the WorldMapOverlay texture base names that belong to
+// the given WorldMap folder, joining WorldMapOverlay.dbc (mapAreaID -> texture)
+// with WorldMapArea.dbc (id -> folder name). Used to composite explored-area
+// overlays for zones whose folder isn't in the (listfile), so ListZoneFiles can
+// still surface them. Cached after first build.
+func (m *mpqSource) overlayTextures(zone string) []string {
+	m.ovOnce.Do(func() {
+		m.ovByZone = map[string][]string{}
+		areas := m.worldMapAreas()
+		if len(areas) == 0 {
+			return
+		}
+		b, err := m.ReadDBC("WorldMapOverlay.dbc")
+		if err != nil || len(b) < 20 || string(b[0:4]) != "WDBC" {
+			return
+		}
+		rc := int(binary.LittleEndian.Uint32(b[4:8]))
+		rs := int(binary.LittleEndian.Uint32(b[12:16]))
+		if rc <= 0 || rs < 9*4 {
+			return
+		}
+		sb := 20 + rc*rs
+		// Layout: id(0), mapAreaID(1), areaID[2..7], textureName(8), ...
+		for r := 0; r < rc; r++ {
+			rec := 20 + r*rs
+			if rec+9*4 > len(b) {
+				break
+			}
+			mapAreaID := binary.LittleEndian.Uint32(b[rec+1*4 : rec+2*4])
+			off := sb + int(binary.LittleEndian.Uint32(b[rec+8*4:rec+9*4]))
+			if off < sb || off >= len(b) {
+				continue
+			}
+			e := off
+			for e < len(b) && b[e] != 0 {
+				e++
+			}
+			tex := string(b[off:e])
+			zoneName, ok := areas[mapAreaID]
+			if !ok || tex == "" {
+				continue
+			}
+			k := strings.ToLower(zoneName)
+			m.ovByZone[k] = append(m.ovByZone[k], tex)
+		}
+	})
+	return m.ovByZone[strings.ToLower(zone)]
 }
 
 func (m *mpqSource) ListZoneFiles(zone string) ([]string, error) {
@@ -292,6 +399,26 @@ func (m *mpqSource) ListZoneFiles(zone string) ([]string, error) {
 		}
 		seen[strings.ToLower(file)] = true
 		out = append(out, file)
+	}
+
+	// Fallback: this zone's folder isn't in the (listfile) (its archive's
+	// listfile failed to scan), so the loop above found nothing. The base tiles
+	// are read directly by name elsewhere; here we synthesize the overlay tile
+	// names from WorldMapOverlay.dbc so explored-area overlays still composite.
+	// One file per overlay base name is enough — stitchZone reads the rest by
+	// name via the overlay's DBC dimensions.
+	if len(out) == 0 {
+		for _, tex := range m.overlayTextures(zone) {
+			name := tex + "1.blp"
+			if seen[strings.ToLower(name)] {
+				continue
+			}
+			if _, err := m.ReadZoneFile(zone, name); err != nil {
+				continue // overlay not actually present in this client
+			}
+			seen[strings.ToLower(name)] = true
+			out = append(out, name)
+		}
 	}
 	return out, nil
 }
