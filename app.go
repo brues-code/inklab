@@ -70,9 +70,26 @@ func (a *App) startup(ctx context.Context) {
 
 	fmt.Println("Initializing InkLab (SQLite Version)...")
 
-	// Load .env
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("Warning: .env file not found, MySQL features disabled")
+	// Load .env. godotenv.Load() only reads the current working directory, which
+	// is the project root under `wails dev` but is unpredictable for a packaged
+	// build — so also look next to the executable and in the data dir. Without
+	// this, MySQL-backed sync (e.g. creature spawns) silently does nothing in a
+	// release build even when MySQL is reachable.
+	envCandidates := []string{".env"}
+	if exe, err := os.Executable(); err == nil {
+		envCandidates = append(envCandidates, filepath.Join(filepath.Dir(exe), ".env"))
+	}
+	envCandidates = append(envCandidates, filepath.Join(a.DataDir, ".env"))
+	envLoaded := false
+	for _, p := range envCandidates {
+		if err := godotenv.Load(p); err == nil {
+			fmt.Printf("✓ Loaded environment from %s\n", p)
+			envLoaded = true
+			break
+		}
+	}
+	if !envLoaded {
+		fmt.Printf("Warning: no .env found (looked in %v), MySQL features disabled\n", envCandidates)
 	}
 
 	// Initialize SQLite database
