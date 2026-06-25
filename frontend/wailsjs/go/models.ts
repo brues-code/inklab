@@ -601,6 +601,26 @@ export namespace models {
 	        this.categoryId = source["categoryId"];
 	    }
 	}
+	export class FactionNpc {
+	    entry: number;
+	    name: string;
+	    subname: string;
+	    levelMin: number;
+	    levelMax: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FactionNpc(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.subname = source["subname"];
+	        this.levelMin = source["levelMin"];
+	        this.levelMax = source["levelMax"];
+	    }
+	}
 	export class FactionDetail {
 	    id: number;
 	    name: string;
@@ -610,6 +630,8 @@ export namespace models {
 	    categoryId: number;
 	    creatures?: Creature[];
 	    quests?: QuestRelation[];
+	    questGivers?: FactionNpc[];
+	    members?: FactionNpc[];
 	
 	    static createFrom(source: any = {}) {
 	        return new FactionDetail(source);
@@ -625,6 +647,8 @@ export namespace models {
 	        this.categoryId = source["categoryId"];
 	        this.creatures = this.convertValues(source["creatures"], Creature);
 	        this.quests = this.convertValues(source["quests"], QuestRelation);
+	        this.questGivers = this.convertValues(source["questGivers"], FactionNpc);
+	        this.members = this.convertValues(source["members"], FactionNpc);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -645,6 +669,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	export class FavoriteCategory {
 	    name: string;
 	    count: number;
@@ -1017,6 +1042,28 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class ItemVendor {
+	    entry: number;
+	    name: string;
+	    levelMin: number;
+	    levelMax: number;
+	    cost: number;
+	    stock: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemVendor(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.levelMin = source["levelMin"];
+	        this.levelMax = source["levelMax"];
+	        this.cost = source["cost"];
+	        this.stock = source["stock"];
+	    }
+	}
 	export class ItemDrop {
 	    entry: number;
 	    name: string;
@@ -1133,6 +1180,7 @@ export namespace models {
 	    droppedBy: CreatureDrop[];
 	    rewardFrom: QuestReward[];
 	    contains: ItemDrop[];
+	    soldBy: ItemVendor[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemDetail(source);
@@ -1213,6 +1261,7 @@ export namespace models {
 	        this.droppedBy = this.convertValues(source["droppedBy"], CreatureDrop);
 	        this.rewardFrom = this.convertValues(source["rewardFrom"], QuestReward);
 	        this.contains = this.convertValues(source["contains"], ItemDrop);
+	        this.soldBy = this.convertValues(source["soldBy"], ItemVendor);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1324,6 +1373,7 @@ export namespace models {
 	        this.bonuses = source["bonuses"];
 	    }
 	}
+	
 	
 	
 	
@@ -2361,6 +2411,28 @@ export namespace services {
 	        this.icon = source["icon"];
 	    }
 	}
+	export class NpcSellItem {
+	    itemId: number;
+	    name: string;
+	    quality: number;
+	    iconPath: string;
+	    cost: number;
+	    stock: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new NpcSellItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.itemId = source["itemId"];
+	        this.name = source["name"];
+	        this.quality = source["quality"];
+	        this.iconPath = source["iconPath"];
+	        this.cost = source["cost"];
+	        this.stock = source["stock"];
+	    }
+	}
 	export class NpcSpawn {
 	    mapId: number;
 	    zoneName: string;
@@ -2452,6 +2524,8 @@ export namespace services {
 	    infobox: Record<string, string>;
 	    mapUrl: string;
 	    modelImageUrl: string;
+	    factionName: string;
+	    factionId: number;
 	    zoneName: string;
 	    x: number;
 	    y: number;
@@ -2459,6 +2533,7 @@ export namespace services {
 	    quests: NpcQuest[];
 	    abilities: NpcAbility[];
 	    spawns: NpcSpawn[];
+	    sells: NpcSellItem[];
 	
 	    static createFrom(source: any = {}) {
 	        return new NpcFullDetails(source);
@@ -2496,6 +2571,8 @@ export namespace services {
 	        this.infobox = source["infobox"];
 	        this.mapUrl = source["mapUrl"];
 	        this.modelImageUrl = source["modelImageUrl"];
+	        this.factionName = source["factionName"];
+	        this.factionId = source["factionId"];
 	        this.zoneName = source["zoneName"];
 	        this.x = source["x"];
 	        this.y = source["y"];
@@ -2503,6 +2580,7 @@ export namespace services {
 	        this.quests = this.convertValues(source["quests"], NpcQuest);
 	        this.abilities = this.convertValues(source["abilities"], NpcAbility);
 	        this.spawns = this.convertValues(source["spawns"], NpcSpawn);
+	        this.sells = this.convertValues(source["sells"], NpcSellItem);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2523,6 +2601,7 @@ export namespace services {
 		    return a;
 		}
 	}
+	
 	
 	
 	

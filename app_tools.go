@@ -182,6 +182,15 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		rep.Lines = append(rep.Lines, line)
 	}
 
+	// 4. Area grid: per-chunk ADT zone data for authoritative spawn->zone
+	//    resolution. Needs the MPQ/loose World\Maps terrain; non-fatal.
+	gridSrc := pick(datatools.NewDirSourceClient(baseDir))
+	if err := datatools.GenerateAreaGrid(gridSrc, filepath.Join(a.DataDir, "area_grid.bin"), nil); err != nil {
+		fail("Area grid: " + err.Error())
+	} else if g, _ := datatools.LoadAreaGrid(filepath.Join(a.DataDir, "area_grid.bin")); g != nil {
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%d area-grid tiles", g.TileCount()))
+	}
+
 	if !rep.Success {
 		rep.Title = "Client import finished with errors"
 	}

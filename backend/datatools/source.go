@@ -52,6 +52,13 @@ func NewDirSourceMaps(worldMapDir, dbcDir string) ClientFiles {
 	return &dirSource{worldMapDir: worldMapDir, dbcDir: dbcDir}
 }
 
+// NewDirSourceClient builds a ClientFiles rooted at a loose client base dir, able
+// to read both DBCs (from baseDir/DBFilesClient) and arbitrary client paths such
+// as World\Maps terrain ADTs. Used by the area-grid generator.
+func NewDirSourceClient(baseDir string) ClientFiles {
+	return &dirSource{rootDir: baseDir, dbcDir: filepath.Join(baseDir, "DBFilesClient")}
+}
+
 func (d *dirSource) ReadDBC(name string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(d.dbcDir, name))
 }

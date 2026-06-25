@@ -28,17 +28,22 @@ type NpcService struct {
 
 	zonesOnce  sync.Once
 	zoneBounds []zoneBound
+	zoneByArea map[int]*zoneBound // areatableID -> bounds, for area-grid resolution
+
+	areaOnce sync.Once
+	areaGrid *datatools.AreaGrid // client-derived, nil when data/area_grid.bin absent
 }
 
 // zoneBound mirrors an entry in data/zones.json (client WorldMapArea-derived).
 // Bounds are in world coordinates; name_loc0 matches the data/maps file name.
 type zoneBound struct {
-	MapID int     `json:"mapID"`
-	Name  string  `json:"name_loc0"`
-	XMax  float64 `json:"x_max"`
-	XMin  float64 `json:"x_min"`
-	YMax  float64 `json:"y_max"`
-	YMin  float64 `json:"y_min"`
+	MapID       int     `json:"mapID"`
+	AreatableID int     `json:"areatableID"`
+	Name        string  `json:"name_loc0"`
+	XMax        float64 `json:"x_max"`
+	XMin        float64 `json:"x_min"`
+	YMax        float64 `json:"y_max"`
+	YMin        float64 `json:"y_min"`
 }
 
 func NewNpcService(sqlite *sql.DB, mysql *database.MySQLConnection, scraper *ScraperService, itemRepo *database.ItemRepository, creatureRepo *database.CreatureRepository, dataDir string) *NpcService {
@@ -553,8 +558,59 @@ func (s *NpcService) loadZoneBounds() {
 		}
 		if err := json.Unmarshal(b, &s.zoneBounds); err != nil {
 			fmt.Printf("[NpcService] could not parse zones.json: %v\n", err)
+			return
+		}
+		// Index by areatableID so area-grid lookups can find a zone's map bounds.
+		// Prefer bounded entries; an instance/zeroed entry shouldn't shadow one.
+		s.zoneByArea = make(map[int]*zoneBound, len(s.zoneBounds))
+		for i := range s.zoneBounds {
+			z := &s.zoneBounds[i]
+			if z.AreatableID == 0 {
+				continue
+			}
+			if cur, ok := s.zoneByArea[z.AreatableID]; ok && (cur.XMin != 0 || cur.XMax != 0) {
+				continue
+			}
+			s.zoneByArea[z.AreatableID] = z
 		}
 	})
+}
+
+// loadAreaGrid lazily loads the client-derived area grid (data/area_grid.bin). It
+// is the authoritative source for which zone a world coordinate sits in — read
+// from the same ADT terrain the game uses — so it resolves spawns correctly where
+// zones' axis-aligned bounding boxes overlap (e.g. the Barrens vs Dustwallow
+// Marsh). Absent until generated via Tools; resolution then falls back to bounds.
+func (s *NpcService) loadAreaGrid() {
+	s.areaOnce.Do(func() {
+		g, err := datatools.LoadAreaGrid(filepath.Join(s.dataDir, "area_grid.bin"))
+		if err != nil {
+			fmt.Printf("[NpcService] could not load area_grid.bin: %v\n", err)
+			return
+		}
+		s.areaGrid = g
+	})
+}
+
+// zoneFromAreaGrid resolves a world point to its in-game zone via the area grid,
+// returning that zone's map name and 0-100 coords projected into its bounds.
+func (s *NpcService) zoneFromAreaGrid(mapId int, worldX, worldY float64) (name string, mapX, mapY float64, ok bool) {
+	s.loadAreaGrid()
+	s.loadZoneBounds() // builds zoneByArea, which we index below
+	if s.areaGrid == nil || s.zoneByArea == nil {
+		return "", 0, 0, false
+	}
+	areaID, found := s.areaGrid.ZoneAt(mapId, worldX, worldY)
+	if !found {
+		return "", 0, 0, false
+	}
+	z := s.zoneByArea[int(areaID)]
+	if z == nil || (z.XMin == 0 && z.XMax == 0) {
+		return "", 0, 0, false
+	}
+	mapX = clampPct((z.YMax - worldY) / (z.YMax - z.YMin) * 100)
+	mapY = clampPct((z.XMax - worldX) / (z.XMax - z.XMin) * 100)
+	return z.Name, mapX, mapY, true
 }
 
 // zoneFromJSON finds the smallest-area zone in zones.json that contains the
@@ -649,6 +705,14 @@ func clampPct(v float64) float64 {
 // convertWorldToMapCoords converts world coordinates to map percentage coordinates (0-100)
 // Using the aowow_zones table boundaries similar to the PHP coord_db2wow function
 func (s *NpcService) convertWorldToMapCoords(mapId, zoneId int, worldX, worldY float64) (zoneName string, mapX, mapY float64) {
+	// Most authoritative: the client area grid (per-chunk ADT areaIds). It resolves
+	// the exact in-game zone even where zones' bounding boxes overlap, which the
+	// box-containment heuristics below cannot. Falls through when the grid isn't
+	// generated or the point has no terrain area (ocean / WMO-only instance map).
+	if name, gx, gy, ok := s.zoneFromAreaGrid(mapId, worldX, worldY); ok {
+		return name, gx, gy
+	}
+
 	// Primary geometry source: client-authoritative zones.json. It contains
 	// zones the live aowow_zones import lacks (Mount Hyjal, custom octo zones),
 	// so we prefer it when it finds a more-specific (smaller) zone than MySQL.
