@@ -19,6 +19,13 @@ type CreatureModel struct {
 	TexVars     [3]string // CreatureDisplayInfo texture variations (skin names)
 	Extra       *CreatureExtra
 	Attachments []AttachedItem // item models drawn at attachment points (shoulders, weapons)
+
+	// Robe marks that the equipped chest displays as a robe, so SelectGeosets
+	// picks the long robe skirt geoset instead of the default legs. Robe-ness is
+	// a property of the appearance (a chest-slot item can display as a robe), so
+	// it's detected from the chest ItemDisplayInfo's inventory icon, not the item
+	// slot. Set during ResolveCreatureModel.
+	Robe bool
 }
 
 // AttachedItem is an item model (shoulder pad, weapon, ...) drawn at one of the
@@ -41,6 +48,7 @@ type CreatureExtra struct {
 	BakeName            string
 	HairTexture         string // resolved CharSections hair texture for the hair geoset
 	ShoulderItemDisplay int    // ItemDisplayInfo id for the equipped shoulders (0 = none)
+	ChestItemDisplay    int    // ItemDisplayInfo id for the equipped chest (for robe lookup; 0 = none)
 }
 
 // M2 attachment point IDs.
@@ -50,15 +58,22 @@ const (
 	attachHandLeft      = 2
 	attachShoulderRight = 5
 	attachShoulderLeft  = 6
+	attachHelm          = 11 // top of the head
 )
 
-// extraShoulderField is the CreatureDisplayInfoExtra column holding the shoulder
-// ItemDisplayInfo id (appearance fields 1-7, equipment starts at 8 = helm, so
-// shoulder = 9).
-const extraShoulderField = 9
+// CreatureDisplayInfoExtra equipment columns. Appearance fields are 1-7, then
+// equipment NPCItemDisplay slots start at 8 (helm), 9 (shoulder), ...
+const (
+	extraHelmField     = 8
+	extraShoulderField = 9
+	extraChestField    = 11
+)
 
-// shoulderComponentDir is where item shoulder models + textures live.
-const shoulderComponentDir = `Item\ObjectComponents\Shoulder\`
+// Item object-component dirs for equipped pieces drawn as attached models.
+const (
+	shoulderComponentDir = `Item\ObjectComponents\Shoulder\`
+	headComponentDir     = `Item\ObjectComponents\Head\`
+)
 
 // ResolveShoulders resolves a shoulder ItemDisplayInfo id to its left/right
 // models + textures. ItemDisplayInfo layout: modelName[0,1]=fields 1,2 (left,
@@ -103,6 +118,96 @@ func ResolveShoulders(cf ClientFiles, itemDisplayID int) []AttachedItem {
 	add(d.str(r, 1), d.str(r, 3), attachShoulderLeft)  // modelName[0] = left
 	add(d.str(r, 2), d.str(r, 4), attachShoulderRight) // modelName[1] = right
 	return out
+}
+
+// ResolveHelm resolves a helm ItemDisplayInfo id to its attached head model.
+// Helm models are race/sex specific: ItemDisplayInfo stores a base name (e.g.
+// "Helm_Robe_C_04.mdx") and the actual file appends a 3-char race+sex suffix
+// ("..._HUM" for Human Male). The model + its texture live under the Head
+// component dir; it rides the helm attachment point (top of head).
+func ResolveHelm(cf ClientFiles, itemDisplayID int, modelPath string) (AttachedItem, bool) {
+	if itemDisplayID <= 0 {
+		return AttachedItem{}, false
+	}
+	suffix := helmModelSuffix(modelPath)
+	if suffix == "" {
+		return AttachedItem{}, false // non-character model: no helm slot
+	}
+	b, err := cf.ReadDBC("ItemDisplayInfo.dbc")
+	if err != nil {
+		return AttachedItem{}, false
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return AttachedItem{}, false
+	}
+	r, ok := d.findByID(uint32(itemDisplayID))
+	if !ok {
+		return AttachedItem{}, false
+	}
+	model := d.str(r, 1) // modelName[0]
+	if model == "" {
+		return AttachedItem{}, false
+	}
+	stem := model[:len(model)-len(path.Ext(model))]
+	tex := d.str(r, 3) // modelTexture[0]
+	if tex != "" && !strings.HasSuffix(strings.ToLower(tex), ".blp") {
+		tex += ".blp"
+	}
+	texPath := ""
+	if tex != "" {
+		texPath = headComponentDir + tex
+	}
+	return AttachedItem{
+		ModelPath:    headComponentDir + stem + "_" + suffix + ".mdx",
+		TexturePath:  texPath,
+		AttachmentID: attachHelm,
+	}, true
+}
+
+// chestIsRobe reports whether a chest ItemDisplayInfo displays as a robe, from
+// its inventory icon (e.g. "INV_Robe_02"). Robe geometry is a property of the
+// appearance, not the item slot — a chest-slot "cuirass" can display as a robe,
+// so the item's inventory type is unreliable; the display's icon is the clean
+// client-side signal. Checks both inventoryIcon slots (fields 5, 6).
+func chestIsRobe(cf ClientFiles, itemDisplayID int) bool {
+	if itemDisplayID <= 0 {
+		return false
+	}
+	b, err := cf.ReadDBC("ItemDisplayInfo.dbc")
+	if err != nil {
+		return false
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return false
+	}
+	r, ok := d.findByID(uint32(itemDisplayID))
+	if !ok {
+		return false
+	}
+	for _, f := range []int{5, 6} { // inventoryIcon[0], inventoryIcon[1]
+		if strings.Contains(strings.ToLower(d.str(r, f)), "robe") {
+			return true
+		}
+	}
+	return false
+}
+
+// helmModelSuffix derives the 3-char race+sex helm-model suffix from a character
+// model path like "Character\Human\Male\HumanMale.mdx" -> "HUM" (first two
+// letters of the race folder + the sex initial). Returns "" for non-character
+// paths.
+func helmModelSuffix(modelPath string) string {
+	parts := strings.Split(strings.ReplaceAll(modelPath, "/", `\`), `\`)
+	if len(parts) < 3 || !strings.EqualFold(parts[0], "Character") {
+		return ""
+	}
+	race, sex := parts[1], parts[2]
+	if len(race) < 2 || len(sex) < 1 {
+		return ""
+	}
+	return strings.ToUpper(race[:2]) + strings.ToUpper(sex[:1])
 }
 
 // Item object-component dirs (model + texture live under the same dir).
@@ -316,6 +421,15 @@ func ResolveCreatureModel(cf ClientFiles, displayID int) (*CreatureModel, error)
 						cm.Extra.ShoulderItemDisplay = int(ex.u32(er, extraShoulderField))
 						cm.Attachments = append(cm.Attachments, ResolveShoulders(cf, cm.Extra.ShoulderItemDisplay)...)
 					}
+					if extraHelmField < ex.fc {
+						if helm, ok := ResolveHelm(cf, int(ex.u32(er, extraHelmField)), cm.ModelPath); ok {
+							cm.Attachments = append(cm.Attachments, helm)
+						}
+					}
+					if extraChestField < ex.fc {
+						cm.Extra.ChestItemDisplay = int(ex.u32(er, extraChestField))
+						cm.Robe = chestIsRobe(cf, cm.Extra.ChestItemDisplay)
+					}
 					cm.Extra.HairTexture = ResolveHairTexture(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairColor)
 				}
 			}
@@ -472,6 +586,15 @@ func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool 
 		}
 	}
 
+	// Trousers group (1300): a robe shows the long skirt variant (1302) instead
+	// of the default legs (1301). cm.Robe is set by the caller from the chest
+	// item's inventory type.
+	const trouserGroup = 1300
+	trouserPick := trouserGroup + 1 // 1301 = normal legs
+	if cm.Robe {
+		trouserPick = trouserGroup + 2 // 1302 = robe skirt
+	}
+
 	for i, s := range m.SubMeshes {
 		id := int(s.ID)
 		g := id / 100 * 100
@@ -489,6 +612,8 @@ func (cm *CreatureModel) SelectGeosets(cf ClientFiles, m *M2Model) map[int]bool 
 			if faceIsBody[g] && faceDefault[g] == i {
 				sel[i] = true
 			}
+		case g == trouserGroup: // legs vs robe skirt
+			sel[i] = id == trouserPick
 		case g != 0 && id == g+1: // variant 1 = each group's default "skin" geoset
 			sel[i] = true
 		}

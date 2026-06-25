@@ -98,8 +98,18 @@ func RenderCreatureModelToFiles(cf ClientFiles, displayID int, bodyPath, portrai
 	if err != nil {
 		return err
 	}
+	return RenderResolvedModelToFiles(cf, cm, bodyPath, portraitPath, bodyOpt, portraitOpt)
+}
+
+// RenderResolvedModelToFiles writes the requested views of an already-resolved
+// model from a single parse: a full-body render to bodyPath and a portrait to
+// portraitPath (each skipped when its path is empty or the file already exists).
+// Callers that need DB-derived state (e.g. cm.Robe from item inventory type, or
+// extra attachments) set it on cm before calling. Returns an error only when the
+// model can't be rendered at all.
+func RenderResolvedModelToFiles(cf ClientFiles, cm *CreatureModel, bodyPath, portraitPath string, bodyOpt, portraitOpt RenderOptions) error {
 	if cm.IsCharacter() && cm.BakedSkinPath() == "" {
-		return fmt.Errorf("display %d is a character model without a baked skin", displayID)
+		return fmt.Errorf("display %d is a character model without a baked skin", cm.DisplayID)
 	}
 	mb, _, err := ReadModelFile(cf, cm.ModelPath)
 	if err != nil {
