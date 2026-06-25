@@ -189,12 +189,28 @@ func (s *SyncService) FetchAndImportQuest(questID int) *SyncQuestResult {
 		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
 	}
 
-	// Insert Quest Template
+	// Upsert ONLY the columns the scraper actually parses. INSERT OR REPLACE
+	// would delete + re-insert the row, resetting every unlisted column to its
+	// default (0/'') — that's what wiped RewRepFaction*/RewRepValue* (and the
+	// other structured reward fields) imported from MySQL. ON CONFLICT updates
+	// just these columns and preserves the rest.
 	_, err = tx.Exec(`
-		INSERT OR REPLACE INTO quest_template 
-		(entry, Title, QuestLevel, MinLevel, Type, Details, Objectives, OfferRewardText, EndText, RewXP, RewOrReqMoney, RequiredRaces, ZoneOrSort)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, quest.Entry, quest.Title, quest.QuestLevel, quest.MinLevel, quest.Type, quest.Details, quest.Objectives, quest.OfferRewardText, quest.EndText, quest.RewardXP, quest.RewardMoney, quest.RequiredRaces, quest.Type) // ZoneOrSort using Type for now if Zone not parsed
+		INSERT INTO quest_template
+		(entry, Title, QuestLevel, MinLevel, Type, Details, Objectives, OfferRewardText, EndText, RewXP, RewOrReqMoney, RequiredRaces)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(entry) DO UPDATE SET
+			Title = excluded.Title,
+			QuestLevel = excluded.QuestLevel,
+			MinLevel = excluded.MinLevel,
+			Type = excluded.Type,
+			Details = excluded.Details,
+			Objectives = excluded.Objectives,
+			OfferRewardText = excluded.OfferRewardText,
+			EndText = excluded.EndText,
+			RewXP = excluded.RewXP,
+			RewOrReqMoney = excluded.RewOrReqMoney,
+			RequiredRaces = excluded.RequiredRaces
+	`, quest.Entry, quest.Title, quest.QuestLevel, quest.MinLevel, quest.Type, quest.Details, quest.Objectives, quest.OfferRewardText, quest.EndText, quest.RewardXP, quest.RewardMoney, quest.RequiredRaces)
 
 	if err != nil {
 		tx.Rollback()
