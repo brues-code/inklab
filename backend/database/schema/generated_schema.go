@@ -558,6 +558,14 @@ func GeneratedSchema() string {
         PRIMARY KEY (entry)
     );
 
+    CREATE TABLE IF NOT EXISTS creature_equip_template (
+        entry INTEGER DEFAULT 0,
+        equipentry1 INTEGER DEFAULT 0,
+        equipentry2 INTEGER DEFAULT 0,
+        equipentry3 INTEGER DEFAULT 0,
+        PRIMARY KEY (entry)
+    );
+
     `
 }
 

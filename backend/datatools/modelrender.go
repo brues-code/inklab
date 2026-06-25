@@ -35,10 +35,16 @@ func RenderCreatureModel(cf ClientFiles, displayID int, opt RenderOptions) (*ima
 	if err != nil {
 		return nil, err
 	}
+	return RenderResolvedModel(cf, cm, opt)
+}
+
+// RenderResolvedModel rasterizes an already-resolved CreatureModel. Callers can
+// append to cm.Attachments (e.g. creature-specific weapons) before calling this.
+func RenderResolvedModel(cf ClientFiles, cm *CreatureModel, opt RenderOptions) (*image.RGBA, error) {
 	// Character (humanoid) models without a baked skin can't be textured, so skip
 	// them (the caller falls back to octowow). Those with a baked skin render here.
 	if cm.IsCharacter() && cm.BakedSkinPath() == "" {
-		return nil, fmt.Errorf("display %d is a character model without a baked skin (%s)", displayID, cm.ModelPath)
+		return nil, fmt.Errorf("display %d is a character model without a baked skin (%s)", cm.DisplayID, cm.ModelPath)
 	}
 	mb, _, err := ReadModelFile(cf, cm.ModelPath)
 	if err != nil {
@@ -195,49 +201,91 @@ func RenderM2(cf ClientFiles, cm *CreatureModel, m *M2Model, opt RenderOptions) 
 
 	light := normalize3([3]float64{-0.4, 0.7, -0.8}) // upper-left, toward camera
 
-	selected := cm.SelectGeosets(cf, m)
-	isChar := cm.IsCharacter()
+	// drawMesh rasterizes one parsed model, optionally translated by a model-space
+	// offset (used to place attached items like shoulders at an attachment point).
+	drawMesh := func(mm *M2Model, offset [3]float32, selected map[int]bool, texFor func(int) (*image.RGBA, int, bool, [4]float64), skipUntextured bool) {
+		for si, sub := range mm.SubMeshes {
+			if selected != nil && !selected[si] {
+				continue
+			}
+			tex, blend, unlit, tint := texFor(si)
+			// On character models, an untextured submesh (e.g. hair we can't
+			// resolve) would draw as a gray blob — skip it instead.
+			if tex == nil && skipUntextured {
+				continue
+			}
+			triEnd := sub.TriangleStart + uint32(sub.TriangleCount)
+			for t := sub.TriangleStart; t+2 < triEnd && int(t+2) < len(mm.Triangles); t += 3 {
+				var verts [3]screenVert
+				ok := true
+				for k := 0; k < 3; k++ {
+					ti := mm.Triangles[t+uint32(k)]
+					if int(ti) >= len(mm.Indices) {
+						ok = false
+						break
+					}
+					vi := mm.Indices[ti]
+					if int(vi) >= len(mm.Vertices) {
+						ok = false
+						break
+					}
+					vert := mm.Vertices[vi]
+					pos := [3]float32{vert.Pos[0] + offset[0], vert.Pos[1] + offset[1], vert.Pos[2] + offset[2]}
+					sx, sy, depth := project(pos)
+					li := 1.0 // unlit/emissive (glows, fire) render at full intensity
+					if !unlit {
+						n := rotN(vert.Normal)
+						li = 0.4 + 0.7*math.Max(0, dot3(n, light))
+						if li > 1 {
+							li = 1
+						}
+					}
+					verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
+				}
+				if ok {
+					rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex, blend, tint)
+				}
+			}
+		}
+	}
 
-	for si, sub := range m.SubMeshes {
-		if !selected[si] {
-			continue
-		}
-		tex, blend, unlit, tint := texFor(si)
-		// On character models, an untextured submesh (e.g. hair we can't resolve)
-		// would draw as a gray blob — skip it instead.
-		if tex == nil && isChar {
-			continue
-		}
-		triEnd := sub.TriangleStart + uint32(sub.TriangleCount)
-		for t := sub.TriangleStart; t+2 < triEnd && int(t+2) < len(m.Triangles); t += 3 {
-			var verts [3]screenVert
-			ok := true
-			for k := 0; k < 3; k++ {
-				ti := m.Triangles[t+uint32(k)]
-				if int(ti) >= len(m.Indices) {
-					ok = false
-					break
-				}
-				vi := m.Indices[ti]
-				if int(vi) >= len(m.Vertices) {
-					ok = false
-					break
-				}
-				vert := m.Vertices[vi]
-				sx, sy, depth := project(vert.Pos)
-				li := 1.0 // unlit/emissive (glows, fire) render at full intensity
-				if !unlit {
-					n := rotN(vert.Normal)
-					li = 0.4 + 0.7*math.Max(0, dot3(n, light))
-					if li > 1 {
-						li = 1
+	isChar := cm.IsCharacter()
+	drawMesh(m, [3]float32{}, cm.SelectGeosets(cf, m), texFor, isChar)
+
+	// Attached item models (shoulders, weapons): each carries a model + texture
+	// and rides an attachment point. The character's baked body skin has none of
+	// this geometry, so we draw each attached model at its attachment position.
+	if isChar {
+		for _, ai := range cm.Attachments {
+			off, ok := m.AttachmentPos(ai.AttachmentID)
+			if !ok {
+				continue
+			}
+			amb, _, err := ReadModelFile(cf, ai.ModelPath)
+			if err != nil {
+				continue
+			}
+			am, err := ParseM2(amb)
+			if err != nil {
+				continue
+			}
+			atex := loadBLPTexture(cf, ai.TexturePath)
+			if atex == nil {
+				continue
+			}
+			itemTexFor := func(sub int) (*image.RGBA, int, bool, [4]float64) {
+				blend := 0
+				for _, tu := range am.TexUnits {
+					if int(tu.SkinSectionIndex) == sub {
+						if int(tu.MaterialIndex) < len(am.Materials) {
+							blend = int(am.Materials[tu.MaterialIndex].Blend)
+						}
+						break
 					}
 				}
-				verts[k] = screenVert{sx, sy, depth, vert.UV[0], vert.UV[1], li}
+				return atex, blend, false, [4]float64{1, 1, 1, 1}
 			}
-			if ok {
-				rasterTri(img, zbuf, W, H, verts[0], verts[1], verts[2], tex, blend, tint)
-			}
+			drawMesh(am, off, nil, itemTexFor, false)
 		}
 	}
 	if ss > 1 {

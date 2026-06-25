@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"io"
 	"math"
 	"net/http"
@@ -1221,10 +1222,67 @@ func (s *NpcService) SyncAllNpcModels(startFrom, delayMs int, progressCb func(cu
 	return nil
 }
 
+// resolveCreatureWeapons builds the held-weapon attachments for a creature from
+// its equipment template: equipentry1 = main hand (right), equipentry2 = off hand
+// (left). Each equipped item's display id resolves to a weapon model + texture
+// via the client DBCs. Returns nil if the creature has no equipment or no item
+// resolves to a model.
+func (s *NpcService) resolveCreatureWeapons(cf datatools.ClientFiles, entry int) []datatools.AttachedItem {
+	var eq1, eq2 int
+	err := s.sqlite.QueryRow(`
+		SELECT et.equipentry1, et.equipentry2
+		FROM creature_template ct
+		JOIN creature_equip_template et ON ct.equipment_id = et.entry
+		WHERE ct.entry = ?`, entry).Scan(&eq1, &eq2)
+	if err != nil {
+		return nil
+	}
+	var out []datatools.AttachedItem
+	// item class: 2 = weapon, 4 = armor (subclass 6 = shield).
+	const classArmor = 4
+	resolve := func(itemEntry int, offHand bool) {
+		if itemEntry <= 0 {
+			return
+		}
+		var displayID, class int
+		if s.sqlite.QueryRow("SELECT display_id, class FROM item_template WHERE entry = ?", itemEntry).Scan(&displayID, &class) != nil || displayID == 0 {
+			return
+		}
+		if offHand && class == classArmor {
+			if sh, ok := datatools.ResolveShield(cf, displayID); ok {
+				out = append(out, sh)
+			}
+			return
+		}
+		attach := uint32(1) // main hand → right
+		if offHand {
+			attach = 2 // off-hand weapon → left hand
+		}
+		if w, ok := datatools.ResolveWeapon(cf, displayID, attach); ok {
+			out = append(out, w)
+		}
+	}
+	resolve(eq1, false)
+	resolve(eq2, true)
+	return out
+}
+
+// renderJob is one model-render task: a creatureEntry of 0 means a display-keyed
+// render (model_<displayID>.png, body + display armor, with octowow fallback); a
+// non-zero creatureEntry means a per-creature render (model_creature_<entry>.png)
+// that additionally draws the creature's held weapons.
+type renderJob struct {
+	creatureEntry int
+	displayID     int
+}
+
 // RenderAllNpcModels renders creature models from the client MPQs (at
-// <baseDir>/Data) into data/npc_images/model_<displayId>.png. For displays the
-// software renderer can't handle (humanoid Character\ models, parse failures) it
-// falls back to downloading octowow's pre-rendered image. Existing files are
+// <baseDir>/Data) into data/npc_images. It runs in two phases over one worker
+// pool: (1) one render per distinct display into model_<displayId>.png (body +
+// display-equipped armor incl. shoulders), falling back to octowow's pre-rendered
+// image when the software renderer can't handle a display; (2) one render per
+// creature that has held weapons into model_creature_<entry>.png (body + armor +
+// weapons), local-only (no octowow equivalent exists). Existing files are
 // skipped; honors the stop flag. delayMs throttles only the network fallback.
 func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, progressCb func(current, total, displayID int)) error {
 	dataPath := filepath.Join(baseDir, "Data")
@@ -1241,21 +1299,39 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 	if err != nil {
 		return err
 	}
-	var ids []int
+	var allJobs []renderJob
 	for rows.Next() {
 		var d int
 		if rows.Scan(&d) == nil {
-			ids = append(ids, d)
+			allJobs = append(allJobs, renderJob{displayID: d})
 		}
 	}
 	rows.Close()
+
+	// Phase 2 jobs: creatures whose equipment template has at least one item.
+	eqRows, err := s.sqlite.Query(`
+		SELECT ct.entry, ct.display_id1
+		FROM creature_template ct
+		JOIN creature_equip_template et ON ct.equipment_id = et.entry
+		WHERE ct.display_id1 > 0
+		  AND (et.equipentry1 > 0 OR et.equipentry2 > 0 OR et.equipentry3 > 0)
+		ORDER BY ct.entry`)
+	if err == nil {
+		for eqRows.Next() {
+			var entry, disp int
+			if eqRows.Scan(&entry, &disp) == nil {
+				allJobs = append(allJobs, renderJob{creatureEntry: entry, displayID: disp})
+			}
+		}
+		eqRows.Close()
+	}
 
 	npcImagesDir := filepath.Join(s.dataDir, "npc_images")
 	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
 		return err
 	}
 	opt := datatools.DefaultRenderOptions()
-	total := len(ids)
+	total := len(allJobs)
 
 	// Rasterizing is CPU-bound, so fan out across cores. Each worker opens its
 	// OWN MPQ set — model reads are hash-table lookups, so no listfile scan and
@@ -1267,7 +1343,7 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 	if workers > 8 {
 		workers = 8
 	}
-	jobs := make(chan int, 256)
+	jobs := make(chan renderJob, 256)
 	var done int64
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
@@ -1279,37 +1355,76 @@ func (s *NpcService) RenderAllNpcModels(baseDir string, startFrom, delayMs int, 
 				return
 			}
 			defer src.Close()
-			for d := range jobs {
+			for j := range jobs {
 				if !s.IsStopped() {
-					out := filepath.Join(npcImagesDir, fmt.Sprintf("model_%d.png", d))
-					if _, statErr := os.Stat(out); statErr != nil {
-						// Render the creature locally; on failure (character model,
-						// parse error) fall back to octowow's pre-rendered image.
-						if rErr := datatools.RenderCreatureModelToFile(src, d, out, opt); rErr != nil {
-							url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, d)
-							s.downloadImage(url, npcImagesDir, fmt.Sprintf("model_%d", d))
-							if delayMs > 0 {
-								time.Sleep(time.Duration(delayMs) * time.Millisecond)
-							}
-						}
+					if j.creatureEntry == 0 {
+						s.renderDisplayJob(src, npcImagesDir, j.displayID, opt, delayMs)
+					} else {
+						s.renderCreatureWeaponJob(src, npcImagesDir, j.creatureEntry, j.displayID, opt)
 					}
 				}
 				cur := atomic.AddInt64(&done, 1)
 				if progressCb != nil {
-					progressCb(int(cur), total, d)
+					progressCb(int(cur), total, j.displayID)
 				}
 			}
 		}()
 	}
-	for _, d := range ids {
+	for _, j := range allJobs {
 		if s.IsStopped() {
 			break
 		}
-		jobs <- d
+		jobs <- j
 	}
 	close(jobs)
 	wg.Wait()
 	return nil
+}
+
+// renderDisplayJob renders one display to model_<displayID>.png (skipping if it
+// exists), falling back to octowow's pre-rendered image on local-render failure.
+func (s *NpcService) renderDisplayJob(src datatools.ClientFiles, dir string, displayID int, opt datatools.RenderOptions, delayMs int) {
+	out := filepath.Join(dir, fmt.Sprintf("model_%d.png", displayID))
+	if _, statErr := os.Stat(out); statErr == nil {
+		return
+	}
+	if rErr := datatools.RenderCreatureModelToFile(src, displayID, out, opt); rErr != nil {
+		url := fmt.Sprintf("%s/images/models/%d.png", DatabaseBaseURL, displayID)
+		s.downloadImage(url, dir, fmt.Sprintf("model_%d", displayID))
+		if delayMs > 0 {
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+		}
+	}
+}
+
+// renderCreatureWeaponJob renders a creature's body + armor + held weapons to
+// model_creature_<entry>.png. It's a no-op when the creature resolves no weapon
+// models (the display-keyed image already covers body + armor) or the model
+// can't be rendered locally — there's no octowow per-creature fallback.
+func (s *NpcService) renderCreatureWeaponJob(src datatools.ClientFiles, dir string, entry, displayID int, opt datatools.RenderOptions) {
+	out := filepath.Join(dir, fmt.Sprintf("model_creature_%d.png", entry))
+	if _, statErr := os.Stat(out); statErr == nil {
+		return
+	}
+	weapons := s.resolveCreatureWeapons(src, entry)
+	if len(weapons) == 0 {
+		return
+	}
+	cm, err := datatools.ResolveCreatureModel(src, displayID)
+	if err != nil {
+		return
+	}
+	cm.Attachments = append(cm.Attachments, weapons...)
+	img, err := datatools.RenderResolvedModel(src, cm, opt)
+	if err != nil {
+		return
+	}
+	f, err := os.Create(out)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_ = png.Encode(f, img)
 }
 
 // looksLikeImage reports whether a downloaded body is an image, via its

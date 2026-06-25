@@ -15,22 +15,161 @@ import (
 type CreatureModel struct {
 	DisplayID int
 	ModelID   int
-	ModelPath string    // e.g. Creature\Murloc\Murloc.mdx
-	TexVars   [3]string // CreatureDisplayInfo texture variations (skin names)
-	Extra     *CreatureExtra
+	ModelPath   string    // e.g. Creature\Murloc\Murloc.mdx
+	TexVars     [3]string // CreatureDisplayInfo texture variations (skin names)
+	Extra       *CreatureExtra
+	Attachments []AttachedItem // item models drawn at attachment points (shoulders, weapons)
+}
+
+// AttachedItem is an item model (shoulder pad, weapon, ...) drawn at one of the
+// character model's attachment points, with its externally supplied texture.
+type AttachedItem struct {
+	ModelPath    string
+	TexturePath  string
+	AttachmentID uint32
 }
 
 // CreatureExtra holds the humanoid appearance from CreatureDisplayInfoExtra,
 // present only for character (Character\Race\Sex) models. BakeName is the
 // pre-composited body skin the client ships in Textures\BakedNpcTextures.
 type CreatureExtra struct {
-	Race       int
-	Sex        int
-	HairStyle   int
-	HairColor   int
-	FacialHair  int
-	BakeName    string
-	HairTexture string // resolved CharSections hair texture for the hair geoset
+	Race                int
+	Sex                 int
+	HairStyle           int
+	HairColor           int
+	FacialHair          int
+	BakeName            string
+	HairTexture         string // resolved CharSections hair texture for the hair geoset
+	ShoulderItemDisplay int    // ItemDisplayInfo id for the equipped shoulders (0 = none)
+}
+
+// M2 attachment point IDs.
+const (
+	attachShield        = 0
+	attachHandRight     = 1
+	attachHandLeft      = 2
+	attachShoulderRight = 5
+	attachShoulderLeft  = 6
+)
+
+// extraShoulderField is the CreatureDisplayInfoExtra column holding the shoulder
+// ItemDisplayInfo id (appearance fields 1-7, equipment starts at 8 = helm, so
+// shoulder = 9).
+const extraShoulderField = 9
+
+// shoulderComponentDir is where item shoulder models + textures live.
+const shoulderComponentDir = `Item\ObjectComponents\Shoulder\`
+
+// ResolveShoulders resolves a shoulder ItemDisplayInfo id to its left/right
+// models + textures. ItemDisplayInfo layout: modelName[0,1]=fields 1,2 (left,
+// right); modelTexture[0,1]=fields 3,4. Texture names are bare and resolve under
+// the shoulder component dir.
+func ResolveShoulders(cf ClientFiles, itemDisplayID int) []AttachedItem {
+	if itemDisplayID <= 0 {
+		return nil
+	}
+	b, err := cf.ReadDBC("ItemDisplayInfo.dbc")
+	if err != nil {
+		return nil
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return nil
+	}
+	r, ok := d.findByID(uint32(itemDisplayID))
+	if !ok {
+		return nil
+	}
+	texPath := func(name string) string {
+		if name == "" {
+			return ""
+		}
+		if !strings.HasSuffix(strings.ToLower(name), ".blp") {
+			name += ".blp"
+		}
+		return shoulderComponentDir + name
+	}
+	var out []AttachedItem
+	add := func(model, tex string, att uint32) {
+		if model == "" {
+			return
+		}
+		out = append(out, AttachedItem{
+			ModelPath:    shoulderComponentDir + model,
+			TexturePath:  texPath(tex),
+			AttachmentID: att,
+		})
+	}
+	add(d.str(r, 1), d.str(r, 3), attachShoulderLeft)  // modelName[0] = left
+	add(d.str(r, 2), d.str(r, 4), attachShoulderRight) // modelName[1] = right
+	return out
+}
+
+// Item object-component dirs (model + texture live under the same dir).
+const (
+	weaponComponentDir = `Item\ObjectComponents\Weapon\`
+	shieldComponentDir = `Item\ObjectComponents\Shield\`
+)
+
+// resolveComponentItem resolves an ItemDisplayInfo id to a single-model attached
+// item (model = field 1, texture = field 3) under the given component dir.
+func resolveComponentItem(cf ClientFiles, itemDisplayID int, dir string, attachID uint32) (AttachedItem, bool) {
+	if itemDisplayID <= 0 {
+		return AttachedItem{}, false
+	}
+	b, err := cf.ReadDBC("ItemDisplayInfo.dbc")
+	if err != nil {
+		return AttachedItem{}, false
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		return AttachedItem{}, false
+	}
+	r, ok := d.findByID(uint32(itemDisplayID))
+	if !ok {
+		return AttachedItem{}, false
+	}
+	model := d.str(r, 1)
+	if model == "" {
+		return AttachedItem{}, false
+	}
+	tex := d.str(r, 3)
+	if tex != "" && !strings.HasSuffix(strings.ToLower(tex), ".blp") {
+		tex += ".blp"
+	}
+	texPath := ""
+	if tex != "" {
+		texPath = dir + tex
+	}
+	return AttachedItem{
+		ModelPath:    dir + model,
+		TexturePath:  texPath,
+		AttachmentID: attachID,
+	}, true
+}
+
+// ResolveWeapon resolves a weapon's ItemDisplayInfo id to its model + texture at
+// a hand attachment point (1 = main/right, 2 = off/left).
+func ResolveWeapon(cf ClientFiles, itemDisplayID int, attachID uint32) (AttachedItem, bool) {
+	return resolveComponentItem(cf, itemDisplayID, weaponComponentDir, attachID)
+}
+
+// ResolveShield resolves a shield's ItemDisplayInfo id to its model + texture,
+// placed at the left-forearm shield attachment.
+func ResolveShield(cf ClientFiles, itemDisplayID int) (AttachedItem, bool) {
+	return resolveComponentItem(cf, itemDisplayID, shieldComponentDir, attachShield)
+}
+
+// AttachmentPos returns the model-space (y-up) position of an attachment point
+// by ID. In vanilla the stored position is already absolute model space (it
+// equals the bone pivot), so it's used directly — no bone transform needed.
+func (m *M2Model) AttachmentPos(id uint32) ([3]float32, bool) {
+	for _, a := range m.Attachments {
+		if a.ID == id {
+			return a.Position, true
+		}
+	}
+	return [3]float32{}, false
 }
 
 // IsCharacter reports whether this display uses a humanoid character model.
@@ -99,6 +238,31 @@ func (d *dbcReader) findByID(id uint32) (int, bool) {
 	return 0, false
 }
 
+// DebugDBCRecord dumps every field of a DBC record both as u32 and as a string
+// (dev only, for confirming column layouts).
+func DebugDBCRecord(cf ClientFiles, name string, id uint32) {
+	b, err := cf.ReadDBC(name)
+	if err != nil {
+		fmt.Printf("  [debug] %s: %v\n", name, err)
+		return
+	}
+	d, err := openDBCReader(b)
+	if err != nil {
+		fmt.Printf("  [debug] %s: %v\n", name, err)
+		return
+	}
+	r, ok := d.findByID(id)
+	if !ok {
+		fmt.Printf("  [debug] %s id=%d not found\n", name, id)
+		return
+	}
+	fmt.Printf("  [debug] %s id=%d (fields=%d):\n", name, id, d.fc)
+	for f := 0; f < d.fc; f++ {
+		s := d.str(r, f)
+		fmt.Printf("    f%d u32=%d str=%q\n", f, d.u32(r, f), s)
+	}
+}
+
 // ResolveCreatureModel resolves a display id to its model path + skin textures.
 // Field layout is the vanilla DBC chain (CreatureDisplayInfo: modelID=1,
 // textureVariation=6,7,8; CreatureModelData: modelName=2).
@@ -147,6 +311,10 @@ func ResolveCreatureModel(cf ClientFiles, displayID int) (*CreatureModel, error)
 						HairColor:  int(ex.u32(er, 6)),
 						FacialHair: int(ex.u32(er, 7)),
 						BakeName:   ex.str(er, ex.fc-1), // bakeName is the last field
+					}
+					if extraShoulderField < ex.fc {
+						cm.Extra.ShoulderItemDisplay = int(ex.u32(er, extraShoulderField))
+						cm.Attachments = append(cm.Attachments, ResolveShoulders(cf, cm.Extra.ShoulderItemDisplay)...)
 					}
 					cm.Extra.HairTexture = ResolveHairTexture(cf, cm.Extra.Race, cm.Extra.Sex, cm.Extra.HairColor)
 				}

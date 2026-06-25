@@ -48,7 +48,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const modelUrl = displayId
     ? `${DATABASE_BASE_URL}/images/models/${displayId}.png`
     : null;
-  const modelImage = useNpcModel(displayId, modelUrl, imgReload);
+  // Pass the creature entry so a per-creature render (with held weapons) is
+  // preferred over the shared display render when one exists locally.
+  const modelImage = useNpcModel(displayId, modelUrl, imgReload, entry);
   const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
   useEffect(() => {
@@ -75,6 +77,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
       .then((res) => {
         if (res) setDetail(res);
         if (displayId) evictImage("npc_model", `model_${displayId}`);
+        evictImage("npc_model", `model_creature_${entry}`);
         setImgReload((n) => n + 1);
       })
       .finally(() => setRefreshingImages(false));

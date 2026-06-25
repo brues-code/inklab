@@ -104,7 +104,14 @@ export const loadIcon = async (iconName) => {
  * @param {string} remoteUrl - octowow model URL
  * @returns {Promise<string>} - Image URL
  */
-export const loadNpcModel = async (displayId, remoteUrl) => {
+export const loadNpcModel = async (displayId, remoteUrl, creatureEntry = 0) => {
+    // Prefer a per-creature render (body + armor + held weapons) when one exists
+    // locally — weapons are creature-specific, so they can't be display-keyed.
+    // Falls back to the shared display render (and then octowow) otherwise.
+    if (creatureEntry) {
+        const local = await loadImage('npc_model', `model_creature_${creatureEntry}`, null);
+        if (local) return local;
+    }
     return loadImage('npc_model', `model_${displayId}`, remoteUrl);
 };
 

@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 	"strings"
@@ -20,7 +21,40 @@ func main() {
 	size := flag.Int("size", 512, "render size")
 	yaw := flag.Float64("yaw", 35, "yaw degrees")
 	pitch := flag.Float64("pitch", 10, "pitch degrees")
+	extra := flag.Int("extra", 0, "dump CreatureDisplayInfoExtra record id")
+	itemDisp := flag.Int("itemdisp", 0, "dump ItemDisplayInfo record id")
+	modelPath := flag.String("model", "", "parse+dump an arbitrary model path instead of a display")
+	wdisp := flag.Int("wdisp", 0, "spike: attach a weapon by ItemDisplayInfo id")
+	watt := flag.Int("watt", 1, "spike: weapon attachment id (1=right hand, 2=left hand)")
 	flag.Parse()
+
+	if *modelPath != "" {
+		cf, err := datatools.NewMpqSource(*dataDir)
+		if err != nil {
+			fmt.Println("open MPQ:", err)
+			os.Exit(1)
+		}
+		defer cf.Close()
+		mb, used, err := datatools.ReadModelFile(cf, *modelPath)
+		if err != nil {
+			fmt.Println("read model:", err)
+			os.Exit(1)
+		}
+		m, err := datatools.ParseM2(mb)
+		if err != nil {
+			fmt.Println("parse:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("model %q (%d bytes) v%d\n  bounds min=%v max=%v\n  verts=%d faces=%d submeshes=%d\n",
+			used, len(mb), m.Version, m.BoundsMin, m.BoundsMax, len(m.Vertices), len(m.Triangles)/3, len(m.SubMeshes))
+		for i, t := range m.Textures {
+			fmt.Printf("  tex[%d] type=%d file=%q\n", i, t.Type, t.FileName)
+		}
+		for i, mat := range m.Materials {
+			fmt.Printf("  mat[%d] flags=0x%x blend=%d\n", i, mat.Flags, mat.Blend)
+		}
+		return
+	}
 
 	cf, err := datatools.NewMpqSource(*dataDir)
 	if err != nil {
@@ -80,6 +114,24 @@ func main() {
 	}
 
 	// sanity: do the texture BLPs exist?
+	if *extra > 0 {
+		datatools.DebugDBCRecord(cf, "CreatureDisplayInfo.dbc", uint32(*display))
+		datatools.DebugDBCRecord(cf, "CreatureDisplayInfoExtra.dbc", uint32(*extra))
+	}
+	if *itemDisp > 0 {
+		datatools.DebugDBCRecord(cf, "ItemDisplayInfo.dbc", uint32(*itemDisp))
+	}
+
+	fmt.Printf("  bones=%d attachments=%d\n", len(m.Bones), len(m.Attachments))
+	for _, a := range m.Attachments {
+		var pivot [3]float32
+		if int(a.Bone) < len(m.Bones) {
+			pivot = m.Bones[a.Bone].Pivot
+		}
+		sum := [3]float32{pivot[0] + a.Position[0], pivot[1] + a.Position[1], pivot[2] + a.Position[2]}
+		fmt.Printf("    att id=%d bone=%d pos=%v pivot=%v pivot+pos=%v\n", a.ID, a.Bone, a.Position, pivot, sum)
+	}
+
 	fmt.Println("  texture file existence:")
 	seen := map[string]bool{}
 	for _, tu := range m.TexUnits {
@@ -94,8 +146,18 @@ func main() {
 	_ = strings.TrimSpace
 
 	if *out != "" {
-		img, err := datatools.RenderCreatureModel(cf, *display,
-			datatools.RenderOptions{Size: *size, YawDeg: *yaw, PitchDeg: *pitch})
+		opts := datatools.RenderOptions{Size: *size, YawDeg: *yaw, PitchDeg: *pitch}
+		var img *image.RGBA
+		if *wdisp > 0 {
+			// spike: attach a weapon by its ItemDisplayInfo id at -watt
+			if w, ok := datatools.ResolveWeapon(cf, *wdisp, uint32(*watt)); ok {
+				cm.Attachments = append(cm.Attachments, w)
+				fmt.Printf("  + weapon %s tex=%s att=%d\n", w.ModelPath, w.TexturePath, w.AttachmentID)
+			}
+			img, err = datatools.RenderResolvedModel(cf, cm, opts)
+		} else {
+			img, err = datatools.RenderCreatureModel(cf, *display, opts)
+		}
 		if err != nil {
 			fmt.Println("render:", err)
 			os.Exit(1)

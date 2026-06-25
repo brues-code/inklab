@@ -90,7 +90,7 @@ export const useIcon = (iconName) => {
  * @param {string} remoteUrl - octowow model URL
  * @returns {{ src: string | null, loading: boolean, error: boolean }}
  */
-export const useNpcModel = (displayId, remoteUrl, reloadKey = 0) => {
+export const useNpcModel = (displayId, remoteUrl, reloadKey = 0, creatureEntry = 0) => {
     const [src, setSrc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -105,7 +105,7 @@ export const useNpcModel = (displayId, remoteUrl, reloadKey = 0) => {
         setLoading(true);
         setError(false);
 
-        loadNpcModel(displayId, remoteUrl)
+        loadNpcModel(displayId, remoteUrl, creatureEntry)
             .then(result => {
                 if (result) {
                     setSrc(result);
@@ -119,7 +119,7 @@ export const useNpcModel = (displayId, remoteUrl, reloadKey = 0) => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [displayId, remoteUrl, reloadKey]);
+    }, [displayId, remoteUrl, reloadKey, creatureEntry]);
 
     return { src, loading, error };
 };

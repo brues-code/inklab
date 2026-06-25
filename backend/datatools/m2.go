@@ -71,6 +71,23 @@ type M2Color struct {
 	Alpha float32
 }
 
+// M2Bone is the subset of a bone needed to place attachments in the bind pose:
+// its rest pivot (model space, y-up) and parent index. Animation tracks are
+// skipped — at rest every bone matrix collapses to identity, so the pivot is the
+// bone's model-space position.
+type M2Bone struct {
+	Parent int16
+	Pivot  [3]float32
+}
+
+// M2Attachment is an attachment point (e.g. shoulders, weapon hands): an ID, the
+// bone it rides, and a position offset relative to that bone (model space, y-up).
+type M2Attachment struct {
+	ID       uint32
+	Bone     uint16
+	Position [3]float32
+}
+
 // M2Model is the parsed subset needed to render a static model.
 type M2Model struct {
 	Name     string
@@ -87,6 +104,9 @@ type M2Model struct {
 	Materials     []M2Material
 	TextureCombos []uint16 // textureComboIndex → texture index
 	Colors        []M2Color // material color tracks (peak keyframe)
+
+	Bones       []M2Bone       // rest pivots, for attachment placement
+	Attachments []M2Attachment // attachment points (shoulders, hands, ...)
 
 	// World-space bounding box (y-up), for camera framing.
 	BoundsMin [3]float32
@@ -136,8 +156,8 @@ func ParseM2(b []byte) (*M2Model, error) {
 	if vanilla {
 		c.arr() // playable animation lookup (vanilla only)
 	}
-	c.arr() // bones
-	c.arr() // key bone lookup
+	bonesN, bonesOff := c.arr() // bones
+	c.arr()                     // key bone lookup
 	vtxN, vtxOff := c.arr()
 	viewsN, viewsOff := c.arr()
 	colorsN, colorsOff := c.arr()
@@ -151,7 +171,18 @@ func ParseM2(b []byte) (*M2Model, error) {
 	matN, matOff := c.arr()
 	c.arr() // bone combos
 	comboN, comboOff := c.arr()
-	// (remaining header arrays not needed for static rendering)
+	// Continue the header walk to reach attachments (last array we need). Layout
+	// after texture combos: texture-transform bone map, transparency lookup,
+	// texture-transform lookup, then the INLINE bounding box + collision spheres
+	// (56 bytes), then 3 collision arrays, then attachments.
+	c.arr()      // texture transform bone map
+	c.arr()      // transparency lookup
+	c.arr()      // texture transform lookup
+	c.pos += 56  // bounding box (min3,max3,radius) + collision box (min3,max3,radius)
+	c.arr()      // collision indices
+	c.arr()      // collision positions
+	c.arr()      // collision normals
+	attN, attOff := c.arr()
 
 	// --- vertices (48 bytes each) ---
 	c.seek(int(vtxOff))
@@ -325,6 +356,50 @@ func ParseM2(b []byte) (*M2Model, error) {
 			col.Alpha = float32(amax) / 32767
 		}
 		m.Colors[i] = col
+	}
+
+	// --- bones (rest pivots only) + attachments ---
+	// Struct strides depend on the M2Track size, which is 28 bytes in vanilla
+	// (single timeline: interp+gseq+ranges+timestamps+values) and 20 in WotLK.
+	// TBC+ also adds a 4-byte boneNameCRC. The pivot is the last field of a bone.
+	trackSize := 28
+	if m.Version >= m2VerWotLK {
+		trackSize = 20
+	}
+	boneSize := 4 + 4 + 2 + 2 + 3*trackSize + 12 // id,flags,parent,submesh,3 tracks,pivot
+	pivotOff := 4 + 4 + 2 + 2 + 3*trackSize
+	if m.Version >= 260 { // TBC+ boneNameCRC after submeshID
+		boneSize += 4
+		pivotOff += 4
+	}
+	conv := func(x, y, z float32) [3]float32 { return [3]float32{x, z, -y} } // z-up → y-up
+	m.Bones = make([]M2Bone, bonesN)
+	for i := range m.Bones {
+		base := int(bonesOff) + i*boneSize
+		if base+boneSize > len(b) {
+			break
+		}
+		parent := int16(binary.LittleEndian.Uint16(b[base+8:]))
+		px := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff:]))
+		py := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff+4:]))
+		pz := math.Float32frombits(binary.LittleEndian.Uint32(b[base+pivotOff+8:]))
+		m.Bones[i] = M2Bone{Parent: parent, Pivot: conv(px, py, pz)}
+	}
+
+	// Attachment: id u32, bone u16, unknown u16, position float3, then a track.
+	attSize := 4 + 2 + 2 + 12 + trackSize
+	m.Attachments = make([]M2Attachment, attN)
+	for i := range m.Attachments {
+		base := int(attOff) + i*attSize
+		if base+8+12 > len(b) {
+			break
+		}
+		id := binary.LittleEndian.Uint32(b[base:])
+		bone := binary.LittleEndian.Uint16(b[base+4:])
+		ax := math.Float32frombits(binary.LittleEndian.Uint32(b[base+8:]))
+		ay := math.Float32frombits(binary.LittleEndian.Uint32(b[base+12:]))
+		az := math.Float32frombits(binary.LittleEndian.Uint32(b[base+16:]))
+		m.Attachments[i] = M2Attachment{ID: id, Bone: bone, Position: conv(ax, ay, az)}
 	}
 
 	return m, nil

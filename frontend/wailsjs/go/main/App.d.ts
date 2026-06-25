@@ -128,6 +128,8 @@ export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;
 
 export function RemoveFavorite(arg1:number):Promise<models.FavoriteResult>;
 
+export function RenderNpcModels(arg1:string,arg2:number,arg3:number):Promise<string>;
+
 export function RunCacheImport(arg1:string):Promise<main.ImportReport>;
 
 export function RunClientImport(arg1:string):Promise<main.ImportReport>;
