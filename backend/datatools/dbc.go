@@ -107,6 +107,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"icons", "item_icons.json"},
 		{"spells", "spells_enhanced.json"},
 		{"talents", "talents.json"},
+		{"taxi", "taxi.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -136,6 +137,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genSpells(cf)
 	case "talents":
 		v, err = genTalents(cf)
+	case "taxi":
+		v, err = genTaxi(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}

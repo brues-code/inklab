@@ -114,6 +114,14 @@ export function GetFavoritesByCategory(arg1) {
   return window['go']['main']['App']['GetFavoritesByCategory'](arg1);
 }
 
+export function GetFlightContinents() {
+  return window['go']['main']['App']['GetFlightContinents']();
+}
+
+export function GetFlightData(arg1) {
+  return window['go']['main']['App']['GetFlightData'](arg1);
+}
+
 export function GetInstances(arg1) {
   return window['go']['main']['App']['GetInstances'](arg1);
 }

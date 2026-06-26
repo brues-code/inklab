@@ -3,6 +3,7 @@ import AtlasLootPage from './pages/AtlasLootPage/AtlasLootPage'
 import DatabasePage from './pages/DatabasePage/DatabasePage'
 import SearchPage from './pages/SearchPage/SearchPage'
 import TalentsPage from './pages/TalentsPage'
+import FlightsPage from './pages/FlightsPage'
 import SyncPage from './pages/SyncPage'
 import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
@@ -69,6 +70,12 @@ function App() {
                             Talents
                         </TabButton>
                         <TabButton
+                            active={activeTab === 'flights'}
+                            onClick={() => setActiveTab('flights')}
+                        >
+                            Flights
+                        </TabButton>
+                        <TabButton
                             active={activeTab === 'tools'}
                             onClick={() => setActiveTab('tools')}
                         >
@@ -104,6 +111,7 @@ function App() {
                     />
                 )}
                 {activeTab === 'talents' && <TalentsPage />}
+                {activeTab === 'flights' && <FlightsPage />}
                 {activeTab === 'tools' && <ToolsPage onNavigate={handleSearchNavigate} />}
                 {activeTab === 'sync' && <SyncPage />}
             </main>

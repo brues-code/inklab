@@ -60,6 +60,10 @@ export function GetFavoriteCategories():Promise<Array<models.FavoriteCategory>>;
 
 export function GetFavoritesByCategory(arg1:string):Promise<Array<models.FavoriteItem>>;
 
+export function GetFlightContinents():Promise<Array<main.FlightContinent>>;
+
+export function GetFlightData(arg1:number):Promise<main.FlightData>;
+
 export function GetInstances(arg1:string):Promise<Array<string>>;
 
 export function GetItemClasses():Promise<Array<models.ItemClass>>;

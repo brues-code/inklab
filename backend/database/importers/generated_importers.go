@@ -275,6 +275,92 @@ func (i *GeneratedImporter) ImportTalents(jsonPath string) error {
 	return nil
 }
 
+// taxiJSON mirrors data/taxi.json (datatools.TaxiData).
+type taxiJSON struct {
+	Continents []struct {
+		MapID int    `json:"mapId"`
+		Name  string `json:"name"`
+	} `json:"continents"`
+	Nodes []struct {
+		ID       int     `json:"id"`
+		MapID    int     `json:"mapId"`
+		Name     string  `json:"name"`
+		Alliance bool    `json:"alliance"`
+		Horde    bool    `json:"horde"`
+		PX       float64 `json:"px"`
+		PY       float64 `json:"py"`
+	} `json:"nodes"`
+	Paths []struct {
+		ID   int `json:"id"`
+		From int `json:"from"`
+		To   int `json:"to"`
+	} `json:"paths"`
+	Waypoints []struct {
+		PathID int     `json:"pathId"`
+		Idx    int     `json:"idx"`
+		PX     float64 `json:"px"`
+		PY     float64 `json:"py"`
+	} `json:"waypoints"`
+}
+
+// ImportTaxi loads the DBC-derived flight network from taxi.json into the
+// taxi_node / taxi_path / taxi_path_node tables. Clears and repopulates (small,
+// fully derived). Continent name is resolved from the continents list by map id.
+func (i *GeneratedImporter) ImportTaxi(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var t taxiJSON
+	if err := json.Unmarshal(data, &t); err != nil {
+		fmt.Printf("  ERROR parsing taxi.json: %v\n", err)
+		return nil
+	}
+	contName := map[int]string{}
+	for _, c := range t.Continents {
+		contName[c.MapID] = c.Name
+	}
+
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	tx.Exec("DELETE FROM taxi_node")
+	tx.Exec("DELETE FROM taxi_path")
+	tx.Exec("DELETE FROM taxi_path_node")
+
+	nodeStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_node
+		(id, map_id, continent, name, alliance, horde, px, py) VALUES (?,?,?,?,?,?,?,?)`)
+	defer nodeStmt.Close()
+	pathStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_path (id, from_node, to_node) VALUES (?,?,?)`)
+	defer pathStmt.Close()
+	wpStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_path_node (path_id, idx, px, py) VALUES (?,?,?,?)`)
+	defer wpStmt.Close()
+
+	b2i := func(b bool) int {
+		if b {
+			return 1
+		}
+		return 0
+	}
+	for _, n := range t.Nodes {
+		nodeStmt.Exec(n.ID, n.MapID, contName[n.MapID], n.Name, b2i(n.Alliance), b2i(n.Horde), n.PX, n.PY)
+	}
+	for _, p := range t.Paths {
+		pathStmt.Exec(p.ID, p.From, p.To)
+	}
+	for _, w := range t.Waypoints {
+		wpStmt.Exec(w.PathID, w.Idx, w.PX, w.PY)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d flight nodes, %d paths, %d waypoints\n", len(t.Nodes), len(t.Paths), len(t.Waypoints))
+	return nil
+}
+
 // ImportSpellIcons loads spell icons from spells_enhanced.json and updates spell_template
 func (i *GeneratedImporter) ImportSpellIcons(jsonPath string) error {
 	fmt.Printf("  -> Reading spell icons from %s...\n", jsonPath)

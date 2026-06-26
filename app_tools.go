@@ -241,6 +241,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportItemIcons(filepath.Join(a.DataDir, "item_icons.json"))
 	_ = gen.ImportSpellIcons(filepath.Join(a.DataDir, "spells_enhanced.json"))
 	_ = gen.ImportTalents(filepath.Join(a.DataDir, "talents.json"))
+	_ = gen.ImportTaxi(filepath.Join(a.DataDir, "taxi.json"))
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}

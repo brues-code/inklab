@@ -91,6 +91,9 @@ func main() {
 	if err := gen.ImportTalents(filepath.Join(dataDir, "talents.json")); err != nil {
 		fmt.Println("  warn talents:", err)
 	}
+	if err := gen.ImportTaxi(filepath.Join(dataDir, "taxi.json")); err != nil {
+		fmt.Println("  warn taxi:", err)
+	}
 
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	fmt.Println("Resolving spell descriptions...")

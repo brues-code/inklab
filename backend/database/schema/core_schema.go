@@ -256,6 +256,33 @@ func CoreSchema() string {
 	CREATE INDEX IF NOT EXISTS idx_talent_tab_class ON talent_tab(class);
 	CREATE INDEX IF NOT EXISTS idx_talent_tab_id ON talent(tab_id);
 
+	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
+	-- px/py are 0-100 percentages on the node's continent overview map.
+	CREATE TABLE IF NOT EXISTS taxi_node (
+		id INTEGER PRIMARY KEY,
+		map_id INTEGER DEFAULT 0,
+		continent TEXT DEFAULT '',  -- continent map image key (WorldMapArea area name)
+		name TEXT NOT NULL,
+		alliance INTEGER DEFAULT 0,
+		horde INTEGER DEFAULT 0,
+		px REAL DEFAULT 0,
+		py REAL DEFAULT 0
+	);
+	CREATE TABLE IF NOT EXISTS taxi_path (
+		id INTEGER PRIMARY KEY,
+		from_node INTEGER NOT NULL,
+		to_node INTEGER NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS taxi_path_node (
+		path_id INTEGER NOT NULL,
+		idx INTEGER NOT NULL,
+		px REAL DEFAULT 0,
+		py REAL DEFAULT 0,
+		PRIMARY KEY (path_id, idx)
+	);
+	CREATE INDEX IF NOT EXISTS idx_taxi_node_map ON taxi_node(map_id);
+	CREATE INDEX IF NOT EXISTS idx_taxi_path_from ON taxi_path(from_node);
+
 	-- Indexes for 1:1 tables (created after GeneratedSchema)
 	CREATE INDEX IF NOT EXISTS idx_item_template_name ON item_template(name);
 	CREATE INDEX IF NOT EXISTS idx_item_template_class ON item_template(class);
