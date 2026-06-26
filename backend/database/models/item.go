@@ -213,6 +213,13 @@ type ItemClass struct {
 	SubClasses []*ItemSubClass `json:"subClasses,omitempty"`
 }
 
+// StatType is an item stat (the ITEM_MOD enum): a stat_type id and its display
+// name. Used to build the item filter's stat dropdown dynamically.
+type StatType struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // ItemSubClass represents a WoW item subclass (Axe, Bow, etc.)
 type ItemSubClass struct {
 	Class          int              `json:"class"`

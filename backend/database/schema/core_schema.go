@@ -279,6 +279,15 @@ func CoreSchema() string {
 		name TEXT NOT NULL
 	);
 
+	-- Item stat types (the ITEM_MOD enum): stat_type id -> display name. Seeded
+	-- from the built-in canonical names, with the base stats overlaid from the
+	-- client's GlobalStrings.lua (SPELL_STATn_NAME) so they follow its locale.
+	-- The secondary/rating stats have no 1.12 client string and keep English.
+	CREATE TABLE IF NOT EXISTS stat_types (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
+
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
 	-- px/py are 0-100 percentages on the node's continent overview map.
 	CREATE TABLE IF NOT EXISTS taxi_node (

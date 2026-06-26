@@ -301,6 +301,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportSpellSchools(filepath.Join(dataDir, "spell_schools.json")); err != nil {
 		fmt.Printf("⚠️ Spell school import failed: %v\n", err)
 	}
+	if err := gen.ImportStatNames(filepath.Join(dataDir, "stat_names.json")); err != nil {
+		fmt.Printf("⚠️ Stat name import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }

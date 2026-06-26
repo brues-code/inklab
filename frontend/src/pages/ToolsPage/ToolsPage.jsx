@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
 import { PageLayout } from "../../components/ui";
 import { DEFAULT_WOW_BASE } from "../../utils/constants";
@@ -28,6 +29,7 @@ const IMPORTS = [
 
 function ToolsPage() {
   const entityNavigate = useEntityNavigate();
+  const queryClient = useQueryClient();
   const [base, setBase] = useState(
     () => localStorage.getItem("toolsBasePath") || DEFAULT_BASE
   );
@@ -65,6 +67,8 @@ function ToolsPage() {
       setModelBusy(false);
       setModelMsg({ ok: true, text: msg || "Model render complete" });
       refreshStatus();
+      // Newly rendered portraits/models invalidate cached image queries.
+      queryClient.invalidateQueries();
     });
     EventsOn("sync:models_full:error", (msg) => {
       setModelBusy(false);
@@ -75,7 +79,7 @@ function ToolsPage() {
       EventsOff("sync:models_full:complete");
       EventsOff("sync:models_full:error");
     };
-  }, [refreshStatus]);
+  }, [refreshStatus, queryClient]);
 
   const runModelRender = () => {
     const app = window?.go?.main?.App;
@@ -136,6 +140,9 @@ function ToolsPage() {
     } finally {
       setRunning(null);
       refreshStatus();
+      // An import rewrites reference data, icons and maps; drop every cached
+      // query so views refetch the fresh data (overrides staleTime: Infinity).
+      queryClient.invalidateQueries();
     }
   };
 

@@ -22,6 +22,7 @@ export const queryKeys = {
 
     // Items
     itemClasses: ['itemClasses'] as const,
+    itemStatTypes: ['itemStatTypes'] as const,
     items: (cls: unknown, subClass: unknown, slot: unknown) => ['items', cls, subClass, slot] as const,
     itemDetail: (entry: unknown) => ['itemDetail', entry] as const,
     itemFavorite: (entry: unknown) => ['itemFavorite', entry] as const,

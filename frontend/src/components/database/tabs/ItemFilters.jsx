@@ -1,37 +1,13 @@
 import React from 'react'
 import { SidebarPanel, SectionHeader, ScrollList } from '../../ui'
 import { getQualityColor } from '../../../utils/wow'
+import { useItemStatTypes } from '../../../hooks/queries/items'
 
-const QUALITY_OPTIONS = [
-    { value: '', label: 'Any Quality' },
-    { value: '0', label: 'Poor (Gray)' },
-    { value: '1', label: 'Common (White)' },
-    { value: '2', label: 'Uncommon (Green)' },
-    { value: '3', label: 'Rare (Blue)' },
-    { value: '4', label: 'Epic (Purple)' },
-    { value: '5', label: 'Legendary (Orange)' },
-]
-
-const BASIC_STAT_OPTIONS = [
-    { value: '', label: '- Select -' },
-    { value: 'intellect', label: 'Intellect' },
-    { value: 'stamina', label: 'Stamina' },
-    { value: 'spirit', label: 'Spirit' },
-    { value: 'strength', label: 'Strength' },
-    { value: 'agility', label: 'Agility' },
-]
-
+// Column-based stats — these live in dedicated item columns (not the stat_typeN
+// slots), so they're fixed rather than derived from the data.
 const OTHER_STAT_OPTIONS = [
     { value: '', label: '- Select -' },
     { value: 'armor', label: 'Armor' },
-    { value: 'defense', label: 'Defense' },
-    { value: 'dodge', label: 'Dodge' },
-    { value: 'parry', label: 'Parry' },
-    { value: 'block', label: 'Block' },
-    { value: 'hit', label: 'Hit Rating' },
-    { value: 'crit', label: 'Crit Rating' },
-    { value: 'attack_power', label: 'Attack Power' },
-    { value: 'spell_power', label: 'Spell Power' },
     { value: 'fire_res', label: 'Fire Resistance' },
     { value: 'frost_res', label: 'Frost Resistance' },
     { value: 'nature_res', label: 'Nature Resistance' },
@@ -79,17 +55,17 @@ function RangeInput({ label, minVal, maxVal, onMinChange, onMaxChange }) {
     )
 }
 
-function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onMaxValueChange, options }) {
+function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onMaxValueChange, onRemove, options }) {
     return (
         <div className="flex gap-1 items-center">
             <select
                 value={stat}
                 onChange={(e) => onStatChange(e.target.value)}
-                className="flex-1 bg-black/40 border border-gray-700 rounded text-xs px-1 py-1 text-gray-300 focus:border-wow-gold outline-none"
+                className="flex-1 min-w-0 bg-black/40 border border-gray-700 rounded text-xs px-1 py-1 text-gray-300 focus:border-wow-gold outline-none"
             >
                 {options.map((opt, idx) => (
-                    <option 
-                        key={opt.value} 
+                    <option
+                        key={opt.value}
                         value={opt.value}
                         style={{ backgroundColor: idx % 2 === 0 ? '#181818' : '#242424', color: '#e0e0e0' }}
                     >
@@ -116,29 +92,86 @@ function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onM
                 step="0.1"
                 min="0"
             />
+            {onRemove && (
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    aria-label="Remove stat"
+                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                >
+                    ×
+                </button>
+            )}
         </div>
     )
 }
 
+// StatFilterSection renders a dynamic, add/remove list of StatRows backed by
+// filters[fieldKey]. It always shows at least one row; the remove button only
+// appears once there's more than one.
+function StatFilterSection({ title, fieldKey, rows, options, onUpdate, onAdd, onRemove }) {
+    const list = rows && rows.length ? rows : [{ stat: '', minVal: '', maxVal: '' }]
+    return (
+        <FilterSection title={title}>
+            {list.map((row, i) => (
+                <StatRow
+                    key={i}
+                    stat={row?.stat || ''}
+                    minValue={row?.minVal || ''}
+                    maxValue={row?.maxVal || ''}
+                    onStatChange={(v) => onUpdate(fieldKey, i, 'stat', v)}
+                    onMinValueChange={(v) => onUpdate(fieldKey, i, 'minVal', v)}
+                    onMaxValueChange={(v) => onUpdate(fieldKey, i, 'maxVal', v)}
+                    onRemove={list.length > 1 ? () => onRemove(fieldKey, i) : undefined}
+                    options={options}
+                />
+            ))}
+            <button
+                type="button"
+                onClick={() => onAdd(fieldKey)}
+                className="text-[11px] text-wow-gold/80 hover:text-wow-gold transition-colors"
+            >
+                + Add stat
+            </button>
+        </FilterSection>
+    )
+}
+
 export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
+    // Stat dropdown options come from the stat types actually present in the data
+    // (id -> name), so the filter adapts to whatever stats the items use.
+    const { data: statTypes } = useItemStatTypes()
+    const statOptions = [
+        { value: '', label: '- Select -' },
+        ...(statTypes || []).map(s => ({ value: String(s.id), label: s.name })),
+    ]
+
     const updateFilter = (key, value) => {
         onChange({ ...filters, [key]: value })
     }
 
-    const updateStat = (index, field, value) => {
-        const newStats = [...(filters.stats || [])]
-        if (!newStats[index]) newStats[index] = { stat: '', minVal: '', maxVal: '' }
-        newStats[index][field] = value
-        onChange({ ...filters, stats: newStats })
+    // Stat rows are dynamic per section (key = 'stats' | 'otherStats').
+    const updateStat = (key, index, field, value) => {
+        const rows = [...(filters[key] || [])]
+        if (!rows[index]) rows[index] = { stat: '', minVal: '', maxVal: '' }
+        rows[index] = { ...rows[index], [field]: value }
+        onChange({ ...filters, [key]: rows })
     }
 
-    const updateOtherStat = (index, field, value) => {
-        const newStats = [...(filters.otherStats || [])]
-        if (!newStats[index]) newStats[index] = { stat: '', minVal: '', maxVal: '' }
-        newStats[index][field] = value
-        onChange({ ...filters, otherStats: newStats })
+    const addStat = (key) => {
+        const rows = [...(filters[key] || [])]
+        // One implicit row is always shown, so grow past it to actually add one.
+        const target = Math.max(1, rows.length) + 1
+        while (rows.length < target) rows.push({ stat: '', minVal: '', maxVal: '' })
+        onChange({ ...filters, [key]: rows })
     }
-    
+
+    const removeStat = (key, index) => {
+        const rows = [...(filters[key] || [])]
+        rows.splice(index, 1)
+        onChange({ ...filters, [key]: rows })
+    }
+
     const handleReset = () => {
         if (onReset) onReset()
     }
@@ -209,37 +242,27 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
                     </div>
                 </FilterSection>
 
-                {/* Basic Stats */}
-                <FilterSection title="Stats (Min-Max)">
-                    {[0, 1, 2].map(i => (
-                        <StatRow
-                            key={i}
-                            stat={filters.stats?.[i]?.stat || ''}
-                            minValue={filters.stats?.[i]?.minVal || ''}
-                            maxValue={filters.stats?.[i]?.maxVal || ''}
-                            onStatChange={(v) => updateStat(i, 'stat', v)}
-                            onMinValueChange={(v) => updateStat(i, 'minVal', v)}
-                            onMaxValueChange={(v) => updateStat(i, 'maxVal', v)}
-                            options={BASIC_STAT_OPTIONS}
-                        />
-                    ))}
-                </FilterSection>
+                {/* Basic Stats (stat_typeN slots, dynamic from the data) */}
+                <StatFilterSection
+                    title="Stats (Min-Max)"
+                    fieldKey="stats"
+                    rows={filters.stats}
+                    options={statOptions}
+                    onUpdate={updateStat}
+                    onAdd={addStat}
+                    onRemove={removeStat}
+                />
 
-                {/* Other Stats */}
-                <FilterSection title="Other Stats">
-                    {[0, 1, 2].map(i => (
-                        <StatRow
-                            key={i}
-                            stat={filters.otherStats?.[i]?.stat || ''}
-                            minValue={filters.otherStats?.[i]?.minVal || ''}
-                            maxValue={filters.otherStats?.[i]?.maxVal || ''}
-                            onStatChange={(v) => updateOtherStat(i, 'stat', v)}
-                            onMinValueChange={(v) => updateOtherStat(i, 'minVal', v)}
-                            onMaxValueChange={(v) => updateOtherStat(i, 'maxVal', v)}
-                            options={OTHER_STAT_OPTIONS}
-                        />
-                    ))}
-                </FilterSection>
+                {/* Other Stats (armor / resistances — dedicated columns) */}
+                <StatFilterSection
+                    title="Other Stats"
+                    fieldKey="otherStats"
+                    rows={filters.otherStats}
+                    options={OTHER_STAT_OPTIONS}
+                    onUpdate={updateStat}
+                    onAdd={addStat}
+                    onRemove={removeStat}
+                />
                 
                 {/* Reset Button */}
                 <div className="pt-2 flex justify-center">

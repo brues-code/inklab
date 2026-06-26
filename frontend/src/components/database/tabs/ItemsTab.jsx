@@ -9,22 +9,6 @@ import {
 } from '../../common/layout'
 import ItemFilters from './ItemFilters'
 
-// Stat ID mappings
-const STAT_IDS = {
-    'stamina': 7,
-    'intellect': 5,
-    'strength': 4,
-    'agility': 3,
-    'spirit': 6,
-    'defense': 12,
-    'dodge': 13,
-    'parry': 14,
-    'block': 15,
-    'hit': 18,
-    'crit': 19,
-    'attack_power': 38,
-}
-
 // Resistance Fields
 const RESISTANCE_FIELDS = {
     'fire_res': 'fireRes',
@@ -191,9 +175,9 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                 return true
             }
 
-            // Check stats array
-            const targetStatId = STAT_IDS[statName]
-            if (!targetStatId && statName !== 'armor') return true // Unknown stat, ignore
+            // Otherwise statName is a stat_type id (from the dynamic dropdown).
+            const targetStatId = parseInt(statName, 10)
+            if (isNaN(targetStatId)) return true // Unknown stat, ignore
 
             // Item stats are in statType1/statValue1 ... statType10/statValue10
             // We need to check all 10 slots

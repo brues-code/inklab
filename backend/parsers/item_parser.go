@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"inklab/backend/database/helpers"
 	"inklab/backend/database/models"
 )
 
@@ -230,14 +231,14 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 		item.Bonding = 3
 	}
 
-	// Extract stats: "+7 Stamina", "+5 Agility"
+	// Extract stats: "+7 Stamina", "+5 Agility". The name->id mapping comes from
+	// the canonical stat names (helpers.StatNames); only the primaries realistically
+	// appear in scraped vanilla tooltips, but reusing the shared map keeps the stat
+	// definitions in one place.
 	statIdx := 1
-	statPatterns := map[string]int{
-		"Stamina":   7,
-		"Intellect": 5,
-		"Spirit":    6,
-		"Agility":   3,
-		"Strength":  4,
+	statPatterns := make(map[string]int, len(helpers.StatNames))
+	for id, name := range helpers.StatNames {
+		statPatterns[name] = id
 	}
 	for statName, statType := range statPatterns {
 		statRegex := regexp.MustCompile(`\+(\d+)\s*` + statName)

@@ -23,6 +23,7 @@ type TooltipData = models.TooltipData
 type ItemClass = models.ItemClass
 type ItemSubClass = models.ItemSubClass
 type InventorySlot = models.InventorySlot
+type StatType = models.StatType
 type ItemDetail = models.ItemDetail
 type CreatureDrop = models.CreatureDrop
 type QuestReward = models.QuestReward

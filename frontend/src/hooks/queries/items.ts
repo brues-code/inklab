@@ -1,11 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from './keys'
 import { BrowseItemsByClassAndSlot } from '../../utils/databaseApi'
-import { GetItemClasses, BrowseItemsByClass } from '../../../wailsjs/go/main/App'
+import { GetItemClasses, BrowseItemsByClass, GetItemStatTypes } from '../../../wailsjs/go/main/App'
 import { GetItemDetail, IsFavorite } from '../../services/api'
 
 export const useItemClasses = () =>
     useQuery({ queryKey: queryKeys.itemClasses, queryFn: GetItemClasses, staleTime: Infinity })
+
+// Stat types present in the item data (id + display name), for the filter's stat
+// dropdown. Static for a session.
+export const useItemStatTypes = () =>
+    useQuery({ queryKey: queryKeys.itemStatTypes, queryFn: GetItemStatTypes, staleTime: Infinity })
 
 type ItemClass = { class: number }
 type ItemSubClass = { subClass: number }

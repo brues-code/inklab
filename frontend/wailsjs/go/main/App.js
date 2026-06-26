@@ -150,6 +150,10 @@ export function GetItemSets() {
   return window['go']['main']['App']['GetItemSets']();
 }
 
+export function GetItemStatTypes() {
+  return window['go']['main']['App']['GetItemStatTypes']();
+}
+
 export function GetLocalImage(arg1, arg2) {
   return window['go']['main']['App']['GetLocalImage'](arg1, arg2);
 }

@@ -199,6 +199,53 @@ func (r *ItemRepository) GetItemClasses() ([]*models.ItemClass, error) {
 	return classes, nil
 }
 
+// GetStatTypes returns the distinct item stat types that actually appear on at
+// least one item, each with its display name from stat_types. This drives the
+// item filter's stat dropdown so it adapts to whatever stats the data uses.
+// Resistances/armor are dedicated columns (not stat_typeN) and are handled
+// separately on the frontend.
+func (r *ItemRepository) GetStatTypes() ([]*models.StatType, error) {
+	rows, err := r.db.Query(`
+		WITH used AS (
+			SELECT stat_type1 AS id FROM item_template WHERE stat_type1 > 0
+			UNION SELECT stat_type2 FROM item_template WHERE stat_type2 > 0
+			UNION SELECT stat_type3 FROM item_template WHERE stat_type3 > 0
+			UNION SELECT stat_type4 FROM item_template WHERE stat_type4 > 0
+			UNION SELECT stat_type5 FROM item_template WHERE stat_type5 > 0
+			UNION SELECT stat_type6 FROM item_template WHERE stat_type6 > 0
+			UNION SELECT stat_type7 FROM item_template WHERE stat_type7 > 0
+			UNION SELECT stat_type8 FROM item_template WHERE stat_type8 > 0
+			UNION SELECT stat_type9 FROM item_template WHERE stat_type9 > 0
+			UNION SELECT stat_type10 FROM item_template WHERE stat_type10 > 0
+		)
+		SELECT used.id, COALESCE(st.name, '')
+		FROM used
+		LEFT JOIN stat_types st ON st.id = used.id
+		ORDER BY used.id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []*models.StatType
+	for rows.Next() {
+		var s models.StatType
+		if err := rows.Scan(&s.ID, &s.Name); err != nil {
+			continue
+		}
+		if s.Name == "" {
+			if n := helpers.GetStatName(s.ID); n != "" {
+				s.Name = n
+			} else {
+				s.Name = fmt.Sprintf("Stat %d", s.ID)
+			}
+		}
+		stats = append(stats, &s)
+	}
+	return stats, nil
+}
+
 // GetItemsByClass returns items filtered by class and subclass
 func (r *ItemRepository) GetItemsByClass(class, subClass int, nameFilter string, limit, offset int) ([]*models.Item, int, error) {
 	// For weapons (class 2), when querying base types, also include the dedicated Two-Handed subclass
@@ -1385,20 +1432,15 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	return detail, nil
 }
 
-// formatStat returns a formatted stat string
+// formatStat returns a formatted stat string. The display name comes from the
+// stat_types table (base stats localized from the client); it falls back to the
+// built-in canonical names, then to a placeholder for unknown ids.
 func (r *ItemRepository) formatStat(statType, value int) string {
-	statNames := map[int]string{
-		0: "Mana", 1: "Health", 3: "Agility", 4: "Strength",
-		5: "Intellect", 6: "Spirit", 7: "Stamina",
-		12: "Defense Rating", 13: "Dodge Rating", 14: "Parry Rating",
-		15: "Shield Block Rating", 16: "Melee Hit Rating", 17: "Ranged Hit Rating",
-		18: "Spell Hit Rating", 19: "Melee Critical Rating", 20: "Ranged Critical Rating",
-		21: "Spell Critical Rating", 35: "Resilience Rating", 36: "Haste Rating",
-		37: "Expertise Rating", 38: "Attack Power", 39: "Ranged Attack Power",
-		41: "Spell Healing", 42: "Spell Damage", 43: "Mana Regeneration",
-		44: "Armor Penetration Rating", 45: "Spell Power",
+	var name string
+	r.db.QueryRow("SELECT name FROM stat_types WHERE id = ?", statType).Scan(&name)
+	if name == "" {
+		name = helpers.GetStatName(statType)
 	}
-	name := statNames[statType]
 	if name == "" {
 		name = fmt.Sprintf("Unknown Stat %d", statType)
 	}

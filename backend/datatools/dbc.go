@@ -114,6 +114,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"locks", "locks.json"},
 		{"classes", "classes.json"},
 		{"spellschools", "spell_schools.json"},
+		{"itemmods", "stat_names.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -153,6 +154,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genClasses(cf)
 	case "spellschools":
 		v, err = genSpellSchools(cf)
+	case "itemmods":
+		v, err = genItemMods(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -330,6 +333,44 @@ func genSpellSchools(cf ClientFiles) (interface{}, error) {
 			continue
 		}
 		out = append(out, map[string]interface{}{"id": id, "name": m[2]})
+	}
+	return out, nil
+}
+
+// spellStatNameRe matches the character-sheet stat names in GlobalStrings.lua,
+// e.g. SPELL_STAT0_NAME = "Strength". These are the only clean (un-templated)
+// stat names the 1.12 client exposes.
+var spellStatNameRe = regexp.MustCompile(`SPELL_STAT(\d+)_NAME\s*=\s*"([^"]*)"`)
+
+// spellStatToItemMod maps the SPELL_STATn_NAME index to its item stat_type id
+// (the ITEM_MOD enum): 0 Strength, 1 Agility, 2 Stamina, 3 Intellect, 4 Spirit.
+// The ordering differs from the stat_type ids, so the mapping is explicit.
+var spellStatToItemMod = []int{4, 3, 7, 5, 6}
+
+// genItemMods reads the base item-stat display names from the client's
+// FrameXML/GlobalStrings.lua, keyed by item stat_type id. Only the five primary
+// stats have client strings in 1.12 (via SPELL_STATn_NAME); the secondary/rating
+// stats aren't in the client and keep their built-in names (helpers.StatNames).
+// Best-effort: returns an empty set if the file isn't present.
+func genItemMods(cf ClientFiles) (interface{}, error) {
+	var b []byte
+	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\GlobalStrings.lua`, `Interface\FrameXML\GlobalStrings.lua`} {
+		if data, err := cf.ReadFile(p); err == nil {
+			b = data
+			break
+		}
+	}
+	out := make([]map[string]interface{}, 0, len(spellStatToItemMod))
+	if b == nil {
+		fmt.Printf("[dbc] item mods skipped: GlobalStrings.lua not found\n")
+		return out, nil
+	}
+	for _, m := range spellStatNameRe.FindAllStringSubmatch(string(b), -1) {
+		idx, err := strconv.Atoi(m[1])
+		if err != nil || idx < 0 || idx >= len(spellStatToItemMod) {
+			continue
+		}
+		out = append(out, map[string]interface{}{"id": spellStatToItemMod[idx], "name": m[2]})
 	}
 	return out, nil
 }

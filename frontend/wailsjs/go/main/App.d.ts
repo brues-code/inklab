@@ -78,6 +78,8 @@ export function GetItemSetDetail(arg1:number):Promise<models.ItemSetDetail>;
 
 export function GetItemSets():Promise<Array<models.ItemSetBrowse>>;
 
+export function GetItemStatTypes():Promise<Array<models.StatType>>;
+
 export function GetLocalImage(arg1:string,arg2:string):Promise<main.ImageResult>;
 
 export function GetLoot(arg1:string,arg2:string,arg3:string):Promise<main.LegacyBossLoot>;

@@ -361,6 +361,31 @@ func GetTriggerPrefix(trigger int) string {
 	}
 }
 
+// StatNames is the canonical item stat_type -> display name map (the ITEM_MOD
+// enum). It's the single source of truth for stat names across the app: the
+// stat_types table is seeded from it, then the base stats (Strength, Agility,
+// Stamina, Intellect, Spirit) are overlaid with the client's localized names at
+// import time. The secondary/rating stats (12+) have no string in the 1.12
+// client, so their English names live here and stay built-in.
+var StatNames = map[int]string{
+	0: "Mana", 1: "Health", 3: "Agility", 4: "Strength",
+	5: "Intellect", 6: "Spirit", 7: "Stamina",
+	12: "Defense Rating", 13: "Dodge Rating", 14: "Parry Rating",
+	15: "Shield Block Rating", 16: "Melee Hit Rating", 17: "Ranged Hit Rating",
+	18: "Spell Hit Rating", 19: "Melee Critical Rating", 20: "Ranged Critical Rating",
+	21: "Spell Critical Rating", 35: "Resilience Rating", 36: "Haste Rating",
+	37: "Expertise Rating", 38: "Attack Power", 39: "Ranged Attack Power",
+	41: "Spell Healing", 42: "Spell Damage", 43: "Mana Regeneration",
+	44: "Armor Penetration Rating", 45: "Spell Power",
+}
+
+// GetStatName returns the canonical (built-in English) name for a stat_type id,
+// or "" if unknown. Runtime callers should prefer the stat_types table (which
+// may carry localized base-stat names); this is the fallback/seed source.
+func GetStatName(statType int) string {
+	return StatNames[statType]
+}
+
 // GetSchoolName returns the magic school name for damage types
 func GetSchoolName(school int) string {
 	switch school {

@@ -62,6 +62,17 @@ func (a *App) GetItemClasses() []*database.ItemClass {
 	return classes
 }
 
+// GetItemStatTypes returns the stat types present in the item data, with display
+// names, for the filter's stat dropdown.
+func (a *App) GetItemStatTypes() []*database.StatType {
+	stats, err := a.itemRepo.GetStatTypes()
+	if err != nil {
+		fmt.Printf("[API] Error getting stat types: %v\n", err)
+		return []*database.StatType{}
+	}
+	return stats
+}
+
 // BrowseItemsByClass returns items for a specific class/subclass
 func (a *App) BrowseItemsByClass(class, subClass int, nameFilter string) []*database.Item {
 	fmt.Printf("[API] BrowseItemsByClass called: class=%d, subClass=%d, filter='%s'\n", class, subClass, nameFilter)

@@ -248,6 +248,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportLocks(filepath.Join(a.DataDir, "locks.json"))
 	_ = gen.ImportClasses(filepath.Join(a.DataDir, "classes.json"))
 	_ = gen.ImportSpellSchools(filepath.Join(a.DataDir, "spell_schools.json"))
+	_ = gen.ImportStatNames(filepath.Join(a.DataDir, "stat_names.json"))
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}

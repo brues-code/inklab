@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"inklab/backend/database/helpers"
 )
 
 type GeneratedImporter struct {
@@ -409,6 +411,57 @@ func (i *GeneratedImporter) ImportSpellSchools(jsonPath string) error {
 		return err
 	}
 	fmt.Printf("  ✓ Imported %d spell schools\n", n)
+	return nil
+}
+
+// statTypeJSON mirrors an entry in data/stat_names.json (GlobalStrings.lua).
+type statTypeJSON struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// ImportStatNames populates stat_types (item stat_type id -> display name). It
+// always seeds the full canonical set (helpers.StatNames) so every stat resolves
+// even without a client import, then overlays the base stats with the client's
+// localized names from stat_names.json when present.
+func (i *GeneratedImporter) ImportStatNames(jsonPath string) error {
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM stat_types")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO stat_types (id, name) VALUES (?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	// 1. Built-in canonical names (covers the rating stats with no client string).
+	for id, name := range helpers.StatNames {
+		stmt.Exec(id, name)
+	}
+	// 2. Overlay the client's localized base-stat names (optional file).
+	overlaid := 0
+	if data, err := os.ReadFile(jsonPath); err == nil {
+		var stats []statTypeJSON
+		if err := json.Unmarshal(data, &stats); err != nil {
+			fmt.Printf("  ERROR parsing stat_names.json: %v\n", err)
+		} else {
+			for _, s := range stats {
+				if s.Name == "" {
+					continue
+				}
+				if _, err := stmt.Exec(s.ID, s.Name); err == nil {
+					overlaid++
+				}
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported stat types (%d client-localized)\n", overlaid)
 	return nil
 }
 
