@@ -1,4 +1,4 @@
-import { useState, useCallback, type MouseEvent, type CSSProperties } from 'react'
+import { useState, useCallback, type MouseEvent } from 'react'
 import { queryClient } from '../queryClient'
 
 /** Fetch one item's tooltip payload from the backend. */
@@ -42,44 +42,16 @@ export function useItemTooltip() {
         queryClient.invalidateQueries({ queryKey: ['tooltip', itemId] })
     }, [])
 
-    // Handle mouse move - update tooltip position following mouse
+    // Anchor the tooltip below-right of the cursor (and never over the hovered
+    // row). Keeping-on-screen is left to the renderer, which measures the
+    // tooltip's REAL size — so a short tooltip near the page bottom isn't pinned
+    // into the top by a guessed height.
     const handleMouseMove = useCallback((e: MouseEvent<HTMLElement>, itemId: number) => {
-        const lootContainer = e.currentTarget.closest('.loot')
-        const containerRect = lootContainer
-            ? lootContainer.getBoundingClientRect()
-            : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight }
         const itemRect = e.currentTarget.getBoundingClientRect()
-
-        // Tooltip dimensions
-        const tooltipWidth = 320
-        const tooltipHeight = 400
-
-        // Position tooltip to the right and below the cursor
-        let left = e.clientX + 15
-        let top = e.clientY + 15
-
-        // Don't let tooltip cover the item row - keep it below the item
-        if (top < itemRect.bottom + 5) {
-            top = itemRect.bottom + 5
-        }
-
-        // Keep within container bounds - horizontal
-        if (left + tooltipWidth > containerRect.right - 10) {
-            left = e.clientX - tooltipWidth - 15
-        }
-        if (left < containerRect.left + 10) {
-            left = containerRect.left + 10
-        }
-
-        // Keep within container bounds - vertical
-        if (top + tooltipHeight > containerRect.bottom - 10) {
-            top = containerRect.bottom - tooltipHeight - 10
-        }
-        if (top < containerRect.top + 10) {
-            top = containerRect.top + 10
-        }
-
-        setTooltipPos({ top, left })
+        setTooltipPos({
+            left: e.clientX + 15,
+            top: Math.max(e.clientY + 15, itemRect.bottom + 5),
+        })
         setHoveredItem(itemId)
     }, [])
 
@@ -100,14 +72,6 @@ export function useItemTooltip() {
         onMouseLeave: handleItemLeave,
     }), [handleItemEnter, handleMouseMove, handleItemLeave])
 
-    // Get styles for the tooltip container
-    const getTooltipStyle = useCallback((): CSSProperties => ({
-        position: 'fixed',
-        left: tooltipPos.left,
-        top: tooltipPos.top,
-        zIndex: 10000,
-    }), [tooltipPos])
-
     return {
         hoveredItem,
         setHoveredItem,
@@ -118,7 +82,6 @@ export function useItemTooltip() {
         handleItemEnter,
         handleItemLeave,
         getItemHandlers,
-        getTooltipStyle,
     }
 }
 
