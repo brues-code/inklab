@@ -108,7 +108,7 @@ function TalentIcon({ icon }) {
 
 // ---- tooltip ----------------------------------------------------------------
 
-function TalentTooltip({ talent, rank, reqText, x, y }) {
+function TalentTooltip({ talent, rank, reqText, available, x, y }) {
     if (!talent) return null
     const shown = rank > 0 ? rank : 1
     const rankDesc = talent.ranks?.[shown - 1]?.description || ''
@@ -135,7 +135,7 @@ function TalentTooltip({ talent, rank, reqText, x, y }) {
                 </div>
             )}
             {reqText && <div className="mt-1.5 text-red-400 whitespace-pre-line">{reqText}</div>}
-            {!reqText && rank === 0 && (
+            {!reqText && rank < talent.maxRank && available && (
                 <div className="mt-1.5 text-emerald-400/80 text-xs">Click to learn</div>
             )}
         </div>
@@ -549,6 +549,7 @@ function TalentsPage() {
                     talent={tip.talent}
                     rank={points[tip.talent.id] || 0}
                     reqText={reqTextFor(tip.tree, points, tip.talent)}
+                    available={totalSpent < MAX_POINTS}
                     x={tip.x}
                     y={tip.y}
                 />
