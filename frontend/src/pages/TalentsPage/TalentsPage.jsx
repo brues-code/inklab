@@ -396,8 +396,10 @@ function TalentsPage() {
                 }
             })
             setClassMap({ byId, byClass })
-            setClasses(arr) // {class, classId, name, color}, in client order
-            if (arr.length && !selected) setSelected(arr[0].class)
+            // {class, classId, name, color}, sorted alphabetically by name.
+            const sorted = [...arr].sort((a, b) => (a.name || a.class).localeCompare(b.name || b.class))
+            setClasses(sorted)
+            if (sorted.length && !selected) setSelected(sorted[0].class)
         })
     }, [])
 
