@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { GetAllFavorites, GetFavoriteCategories, RemoveFavorite, UpdateFavoriteStatus } from '../../services/api';
+import { RemoveFavorite, UpdateFavoriteStatus } from '../../services/api';
 import { getQualityColor } from '../../utils/wow';
 import { useIcon } from '../../services/useImage';
 import { ItemTooltip } from '../../components/ui';
 import { useEntityNavigate } from '../../utils/entityNav';
 import { tooltipQuery } from '../../hooks/queries/tooltip';
+import { useFavorites, useFavoriteCategories } from '../../hooks/queries/favorites';
+import { queryKeys } from '../../hooks/queries/keys';
 import { queryClient } from '../../queryClient';
 
 // Simple item card for favorites
@@ -130,8 +132,8 @@ const FavoritesPage = () => {
     const entityNavigate = useEntityNavigate();
     const [activeCategory, setActiveCategory] = useState('All');
 
-    const favoritesQuery = useQuery({ queryKey: ['favorites'], queryFn: GetAllFavorites });
-    const categoriesQuery = useQuery({ queryKey: ['favoriteCategories'], queryFn: GetFavoriteCategories });
+    const favoritesQuery = useFavorites();
+    const categoriesQuery = useFavoriteCategories();
 
     const favorites = favoritesQuery.data || [];
     const categories = categoriesQuery.data || [];
@@ -145,14 +147,14 @@ const FavoritesPage = () => {
     const handleRemove = async (entry) => {
         if (window.confirm("Remove this item from favorites?")) {
             await RemoveFavorite(entry);
-            queryClient.invalidateQueries({ queryKey: ['favorites'] });
-            queryClient.invalidateQueries({ queryKey: ['favoriteCategories'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.favorites });
+            queryClient.invalidateQueries({ queryKey: queryKeys.favoriteCategories });
         }
     };
 
     const handleStatusChange = async (entry, newStatus) => {
         // Optimistic update written straight into the cache.
-        queryClient.setQueryData(['favorites'], (prev) =>
+        queryClient.setQueryData(queryKeys.favorites, (prev) =>
             (prev || []).map(item => (item.itemEntry === entry ? { ...item, status: newStatus } : item))
         );
         await UpdateFavoriteStatus(entry, newStatus);

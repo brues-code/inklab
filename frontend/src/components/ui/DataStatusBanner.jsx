@@ -1,9 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-
-// Wails binding (guarded — absent in non-app/test contexts).
-const GetDataStatus = () =>
-    window?.go?.main?.App?.GetDataStatus ? window.go.main.App.GetDataStatus() : Promise.resolve(null)
+import { useDataStatus } from '../../hooks/queries/app'
 
 // DataStatusBanner alerts app-wide when InkLab has no locally-built image data
 // (icons / zone maps). These ship empty and are built from the user's WoW
@@ -17,7 +13,7 @@ export function DataStatusBanner({ onGoToTools }) {
     const [dismissed, setDismissed] = useState(false)
 
     // One-shot data-presence check, cached for the session.
-    const { data: status } = useQuery({ queryKey: ['dataStatus'], queryFn: GetDataStatus, staleTime: Infinity })
+    const { data: status } = useDataStatus()
     const missing = [
         status?.icons === 0 && 'icons',
         status?.maps === 0 && 'zone maps',

@@ -1,11 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useChildMatches } from "@tanstack/react-router";
-import {
-  GetCategories,
-  GetInstances,
-  GetTables,
-} from "../../../wailsjs/go/main/App";
 import {
   PageLayout,
   ContentGrid,
@@ -18,14 +12,7 @@ import {
 } from "../../components/ui";
 import { useTooltipCtx } from "../../hooks/useTooltipContext";
 import { filterItems } from "../../utils/databaseApi";
-
-// Direct call to GetLoot - using window binding
-const GetLoot = (category, instance, boss) => {
-  if (window?.go?.main?.App?.GetLoot) {
-    return window.go.main.App.GetLoot(category, instance, boss);
-  }
-  return Promise.resolve({ bossName: boss, items: [] });
-};
+import { useAtlasCategories, useAtlasModules, useAtlasTables, useAtlasLoot } from "../../hooks/queries/atlas";
 
 // Categories that use 3-level hierarchy (Category → Instance → Boss)
 const THREE_LEVEL_CATEGORIES = ["Dungeons", "Raids", "Collections", "Sets", "Crafting", "PvP", "PvP Rewards"];
@@ -56,21 +43,10 @@ function AtlasLootPage() {
   // Shared app-wide tooltip (single instance lives at the router root).
   const { setHoveredItem, handleMouseMove, handleItemEnter } = useTooltipCtx();
 
-  // Cascading data via Query, keyed by selection. Categories are static for a
-  // session; modules/tables key by their parent; loot keys by the full path.
-  const categoriesQuery = useQuery({ queryKey: ["atlasCategories"], queryFn: GetCategories, staleTime: Infinity });
-  const modulesQuery = useQuery({
-    queryKey: ["atlasModules", selectedCategory],
-    queryFn: () => GetInstances(selectedCategory),
-    enabled: !!selectedCategory,
-    staleTime: Infinity,
-  });
-  const tablesQuery = useQuery({
-    queryKey: ["atlasTables", selectedCategory, selectedModule],
-    queryFn: () => GetTables(selectedCategory, selectedModule),
-    enabled: !!(selectedCategory && selectedModule),
-    staleTime: Infinity,
-  });
+  // Cascading data via domain query hooks, keyed by selection.
+  const categoriesQuery = useAtlasCategories();
+  const modulesQuery = useAtlasModules(selectedCategory, !!selectedCategory);
+  const tablesQuery = useAtlasTables(selectedCategory, selectedModule, !!(selectedCategory && selectedModule));
 
   const categories = categoriesQuery.data || [];
   const modules = modulesQuery.data || [];
@@ -86,11 +62,12 @@ function AtlasLootPage() {
     ? tableKeyOf(tables[0])
     : "";
 
-  const lootQuery = useQuery({
-    queryKey: ["atlasLoot", selectedCategory, selectedModule, effectiveTable],
-    queryFn: () => GetLoot(selectedCategory, selectedModule, effectiveTable),
-    enabled: !!(selectedCategory && selectedModule && effectiveTable),
-  });
+  const lootQuery = useAtlasLoot(
+    selectedCategory,
+    selectedModule,
+    effectiveTable,
+    !!(selectedCategory && selectedModule && effectiveTable)
+  );
   const loot = lootQuery.data || null;
 
   // Selection handlers reset everything below the chosen level (no effects).

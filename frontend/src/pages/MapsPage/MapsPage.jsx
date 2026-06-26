@@ -1,16 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useImage, useIcon } from '../../services/useImage'
-
-// Direct Wails bindings (codebase convention for app methods).
-const GetFlightContinents = () =>
-    window?.go?.main?.App?.GetFlightContinents ? window.go.main.App.GetFlightContinents() : Promise.resolve([])
-const GetFlightData = (mapId) =>
-    window?.go?.main?.App?.GetFlightData ? window.go.main.App.GetFlightData(mapId) : Promise.resolve(null)
-const GetWorldData = () =>
-    window?.go?.main?.App?.GetWorldData ? window.go.main.App.GetWorldData() : Promise.resolve(null)
-const GetZoneData = (mapId, zone) =>
-    window?.go?.main?.App?.GetZoneData ? window.go.main.App.GetZoneData(mapId, zone) : Promise.resolve(null)
+import { useFlightContinents, useFlightMap, useFlightZone } from '../../hooks/queries/maps'
 
 // Faction colors.
 const C_ALLIANCE = '#3b82f6'
@@ -134,16 +124,11 @@ function MapsPage() {
 
     const isWorld = view === 'world'
 
-    const continentsQuery = useQuery({ queryKey: ['flightContinents'], queryFn: GetFlightContinents, staleTime: Infinity })
+    const continentsQuery = useFlightContinents()
     const continents = continentsQuery.data || []
 
-    // One query per view (world overview or a continent's flight data), keyed by
-    // view so switching tabs swaps the cache entry and revisiting is instant.
-    const mapDataQuery = useQuery({
-        queryKey: ['flightMap', view],
-        queryFn: () => (isWorld ? GetWorldData() : GetFlightData(view)),
-        staleTime: Infinity,
-    })
+    // One query per view (world overview or a continent's flight data).
+    const mapDataQuery = useFlightMap(view)
     const worldData = isWorld ? mapDataQuery.data : null
     const contData = isWorld ? null : mapDataQuery.data
     const loading = mapDataQuery.isLoading
@@ -409,10 +394,7 @@ function ZoneView({ mapId, zoneKey, backLabel, onBack }) {
     const [hover, setHover] = useState(null)
     const { src } = useImage('zone_map', zoneKey)
 
-    const { data, isLoading: loading } = useQuery({
-        queryKey: ['zoneData', mapId, zoneKey],
-        queryFn: () => GetZoneData(mapId, zoneKey),
-    })
+    const { data, isLoading: loading } = useFlightZone(mapId, zoneKey)
 
     const nodes = data?.nodes || []
     return (
