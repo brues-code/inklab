@@ -262,6 +262,13 @@ func CoreSchema() string {
 		name TEXT NOT NULL
 	);
 
+	-- Player classes (ChrClasses.dbc): id -> display name + token.
+	CREATE TABLE IF NOT EXISTS class_info (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		token TEXT DEFAULT ''
+	);
+
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
 	-- px/py are 0-100 percentages on the node's continent overview map.
 	CREATE TABLE IF NOT EXISTS taxi_node (

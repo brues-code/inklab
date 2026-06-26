@@ -295,6 +295,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportLocks(filepath.Join(dataDir, "locks.json")); err != nil {
 		fmt.Printf("⚠️ Lock import failed: %v\n", err)
 	}
+	if err := gen.ImportClasses(filepath.Join(dataDir, "classes.json")); err != nil {
+		fmt.Printf("⚠️ Class import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }

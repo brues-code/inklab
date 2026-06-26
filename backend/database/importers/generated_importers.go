@@ -318,6 +318,53 @@ func (i *GeneratedImporter) ImportCreatureFamilies(jsonPath string) error {
 	return nil
 }
 
+// classJSON mirrors an entry in data/classes.json (ChrClasses.dbc).
+type classJSON struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name_loc0"`
+	Token string `json:"token"`
+}
+
+// ImportClasses loads ChrClasses.dbc (id -> display name + token) into
+// class_info, so class names come from game data rather than being derived from
+// tokens. Existing rows are replaced so a re-import refreshes the data.
+func (i *GeneratedImporter) ImportClasses(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var classes []classJSON
+	if err := json.Unmarshal(data, &classes); err != nil {
+		fmt.Printf("  ERROR parsing classes.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM class_info")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO class_info (id, name, token) VALUES (?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, c := range classes {
+		if c.Name == "" {
+			continue
+		}
+		if _, err := stmt.Exec(c.ID, c.Name, c.Token); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d classes\n", n)
+	return nil
+}
+
 // lockJSON mirrors an entry in data/locks.json (Lock.dbc, first 5 slots).
 type lockJSON struct {
 	ID    int `json:"id"`

@@ -536,6 +536,22 @@ func (r *ItemRepository) GetItemSets() ([]*models.ItemSetBrowse, error) {
 		er.Close()
 	}
 
+	// Derive each set's class restriction from its items' allowable_class.
+	// allowable_class is a class bitmask (same bits as class_mask); -1/0 or
+	// "all real classes set" means unrestricted. OR the restricted bits across a
+	// set's items so a class-specific set (e.g. Tier pieces) carries that class.
+	const classAll = 1503 // 1+2+4+8+16+64+128+256+1024 (the 9 playable classes)
+	classMaskBySet := map[int]int{}
+	if cr, e := r.db.Query("SELECT set_id, allowable_class FROM item_template WHERE set_id > 0"); e == nil {
+		for cr.Next() {
+			var sid, ac int
+			if cr.Scan(&sid, &ac) == nil && ac > 0 && (ac&classAll) != classAll {
+				classMaskBySet[sid] |= ac & classAll
+			}
+		}
+		cr.Close()
+	}
+
 	var sets []*models.ItemSetBrowse
 	for rows.Next() {
 		set := &models.ItemSetBrowse{}
@@ -563,6 +579,7 @@ func (r *ItemRepository) GetItemSets() ([]*models.ItemSetBrowse, error) {
 			continue
 		}
 
+		set.ClassMask = classMaskBySet[set.ItemSetID]
 		sets = append(sets, set)
 	}
 

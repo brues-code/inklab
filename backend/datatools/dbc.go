@@ -110,6 +110,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"taxi", "taxi.json"},
 		{"creaturefamilies", "creature_families.json"},
 		{"locks", "locks.json"},
+		{"classes", "classes.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -145,6 +146,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genCreatureFamilies(cf)
 	case "locks":
 		v, err = genLocks(cf)
+	case "classes":
+		v, err = genClasses(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -246,6 +249,22 @@ func genLocks(cf ClientFiles) (interface{}, error) {
 			m[fmt.Sprintf("req%d", i)] = d.U32(r, 16+i)
 		}
 		out = append(out, m)
+	}
+	return out, nil
+}
+
+// ChrClasses.dbc (17 fields): id(0), name_loc[8](5-12, enUS at 5), token(14).
+// Provides the player class display names ("Warrior", …) from game data.
+func genClasses(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "ChrClasses.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{
+			"id": d.U32(r, 0), "name_loc0": d.Str(r, 5), "token": d.Str(r, 14),
+		})
 	}
 	return out, nil
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem } from '../../ui'
-import { GetItemSets, GetItemSetDetail, filterItems } from '../../../utils/databaseApi'
+import { GetItemSets, GetItemSetDetail, GetTalentClasses, filterItems } from '../../../utils/databaseApi'
 
 function SetsTab({ tooltipHook }) {
     const [itemSets, setItemSets] = useState([])
@@ -8,8 +8,14 @@ function SetsTab({ tooltipHook }) {
     const [setDetail, setSetDetail] = useState(null)
     const [loading, setLoading] = useState(false)
 
+    const [classFilter, setClassFilter] = useState('')
     const [setFilter, setSetFilter] = useState('')
     const [itemFilter, setItemFilter] = useState('')
+
+    // First column: playable classes, each with its allowable_class bit
+    // (1<<(id-1)). bit 0 = "All Classes".
+    const [classOptions, setClassOptions] = useState([])
+    const [classBit, setClassBit] = useState(0)
 
     const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove, tooltipCache } = tooltipHook
 
@@ -19,12 +25,25 @@ function SetsTab({ tooltipHook }) {
         GetItemSets()
             .then(sets => {
                 setItemSets(sets || [])
+                setSelectedSet((sets || [])[0] || null) // default to the first set
                 setLoading(false)
             })
             .catch(err => {
                 console.error("Failed to load item sets:", err)
                 setLoading(false)
             })
+    }, [])
+
+    // Load classes for the filter; name comes from game data (ChrClasses.dbc),
+    // bit = 1 << (classId - 1) to match items' allowable_class.
+    useEffect(() => {
+        GetTalentClasses().then(list => {
+            setClassOptions(
+                (list || [])
+                    .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1) }))
+                    .sort((a, b) => a.name.localeCompare(b.name))
+            )
+        })
     }, [])
 
     // Load set detail when a set is selected
@@ -51,17 +70,68 @@ function SetsTab({ tooltipHook }) {
         }
     }, [selectedSet])
 
-    const filteredItemSets = useMemo(() => filterItems(itemSets, setFilter), [itemSets, setFilter])
+    // Class filter: a set matches when its derived classMask has the bit set.
+    // Unrestricted sets (classMask 0) only show under "All".
+    const classFilteredSets = useMemo(
+        () => classBit === 0 ? itemSets : itemSets.filter(s => (s.classMask & classBit) !== 0),
+        [itemSets, classBit]
+    )
+    const filteredItemSets = useMemo(() => filterItems(classFilteredSets, setFilter), [classFilteredSets, setFilter])
     const filteredSetItems = useMemo(() => {
         if (!setDetail?.items) return []
         return filterItems(setDetail.items, itemFilter)
     }, [setDetail, itemFilter])
 
+    // Per-class set counts for the first column.
+    const countForBit = (bit) =>
+        bit === 0 ? itemSets.length : itemSets.filter(s => (s.classMask & bit) !== 0).length
+    const filteredClasses = useMemo(() => filterItems(classOptions, classFilter), [classOptions, classFilter])
+
+    // First set of a class's list (bit 0 = all), used to default the selection.
+    const firstSetForClass = (bit) => {
+        const list = bit === 0 ? itemSets : itemSets.filter(s => (s.classMask & bit) !== 0)
+        return list[0] || null
+    }
+
+    // Selecting a class resets the set filter and defaults to its first set, so
+    // the detail panel always shows something.
+    const selectClass = (bit) => {
+        setClassBit(bit)
+        setSetFilter('')
+        setItemFilter('')
+        setSelectedSet(firstSetForClass(bit))
+    }
+
     return (
         <>
-            {/* Sets List */}
+            {/* Classes (1st column) */}
             <SidebarPanel>
-                <SectionHeader 
+                <SectionHeader
+                    title="Classes"
+                    placeholder="Filter classes..."
+                    onFilterChange={setClassFilter}
+                />
+                <ScrollList>
+                    <ListItem active={classBit === 0} onClick={() => selectClass(0)}>
+                        <span className="flex justify-between w-full">
+                            <span>All Classes</span>
+                            <span className="text-gray-600 text-xs">({countForBit(0)})</span>
+                        </span>
+                    </ListItem>
+                    {filteredClasses.map(c => (
+                        <ListItem key={c.bit} active={classBit === c.bit} onClick={() => selectClass(c.bit)}>
+                            <span className="flex justify-between w-full">
+                                <span>{c.name}</span>
+                                <span className="text-gray-600 text-xs">({countForBit(c.bit)})</span>
+                            </span>
+                        </ListItem>
+                    ))}
+                </ScrollList>
+            </SidebarPanel>
+
+            {/* Item Sets (2nd column) */}
+            <SidebarPanel>
+                <SectionHeader
                     title={`Item Sets (${filteredItemSets.length})`}
                     placeholder="Filter sets..."
                     onFilterChange={setSetFilter}

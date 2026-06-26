@@ -10,7 +10,8 @@ export const GRID_LAYOUT_NO_FILTER = "180px 180px 1fr";
 // Grid column layout for Items tab (5 columns: Class, SubClass, Slot, Filters, List)
 export const ITEMS_LAYOUT = "180px 180px 180px 300px 1fr";
 export const ITEMS_LAYOUT_NO_FILTER = "180px 180px 180px 1fr";
-export const SETS_LAYOUT = "300px 1fr";
+// Sets tab: Class | Item Sets | Set detail
+export const SETS_LAYOUT = "170px 300px 1fr";
 
 
 // Individual column widths (for reference or future use)

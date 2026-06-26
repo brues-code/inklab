@@ -409,6 +409,7 @@ export namespace main {
 	export class TalentClassInfo {
 	    class: string;
 	    classId: number;
+	    name?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TalentClassInfo(source);
@@ -418,6 +419,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.class = source["class"];
 	        this.classId = source["classId"];
+	        this.name = source["name"];
 	    }
 	}
 	
@@ -1726,6 +1728,7 @@ export namespace models {
 	    itemCount: number;
 	    skillId: number;
 	    skillLevel: number;
+	    classMask: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemSetBrowse(source);
@@ -1739,6 +1742,7 @@ export namespace models {
 	        this.itemCount = source["itemCount"];
 	        this.skillId = source["skillId"];
 	        this.skillLevel = source["skillLevel"];
+	        this.classMask = source["classMask"];
 	    }
 	}
 	export class SetBonus {

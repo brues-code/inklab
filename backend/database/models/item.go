@@ -295,6 +295,9 @@ type ItemSetBrowse struct {
 	ItemCount  int    `json:"itemCount"`
 	SkillID    int    `json:"skillId"`
 	SkillLevel int    `json:"skillLevel"`
+	// ClassMask is the class restriction derived from the set's items'
+	// allowable_class (class bits, same as class_mask). 0 = no restriction.
+	ClassMask int `json:"classMask"`
 }
 
 // ItemSetDetail includes items with their details

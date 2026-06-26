@@ -65,6 +65,14 @@ export const GetItemSetDetail = (itemSetId: number) => {
     return Promise.resolve(null)
 }
 
+// Playable classes with their WoW class ids (reused for the item-set class filter)
+export const GetTalentClasses = () => {
+    if (window?.go?.main?.App?.GetTalentClasses) {
+        return window.go.main.App.GetTalentClasses()
+    }
+    return Promise.resolve([])
+}
+
 // Creature/NPC APIs
 export const GetCreatureTypes = () => {
     if (window?.go?.main?.App?.GetCreatureTypes) {

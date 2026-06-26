@@ -49,16 +49,32 @@ type TalentClassData struct {
 // from the TalentTab class_mask (a single class bit) — classId = bit index + 1
 // — so it comes from the client DBC, not a hardcoded table.
 type TalentClassInfo struct {
-	Class   string `json:"class"`
-	ClassID int    `json:"classId"`
+	Class   string `json:"class"`            // token, e.g. "WARRIOR"
+	ClassID int    `json:"classId"`          // WoW class id
+	Name    string `json:"name,omitempty"`   // display name from ChrClasses.dbc
 }
 
 // GetTalentClasses returns the classes that have talent trees with their class
-// ids, ordered by the conventional class order (the order trees were exported in).
+// ids and display names, ordered by the conventional class order (the order
+// trees were exported in). The display name comes from ChrClasses.dbc
+// (class_info), not derived from the token.
 func (a *App) GetTalentClasses() []TalentClassInfo {
 	if a.db == nil {
 		return nil
 	}
+	// id -> display name from the client DBC.
+	nameByID := map[int]string{}
+	if cr, err := a.db.DB().Query("SELECT id, name FROM class_info"); err == nil {
+		for cr.Next() {
+			var id int
+			var name string
+			if cr.Scan(&id, &name) == nil {
+				nameByID[id] = name
+			}
+		}
+		cr.Close()
+	}
+
 	rows, err := a.db.DB().Query("SELECT class, MAX(class_mask) AS mask, MIN(id) AS o FROM talent_tab GROUP BY class ORDER BY o")
 	if err != nil {
 		return nil
@@ -73,7 +89,7 @@ func (a *App) GetTalentClasses() []TalentClassInfo {
 			if mask > 0 {
 				id = bits.TrailingZeros32(uint32(mask)) + 1
 			}
-			out = append(out, TalentClassInfo{Class: class, ClassID: id})
+			out = append(out, TalentClassInfo{Class: class, ClassID: id, Name: nameByID[id]})
 		}
 	}
 	return out
