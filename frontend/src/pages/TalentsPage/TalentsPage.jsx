@@ -144,6 +144,18 @@ function TalentTooltip({ talent, rank, reqText, x, y }) {
 
 // ---- one talent tree --------------------------------------------------------
 
+// Node border by state: gold = maxed, green = takeable/has points, grey = locked.
+const NODE_BORDER = {
+    gold: 'border-[#ffd100] shadow-[0_0_8px_rgba(255,209,0,0.55)]',
+    green: 'border-emerald-400',
+    grey: 'border-zinc-700',
+}
+const BADGE_TEXT = {
+    gold: 'text-[#ffd100]',
+    green: 'text-emerald-300',
+    grey: 'text-zinc-400',
+}
+
 function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, onLeave }) {
     const { src: bg } = useImage('talent_bg', tree.background)
 
@@ -155,16 +167,21 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
 
     const nodeState = (t) => {
         const rank = points[t.id] || 0
-        const open = tierOpen(tree, points, t)
-        const ok = prereqMet(points, t)
-        const canInc = rank < t.maxRank && totalSpent < MAX_POINTS && open && ok
-        let cls
-        if (rank >= t.maxRank) cls = 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)]'
-        else if (rank > 0) cls = 'border-yellow-400'
-        else if (canInc) cls = 'border-zinc-300/80'
-        else cls = 'border-zinc-700'
-        const locked = rank === 0 && !canInc
-        return { rank, canInc, locked, cls }
+        const maxed = rank >= t.maxRank
+        const reachable = tierOpen(tree, points, t) && prereqMet(points, t)
+        const available = totalSpent < MAX_POINTS
+        const canInc = !maxed && available && reachable
+
+        // gold: maxed · green: has points, or empty-but-takeable · grey: rest
+        let color
+        if (maxed) color = 'gold'
+        else if (rank > 0 || (available && reachable)) color = 'green'
+        else color = 'grey'
+
+        // Show "x/max" only when the talent has points or you still have points
+        // left to spend; an empty talent shows nothing once your pool is spent.
+        const showNumbers = rank > 0 || available
+        return { rank, canInc, color, showNumbers, dim: color === 'grey' }
     }
 
     // Arrows from each prerequisite to its dependent talent.
@@ -251,19 +268,19 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
                             }}
                         >
                             <div
-                                className={`w-full h-full rounded-sm border-2 ${st.cls} overflow-hidden cursor-pointer transition-shadow ${
-                                    st.locked ? 'opacity-50 grayscale' : ''
+                                className={`w-full h-full rounded-sm border-2 ${NODE_BORDER[st.color]} overflow-hidden cursor-pointer transition-shadow ${
+                                    st.dim ? 'opacity-50 grayscale' : ''
                                 }`}
                             >
                                 <TalentIcon icon={t.icon} />
                             </div>
-                            <div
-                                className={`absolute -bottom-1 -right-1 px-1 rounded-sm text-[11px] font-bold leading-tight border border-black/70 tabular-nums ${
-                                    st.rank >= t.maxRank ? 'bg-black text-emerald-400' : 'bg-black text-yellow-300'
-                                }`}
-                            >
-                                {st.rank}/{t.maxRank}
-                            </div>
+                            {st.showNumbers && (
+                                <div
+                                    className={`absolute -bottom-1 -right-1 px-1 rounded-sm text-[11px] font-bold leading-tight border border-black/70 tabular-nums bg-black ${BADGE_TEXT[st.color]}`}
+                                >
+                                    {st.rank}/{t.maxRank}
+                                </div>
+                            )}
                         </div>
                     )
                 })}
