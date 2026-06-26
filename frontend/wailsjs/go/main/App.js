@@ -242,6 +242,10 @@ export function GetTooltipData(arg1) {
   return window['go']['main']['App']['GetTooltipData'](arg1);
 }
 
+export function GetWorldData() {
+  return window['go']['main']['App']['GetWorldData']();
+}
+
 export function GetZoneDetail(arg1) {
   return window['go']['main']['App']['GetZoneDetail'](arg1);
 }

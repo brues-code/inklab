@@ -1,5 +1,7 @@
 package main
 
+import "strconv"
+
 // Flight (taxi) network read from the taxi_node / taxi_path / taxi_path_node
 // tables (DBC-derived, shipped in the embedded inklab.db). Nodes are positioned
 // as percentages on their continent overview map; the frontend overlays them on
@@ -47,6 +49,125 @@ type FlightData struct {
 	Nodes       []FlightNode       `json:"nodes"`
 	Connections []FlightConnection `json:"connections"`
 	Transports  []TransportRoute   `json:"transports"`
+}
+
+// WorldNode is a flight master with its continent, for the combined world view.
+type WorldNode struct {
+	ID       int     `json:"id"`
+	Name     string  `json:"name"`
+	Alliance bool    `json:"alliance"`
+	Horde    bool    `json:"horde"`
+	MapID    int     `json:"mapId"`
+	PX       float64 `json:"px"`
+	PY       float64 `json:"py"`
+}
+
+// WorldConn is a flight link between two nodes (node ids).
+type WorldConn struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+// WorldTransport is a transport route with both hub endpoints resolved to their
+// continent + position, so cross-continent boats/zeppelins draw as one line on
+// the combined world map.
+type WorldTransport struct {
+	Type string  `json:"type"`
+	AMap int     `json:"aMap"`
+	APx  float64 `json:"aPx"`
+	APy  float64 `json:"aPy"`
+	AName string `json:"aName"`
+	BMap int     `json:"bMap"`
+	BPx  float64 `json:"bPx"`
+	BPy  float64 `json:"bPy"`
+	BName string `json:"bName"`
+}
+
+// WorldData is everything the combined world map needs: all continents, all
+// flight nodes/links, and transports resolved to both endpoints.
+type WorldData struct {
+	Continents []FlightContinent `json:"continents"`
+	Nodes      []WorldNode       `json:"nodes"`
+	Connections []WorldConn      `json:"connections"`
+	Transports []WorldTransport  `json:"transports"`
+}
+
+// GetWorldData returns the full flight + transport network across all continents
+// for the combined world view. Transport endpoints are resolved to node
+// positions so cross-continent routes render as a single connecting line.
+func (a *App) GetWorldData() *WorldData {
+	out := &WorldData{}
+	if a.db == nil {
+		return out
+	}
+	out.Continents = a.GetFlightContinents()
+
+	// Nodes (all continents) + a (map,name)->pos index for transport resolution.
+	type pos struct {
+		mapID  int
+		px, py float64
+	}
+	byKey := map[string]pos{}
+	if rows, err := a.db.DB().Query("SELECT id, name, alliance, horde, map_id, px, py FROM taxi_node"); err == nil {
+		for rows.Next() {
+			var n WorldNode
+			var al, ho int
+			if rows.Scan(&n.ID, &n.Name, &al, &ho, &n.MapID, &n.PX, &n.PY) == nil {
+				n.Alliance, n.Horde = al != 0, ho != 0
+				out.Nodes = append(out.Nodes, n)
+				byKey[transportKey(n.MapID, n.Name)] = pos{n.MapID, n.PX, n.PY}
+			}
+		}
+		rows.Close()
+	}
+
+	// Flight links, deduped to one per unordered node pair.
+	if rows, err := a.db.DB().Query("SELECT from_node, to_node FROM taxi_path"); err == nil {
+		seen := map[[2]int]bool{}
+		for rows.Next() {
+			var f, t int
+			if rows.Scan(&f, &t) != nil {
+				continue
+			}
+			key := [2]int{f, t}
+			if f > t {
+				key = [2]int{t, f}
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out.Connections = append(out.Connections, WorldConn{From: f, To: t})
+		}
+		rows.Close()
+	}
+
+	// Transports, both endpoints resolved to node positions.
+	if rows, err := a.db.DB().Query("SELECT type, name_a, map_a, name_b, map_b FROM transport_route"); err == nil {
+		for rows.Next() {
+			var typ, na, nb string
+			var ma, mb int
+			if rows.Scan(&typ, &na, &ma, &nb, &mb) != nil {
+				continue
+			}
+			pa, oka := byKey[transportKey(ma, na)]
+			pb, okb := byKey[transportKey(mb, nb)]
+			if !oka || !okb {
+				continue // endpoint not a known node — skip rather than mislocate
+			}
+			out.Transports = append(out.Transports, WorldTransport{
+				Type: typ,
+				AMap: ma, APx: pa.px, APy: pa.py, AName: na,
+				BMap: mb, BPx: pb.px, BPy: pb.py, BName: nb,
+			})
+		}
+		rows.Close()
+	}
+	return out
+}
+
+func transportKey(mapID int, name string) string {
+	return strconv.Itoa(mapID) + "|" + name
 }
 
 // GetFlightContinents lists the continents that have flight nodes, ordered by

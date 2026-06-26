@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useImage, useIcon } from '../../services/useImage'
 
 // Direct Wails bindings (codebase convention for app methods).
@@ -6,47 +6,105 @@ const GetFlightContinents = () =>
     window?.go?.main?.App?.GetFlightContinents ? window.go.main.App.GetFlightContinents() : Promise.resolve([])
 const GetFlightData = (mapId) =>
     window?.go?.main?.App?.GetFlightData ? window.go.main.App.GetFlightData(mapId) : Promise.resolve(null)
+const GetWorldData = () =>
+    window?.go?.main?.App?.GetWorldData ? window.go.main.App.GetWorldData() : Promise.resolve(null)
 
 // Faction colors.
 const C_ALLIANCE = '#3b82f6'
 const C_HORDE = '#e0294a'
 const C_NEUTRAL = '#ffd100'
-// Transport colors.
 const C_BOAT = '#38bdf8'
 const C_ZEP = '#c084fc'
 
-const nodeColor = (n) => {
-    if (n.alliance && n.horde) return C_NEUTRAL
-    if (n.alliance) return C_ALLIANCE
-    if (n.horde) return C_HORDE
-    return C_NEUTRAL
-}
-const visibleForFaction = (n, faction) => {
-    if (faction === 'alliance') return n.alliance
-    if (faction === 'horde') return n.horde
-    return true
-}
+// Continent images keep ~1002:668; render each panel at native-ish size and let
+// pan/zoom scale. Left-to-right world order (Kalimdor west, Eastern Kingdoms east).
+const PANEL_W = 1002
+const PANEL_H = 668
+const WORLD_ORDER = { Kalimdor: 0, Azeroth: 1 }
+
+const nodeColor = (n) => (n.alliance && n.horde ? C_NEUTRAL : n.alliance ? C_ALLIANCE : n.horde ? C_HORDE : C_NEUTRAL)
+const visibleForFaction = (n, f) => (f === 'alliance' ? n.alliance : f === 'horde' ? n.horde : true)
 const transportColor = (t) => (t.type === 'zeppelin' ? C_ZEP : C_BOAT)
-// Real game art (served via the local icon set): a galleon for boats, a goblin
-// flying machine for zeppelins (no literal zeppelin icon exists in the set).
 const TRANSPORT_ICON = { boat: 'inv_garrison_cargoship', zeppelin: 'ability_mount_gyrocoptor' }
 const transportLabel = (t) => (t.type === 'zeppelin' ? 'Zeppelin' : 'Boat')
 
-// TransportMarker renders a transport's embarkation point as the framed game
-// icon, ringed in the route's color.
-function TransportMarker({ t, onEnter, onMove, onLeave }) {
+// ---- pan/zoom viewport -----------------------------------------------------
+
+function PanZoom({ canvasW, canvasH, fitKey, children }) {
+    const wrapRef = useRef(null)
+    const [t, setT] = useState({ s: 1, x: 0, y: 0 })
+    const drag = useRef(null)
+
+    // Fit the canvas into the viewport whenever the canvas (fitKey) changes.
+    useEffect(() => {
+        const el = wrapRef.current
+        if (!el) return
+        const vw = el.clientWidth || 1
+        const vh = el.clientHeight || 1
+        const s = Math.min(vw / canvasW, vh / canvasH) * 0.98
+        setT({ s, x: (vw - canvasW * s) / 2, y: (vh - canvasH * s) / 2 })
+    }, [fitKey, canvasW, canvasH])
+
+    const onWheel = (e) => {
+        e.preventDefault()
+        const rect = wrapRef.current.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        const ds = e.deltaY < 0 ? 1.15 : 1 / 1.15
+        setT((p) => {
+            const ns = Math.max(0.2, Math.min(8, p.s * ds))
+            return { s: ns, x: mx - (mx - p.x) * (ns / p.s), y: my - (my - p.y) * (ns / p.s) }
+        })
+    }
+    const onDown = (e) => {
+        drag.current = { sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y }
+    }
+    const onMove = (e) => {
+        if (!drag.current) return
+        const d = drag.current
+        setT((p) => ({ ...p, x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) }))
+    }
+    const onUp = () => (drag.current = null)
+
+    return (
+        <div
+            ref={wrapRef}
+            className="relative w-full overflow-hidden rounded-md border border-border-dark bg-black/40 select-none"
+            style={{ height: '78vh', cursor: drag.current ? 'grabbing' : 'grab' }}
+            onWheel={onWheel}
+            onMouseDown={onDown}
+            onMouseMove={onMove}
+            onMouseUp={onUp}
+            onMouseLeave={onUp}
+        >
+            <div style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.s})`, transformOrigin: '0 0', width: canvasW, height: canvasH }}>
+                {children}
+            </div>
+        </div>
+    )
+}
+
+// ---- shared marker pieces --------------------------------------------------
+
+function PanelImage({ name, x }) {
+    const { src } = useImage('zone_map', name)
+    return (
+        <img
+            src={src || undefined}
+            alt={name}
+            draggable={false}
+            className="absolute top-0"
+            style={{ left: x, width: PANEL_W, height: PANEL_H, objectFit: 'fill', background: '#16130c' }}
+        />
+    )
+}
+
+function TransportMarker({ t, cx, cy, onEnter, onMove, onLeave }) {
     const { src } = useIcon(TRANSPORT_ICON[t.type] || TRANSPORT_ICON.boat)
     return (
         <div
             className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-sm overflow-hidden shadow"
-            style={{
-                left: `${t.marker[0]}%`,
-                top: `${t.marker[1]}%`,
-                width: 22,
-                height: 22,
-                border: `2px solid ${transportColor(t)}`,
-                background: '#000',
-            }}
+            style={{ left: cx, top: cy, width: 22, height: 22, border: `2px solid ${transportColor(t)}`, background: '#000' }}
             onMouseEnter={(e) => onEnter(t, e)}
             onMouseMove={(e) => onMove(t, e)}
             onMouseLeave={onLeave}
@@ -56,139 +114,178 @@ function TransportMarker({ t, onEnter, onMove, onLeave }) {
     )
 }
 
+// ---- page ------------------------------------------------------------------
+
 function MapsPage() {
     const [continents, setContinents] = useState([])
-    const [mapId, setMapId] = useState(null)
-    const [data, setData] = useState(null)
+    const [view, setView] = useState('world') // 'world' | mapId
+    const [worldData, setWorldData] = useState(null)
+    const [contData, setContData] = useState(null)
     const [loading, setLoading] = useState(false)
-    const [faction, setFaction] = useState('all') // all | alliance | horde
-    const [routeMode, setRouteMode] = useState('straight') // straight | route
+    const [faction, setFaction] = useState('all')
     const [layers, setLayers] = useState({ flights: true, transports: true })
     const [hover, setHover] = useState(null) // flight node hover
     const [tHover, setTHover] = useState(null) // transport hover
 
-    const continent = continents.find((c) => c.mapId === mapId)
-    const { src: mapSrc } = useImage('zone_map', continent?.name)
-
     useEffect(() => {
-        GetFlightContinents().then((list) => {
-            setContinents(list || [])
-            if (list?.length) setMapId(list[0].mapId)
-        })
+        GetFlightContinents().then((list) => setContinents(list || []))
     }, [])
 
     useEffect(() => {
-        if (mapId == null) return
         setLoading(true)
-        GetFlightData(mapId)
-            .then(setData)
-            .finally(() => setLoading(false))
-    }, [mapId])
+        if (view === 'world') {
+            GetWorldData().then(setWorldData).finally(() => setLoading(false))
+        } else {
+            GetFlightData(view).then(setContData).finally(() => setLoading(false))
+        }
+    }, [view])
 
-    const nodesById = useMemo(() => {
+    // World order + per-map x offset for the combined canvas.
+    const worldPanels = useMemo(() => {
+        const cs = (worldData?.continents || continents).slice()
+        cs.sort((a, b) => (WORLD_ORDER[a.name] ?? 9 + a.mapId) - (WORLD_ORDER[b.name] ?? 9 + b.mapId))
+        return cs.map((c, i) => ({ ...c, x: i * PANEL_W }))
+    }, [worldData, continents])
+    const offsetByMap = useMemo(() => {
         const m = {}
-        ;(data?.nodes || []).forEach((n) => (m[n.id] = n))
+        worldPanels.forEach((p) => (m[p.mapId] = p.x))
         return m
-    }, [data])
+    }, [worldPanels])
 
-    const visibleNodes = useMemo(
-        () => (data?.nodes || []).filter((n) => visibleForFaction(n, faction)),
-        [data, faction]
-    )
+    const isWorld = view === 'world'
+    const canvasW = isWorld ? Math.max(PANEL_W, worldPanels.length * PANEL_W) : PANEL_W
+    const canvasH = PANEL_H
+
+    // Canvas-space coordinate for a node/point.
+    const cx = (mapId, px) => (isWorld ? (offsetByMap[mapId] || 0) : 0) + (px / 100) * PANEL_W
+    const cy = (py) => (py / 100) * PANEL_H
+
+    // Active data set normalized to {nodes, connections, transports}.
+    const model = useMemo(() => {
+        if (isWorld) {
+            const d = worldData || {}
+            const byId = {}
+            ;(d.nodes || []).forEach((n) => (byId[n.id] = n))
+            return {
+                nodes: d.nodes || [],
+                nodesById: byId,
+                connections: (d.connections || []).map((c) => ({ a: byId[c.from], b: byId[c.to] })).filter((c) => c.a && c.b),
+                transports: (d.transports || []).map((t, i) => ({
+                    id: `w${i}`,
+                    type: t.type,
+                    x1: cx(t.aMap, t.aPx),
+                    y1: cy(t.aPy),
+                    x2: cx(t.bMap, t.bPx),
+                    y2: cy(t.bPy),
+                    here: t.aName,
+                    dest: t.bName,
+                    sameContinent: t.aMap === t.bMap,
+                })),
+            }
+        }
+        const d = contData || {}
+        const byId = {}
+        ;(d.nodes || []).forEach((n) => (byId[n.id] = n))
+        return { nodes: d.nodes || [], nodesById: byId, connections: null, raw: d }
+    }, [isWorld, worldData, contData, offsetByMap])
+
+    const visibleNodes = useMemo(() => model.nodes.filter((n) => visibleForFaction(n, faction)), [model, faction])
     const visibleIds = useMemo(() => new Set(visibleNodes.map((n) => n.id)), [visibleNodes])
 
-    const connections = useMemo(() => {
-        const all = (data?.connections || []).filter((c) => visibleIds.has(c.from) && visibleIds.has(c.to))
-        if (routeMode === 'route') return all
+    // Connections as canvas line segments.
+    const lines = useMemo(() => {
+        if (isWorld) {
+            return model.connections
+                .filter((c) => visibleIds.has(c.a.id) && visibleIds.has(c.b.id))
+                .map((c) => ({ x1: cx(c.a.mapId, c.a.px), y1: cy(c.a.py), x2: cx(c.b.mapId, c.b.px), y2: cy(c.b.py), from: c.a.id, to: c.b.id }))
+        }
+        const d = model.raw || {}
         const seen = new Set()
         const out = []
-        for (const c of all) {
+        for (const c of d.connections || []) {
+            if (!visibleIds.has(c.from) || !visibleIds.has(c.to)) continue
             const key = c.from < c.to ? `${c.from}-${c.to}` : `${c.to}-${c.from}`
             if (seen.has(key)) continue
             seen.add(key)
-            out.push(c)
+            const a = model.nodesById[c.from]
+            const b = model.nodesById[c.to]
+            if (a && b) out.push({ x1: cx(0, a.px), y1: cy(a.py), x2: cx(0, b.px), y2: cy(b.py), from: c.from, to: c.to })
         }
         return out
-    }, [data, visibleIds, routeMode])
+    }, [isWorld, model, visibleIds])
 
     const hoverDests = useMemo(() => {
         if (!hover) return new Set()
         const s = new Set()
-        ;(data?.connections || []).forEach((c) => {
-            if (c.from === hover.node.id && visibleIds.has(c.to)) s.add(c.to)
+        const conns = isWorld ? (worldData?.connections || []) : (contData?.connections || [])
+        conns.forEach((c) => {
+            if ((c.from === hover.node.id || c.to === hover.node.id)) {
+                const other = c.from === hover.node.id ? c.to : c.from
+                if (visibleIds.has(other)) s.add(other)
+            }
         })
         return s
-    }, [hover, data, visibleIds])
+    }, [hover, isWorld, worldData, contData, visibleIds])
 
-    const isHot = (c) => hover && (c.from === hover.node.id || c.to === hover.node.id)
-
-    // Embarkation marker for each transport = the on-continent waypoint nearest
-    // any flight node (the dock by the city).
-    const transports = useMemo(() => {
-        const nodes = data?.nodes || []
-        return (data?.transports || [])
+    // Continent-mode transports (on-continent waypoint legs + embarkation marker).
+    const contTransports = useMemo(() => {
+        if (isWorld) return []
+        const nodes = model.nodes
+        return (model.raw?.transports || [])
             .filter((t) => t.waypoints?.length)
-            .map((t) => {
+            .map((t, i) => {
                 let best = t.waypoints[0]
                 let bestD = Infinity
                 for (const w of t.waypoints) {
                     for (const n of nodes) {
                         const d = (n.px - w[0]) ** 2 + (n.py - w[1]) ** 2
-                        if (d < bestD) {
-                            bestD = d
-                            best = w
-                        }
+                        if (d < bestD) { bestD = d; best = w }
                     }
                 }
-                return { ...t, marker: best }
+                return { ...t, id: `c${i}`, marker: best }
             })
-    }, [data])
+    }, [isWorld, model])
 
     const onEnter = useCallback((node, e) => setHover({ node, x: e.clientX, y: e.clientY }), [])
     const onMove = useCallback((node, e) => setHover((h) => ({ ...(h || {}), node, x: e.clientX, y: e.clientY })), [])
     const onLeave = useCallback(() => setHover(null), [])
+    const tEnter = useCallback((tr, e) => setTHover({ ...tr, x: e.clientX, y: e.clientY }), [])
+    const tMove = useCallback((tr, e) => setTHover((h) => ({ ...(h || tr), x: e.clientX, y: e.clientY })), [])
+    const tLeave = useCallback(() => setTHover(null), [])
 
-    const factionBtn = (id, label, color) => (
+    const tabBtn = (id, label, active, color) => (
         <button
-            onClick={() => setFaction(id)}
-            className={`px-3 py-1.5 rounded text-sm font-semibold border transition-colors ${
-                faction === id ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark hover:bg-bg-hover'
+            key={id}
+            onClick={() => setView(id)}
+            className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
+                active ? 'bg-bg-active border-border-highlight text-wow-gold' : 'bg-bg-panel border-border-dark hover:bg-bg-hover text-zinc-300'
             }`}
-            style={{ color }}
+            style={color ? { color } : undefined}
         >
             {label}
         </button>
     )
+    const factionBtn = (id, label, color) => (
+        <button onClick={() => setFaction(id)} className={`px-3 py-1.5 rounded text-sm font-semibold border transition-colors ${faction === id ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark hover:bg-bg-hover'}`} style={{ color }}>
+            {label}
+        </button>
+    )
     const layerChip = (id, label, color) => (
-        <button
-            onClick={() => setLayers((l) => ({ ...l, [id]: !l[id] }))}
-            className={`px-2.5 py-1 rounded text-xs font-semibold border flex items-center gap-1.5 transition-opacity ${
-                layers[id] ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark opacity-50'
-            }`}
-        >
+        <button onClick={() => setLayers((l) => ({ ...l, [id]: !l[id] }))} className={`px-2.5 py-1 rounded text-xs font-semibold border flex items-center gap-1.5 ${layers[id] ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark opacity-50'}`}>
             <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: color }} />
             {label}
         </button>
     )
 
+    const transports = isWorld ? model.transports : contTransports
+
     return (
-        <div className="h-full overflow-auto bg-bg-dark">
+        <div className="h-full overflow-hidden flex flex-col bg-bg-dark">
             {/* controls */}
-            <div className="flex flex-wrap items-center gap-4 px-5 py-3 border-b border-border-dark bg-bg-main sticky top-0 z-20">
+            <div className="flex flex-wrap items-center gap-4 px-5 py-3 border-b border-border-dark bg-bg-main">
                 <div className="flex gap-2">
-                    {continents.map((c) => (
-                        <button
-                            key={c.mapId}
-                            onClick={() => setMapId(c.mapId)}
-                            className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
-                                c.mapId === mapId
-                                    ? 'bg-bg-active border-border-highlight text-wow-gold'
-                                    : 'bg-bg-panel border-border-dark hover:bg-bg-hover text-zinc-300'
-                            }`}
-                        >
-                            {c.name}
-                        </button>
-                    ))}
+                    {tabBtn('world', 'World', isWorld)}
+                    {continents.map((c) => tabBtn(c.mapId, c.name, view === c.mapId))}
                 </div>
                 <div className="flex gap-2">
                     {factionBtn('all', 'All', '#e5e7eb')}
@@ -199,95 +296,59 @@ function MapsPage() {
                     {layerChip('flights', 'Flights', C_NEUTRAL)}
                     {layerChip('transports', 'Transports', C_BOAT)}
                 </div>
-                {layers.flights && (
-                    <div className="flex gap-1 ml-auto bg-bg-panel border border-border-dark rounded p-0.5">
-                        <button
-                            onClick={() => setRouteMode('straight')}
-                            className={`px-2.5 py-1 rounded text-xs ${routeMode === 'straight' ? 'bg-bg-active text-white' : 'text-zinc-400'}`}
-                        >
-                            Direct
-                        </button>
-                        <button
-                            onClick={() => setRouteMode('route')}
-                            className={`px-2.5 py-1 rounded text-xs ${routeMode === 'route' ? 'bg-bg-active text-white' : 'text-zinc-400'}`}
-                        >
-                            Flight routes
-                        </button>
-                    </div>
-                )}
+                <span className="ml-auto text-xs text-zinc-500">scroll to zoom · drag to pan</span>
             </div>
 
             {/* map */}
-            <div className="p-5 flex justify-center">
+            <div className="flex-1 p-3">
                 {loading ? (
-                    <div className="py-10 text-zinc-500">Loading map…</div>
+                    <div className="py-10 text-zinc-500 text-center">Loading map…</div>
                 ) : continents.length === 0 ? (
                     <div className="py-10 text-zinc-500 text-center">
                         No map data found.
                         <div className="text-xs mt-1">If you just updated InkLab, restart the app; otherwise run a Client Data import.</div>
                     </div>
-                ) : !mapSrc ? (
-                    <div className="py-10 text-zinc-500 text-center">
-                        No continent map image for “{continent?.name}”.
-                        <div className="text-xs mt-1">Run a Client Data import to extract zone maps.</div>
-                    </div>
                 ) : (
-                    <div className="relative inline-block max-w-full">
-                        <img src={mapSrc} alt={continent?.name} className="block max-h-[78vh] w-auto rounded-md border border-border-dark" />
+                    <PanZoom canvasW={canvasW} canvasH={canvasH} fitKey={view}>
+                        {/* continent images */}
+                        {isWorld
+                            ? worldPanels.map((p) => <PanelImage key={p.mapId} name={p.name} x={p.x} />)
+                            : <PanelImage key={view} name={continents.find((c) => c.mapId === view)?.name} x={0} />}
+                        <div className="absolute inset-0 bg-black/25" style={{ width: canvasW, height: canvasH }} />
 
-                        {/* lines: flight connections + transport routes */}
-                        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        {/* lines */}
+                        <svg className="absolute inset-0" width={canvasW} height={canvasH}>
                             {layers.flights &&
-                                connections.map((c) => {
-                                    const hot = isHot(c)
-                                    const stroke = hot ? C_NEUTRAL : '#cfcfcf'
-                                    const opacity = hover ? (hot ? 0.95 : 0.12) : 0.5
-                                    if (routeMode === 'route' && c.waypoints?.length > 1) {
-                                        return (
-                                            <polyline
-                                                key={`f${c.pathId}`}
-                                                points={c.waypoints.map((w) => `${w[0]},${w[1]}`).join(' ')}
-                                                fill="none"
-                                                stroke={stroke}
-                                                strokeWidth={hot ? 2 : 1}
-                                                strokeLinejoin="round"
-                                                opacity={opacity}
-                                                vectorEffect="non-scaling-stroke"
-                                            />
-                                        )
-                                    }
-                                    const a = nodesById[c.from]
-                                    const b = nodesById[c.to]
-                                    if (!a || !b) return null
+                                lines.map((l, i) => {
+                                    const hot = hover && (l.from === hover.node.id || l.to === hover.node.id)
                                     return (
                                         <line
-                                            key={`f${c.pathId}`}
-                                            x1={a.px}
-                                            y1={a.py}
-                                            x2={b.px}
-                                            y2={b.py}
-                                            stroke={stroke}
-                                            strokeWidth={hot ? 2 : 1}
-                                            opacity={opacity}
-                                            vectorEffect="non-scaling-stroke"
+                                            key={i}
+                                            x1={l.x1}
+                                            y1={l.y1}
+                                            x2={l.x2}
+                                            y2={l.y2}
+                                            stroke={hot ? C_NEUTRAL : '#d4d4d4'}
+                                            strokeWidth={hot ? 2.5 : 1}
+                                            opacity={hover ? (hot ? 0.95 : 0.1) : 0.45}
                                         />
                                     )
                                 })}
-
                             {layers.transports &&
                                 transports.map((t) => {
                                     const hot = tHover && tHover.id === t.id
+                                    if (isWorld) {
+                                        return <line key={t.id} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={transportColor(t)} strokeWidth={hot ? 3 : 1.75} strokeDasharray="6 4" opacity={hot ? 1 : 0.85} />
+                                    }
                                     return (
                                         <polyline
-                                            key={`t${t.id}`}
-                                            points={t.waypoints.map((w) => `${w[0]},${w[1]}`).join(' ')}
+                                            key={t.id}
+                                            points={t.waypoints.map((w) => `${cx(0, w[0])},${cy(w[1])}`).join(' ')}
                                             fill="none"
                                             stroke={transportColor(t)}
-                                            strokeWidth={hot ? 2.5 : 1.5}
-                                            strokeDasharray="3 2"
-                                            strokeLinejoin="round"
+                                            strokeWidth={hot ? 3 : 2}
+                                            strokeDasharray="6 4"
                                             opacity={hot ? 1 : 0.85}
-                                            vectorEffect="non-scaling-stroke"
                                         />
                                     )
                                 })}
@@ -300,49 +361,27 @@ function MapsPage() {
                                 return (
                                     <div
                                         key={n.id}
-                                        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-                                        style={{ left: `${n.px}%`, top: `${n.py}%` }}
+                                        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-black/80"
+                                        style={{ left: cx(n.mapId || 0, n.px), top: cy(n.py), width: active ? 15 : 10, height: active ? 15 : 10, background: nodeColor(n), boxShadow: active ? `0 0 8px ${nodeColor(n)}` : undefined }}
                                         onMouseEnter={(e) => onEnter(n, e)}
                                         onMouseMove={(e) => onMove(n, e)}
                                         onMouseLeave={onLeave}
-                                    >
-                                        <div
-                                            className="rounded-full border-2 border-black/80 shadow transition-transform"
-                                            style={{
-                                                width: active ? 16 : 11,
-                                                height: active ? 16 : 11,
-                                                background: nodeColor(n),
-                                                boxShadow: active ? `0 0 8px ${nodeColor(n)}` : undefined,
-                                            }}
-                                        />
-                                    </div>
+                                    />
                                 )
                             })}
 
-                        {/* transport embarkation markers */}
+                        {/* transport markers */}
                         {layers.transports &&
-                            transports.map((t) => (
-                                <TransportMarker
-                                    key={`tm${t.id}`}
-                                    t={t}
-                                    onEnter={(tr, e) => setTHover({ ...tr, x: e.clientX, y: e.clientY })}
-                                    onMove={(tr, e) => setTHover((h) => ({ ...(h || tr), x: e.clientX, y: e.clientY }))}
-                                    onLeave={() => setTHover(null)}
-                                />
-                            ))}
-                    </div>
+                            transports.map((t) => {
+                                const mx = isWorld ? (t.x1 + t.x2) / 2 : cx(0, t.marker[0])
+                                const my = isWorld ? (t.y1 + t.y2) / 2 : cy(t.marker[1])
+                                return <TransportMarker key={`m${t.id}`} t={t} cx={mx} cy={my} onEnter={tEnter} onMove={tMove} onLeave={tLeave} />
+                            })}
+                    </PanZoom>
                 )}
             </div>
 
-            {/* tooltips */}
-            {hover && (
-                <FlightTooltip
-                    node={hover.node}
-                    dests={[...hoverDests].map((id) => nodesById[id]?.name).filter(Boolean)}
-                    x={hover.x}
-                    y={hover.y}
-                />
-            )}
+            {hover && <FlightTooltip node={hover.node} dests={[...hoverDests].map((id) => model.nodesById[id]?.name).filter(Boolean)} x={hover.x} y={hover.y} />}
             {tHover && <TransportTooltip t={tHover} x={tHover.x} y={tHover.y} />}
         </div>
     )
@@ -356,16 +395,12 @@ function FlightTooltip({ node, dests, x, y }) {
     return (
         <div className="fixed z-50 w-[260px] rounded border border-zinc-600 bg-black/95 p-2.5 text-sm shadow-xl pointer-events-none" style={style}>
             <div className="text-wow-gold font-semibold leading-tight">{node.name}</div>
-            <div className="text-xs mb-1" style={{ color }}>
-                {faction}
-            </div>
+            <div className="text-xs mb-1" style={{ color }}>{faction}</div>
             {sorted.length ? (
                 <>
                     <div className="text-zinc-400 text-xs">Connects to ({sorted.length}):</div>
                     <ul className="text-zinc-300 text-xs leading-snug mt-0.5 max-h-48 overflow-hidden">
-                        {sorted.map((d) => (
-                            <li key={d}>• {d}</li>
-                        ))}
+                        {sorted.map((d) => <li key={d}>• {d}</li>)}
                     </ul>
                 </>
             ) : (
@@ -380,17 +415,14 @@ function TransportTooltip({ t, x, y }) {
     const style = { left: Math.min(x + 16, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 260), top: Math.max(8, y - 10) }
     return (
         <div className="fixed z-50 w-[240px] rounded border border-zinc-600 bg-black/95 p-2.5 text-sm shadow-xl pointer-events-none" style={style}>
-            <div className="font-semibold leading-tight" style={{ color }}>
-                {transportLabel(t)}
-            </div>
-            <div className="text-zinc-300 text-xs mt-1">
-                {t.here} → <span className="text-wow-gold">{t.dest}</span>
-            </div>
-            {!t.sameContinent && t.destContinent && (
-                <div className="text-zinc-500 text-xs mt-0.5">to {t.destContinent}</div>
-            )}
+            <div className="font-semibold leading-tight" style={{ color }}>{transportLabel(t)}</div>
+            <div className="text-zinc-300 text-xs mt-1">{t.here} <span className="text-zinc-500">↔</span> <span className="text-wow-gold">{t.dest}</span></div>
+            {!isFiniteSame(t) && <div className="text-zinc-500 text-xs mt-0.5">cross-continent</div>}
         </div>
     )
+}
+function isFiniteSame(t) {
+    return t.sameContinent
 }
 
 export default MapsPage

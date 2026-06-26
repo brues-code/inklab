@@ -515,6 +515,109 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class WorldConn {
+	    from: number;
+	    to: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorldConn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.from = source["from"];
+	        this.to = source["to"];
+	    }
+	}
+	export class WorldTransport {
+	    type: string;
+	    aMap: number;
+	    aPx: number;
+	    aPy: number;
+	    aName: string;
+	    bMap: number;
+	    bPx: number;
+	    bPy: number;
+	    bName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorldTransport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.aMap = source["aMap"];
+	        this.aPx = source["aPx"];
+	        this.aPy = source["aPy"];
+	        this.aName = source["aName"];
+	        this.bMap = source["bMap"];
+	        this.bPx = source["bPx"];
+	        this.bPy = source["bPy"];
+	        this.bName = source["bName"];
+	    }
+	}
+	export class WorldNode {
+	    id: number;
+	    name: string;
+	    alliance: boolean;
+	    horde: boolean;
+	    mapId: number;
+	    px: number;
+	    py: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorldNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.alliance = source["alliance"];
+	        this.horde = source["horde"];
+	        this.mapId = source["mapId"];
+	        this.px = source["px"];
+	        this.py = source["py"];
+	    }
+	}
+	export class WorldData {
+	    continents: FlightContinent[];
+	    nodes: WorldNode[];
+	    connections: WorldConn[];
+	    transports: WorldTransport[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorldData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.continents = this.convertValues(source["continents"], FlightContinent);
+	        this.nodes = this.convertValues(source["nodes"], WorldNode);
+	        this.connections = this.convertValues(source["connections"], WorldConn);
+	        this.transports = this.convertValues(source["transports"], WorldTransport);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

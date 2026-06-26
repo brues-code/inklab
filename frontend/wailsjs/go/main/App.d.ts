@@ -124,6 +124,8 @@ export function GetTalentTrees(arg1:string):Promise<main.TalentClassData>;
 
 export function GetTooltipData(arg1:number):Promise<models.TooltipData>;
 
+export function GetWorldData():Promise<main.WorldData>;
+
 export function GetZoneDetail(arg1:number):Promise<models.ZoneDetail>;
 
 export function GetZones():Promise<Array<models.ZoneListEntry>>;
