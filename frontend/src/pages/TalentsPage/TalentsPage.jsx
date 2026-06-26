@@ -34,6 +34,28 @@ const MAX_POINTS = 51
 const cellLeft = (col) => PAD_X + col * (CELL + COL_GAP)
 const cellTop = (row) => PAD_Y + row * (CELL + ROW_GAP)
 
+// ---- talent rules (pure, derived from live `points`) ------------------------
+// Kept at module scope so both the tree nodes and the tooltip compute from the
+// same source — that's what lets the tooltip refresh live as points change.
+
+const cumPointsBelow = (tree, points, row) =>
+    tree.talents.reduce((s, t) => (t.row < row ? s + (points[t.id] || 0) : s), 0)
+const prereqMet = (points, t) => !t.reqTalent || (points[t.reqTalent] || 0) >= t.reqRank + 1
+const tierOpen = (tree, points, t) => cumPointsBelow(tree, points, t.row) >= 5 * t.row
+
+const reqTextFor = (tree, points, t) => {
+    const ok = prereqMet(points, t)
+    const open = tierOpen(tree, points, t)
+    if (ok && open) return ''
+    const parts = []
+    if (!open) parts.push(`Requires ${5 * t.row} points in ${tree.name}`)
+    if (!ok) {
+        const req = tree.talents.find((x) => x.id === t.reqTalent)
+        parts.push(`Requires ${req?.name || 'prerequisite'}`)
+    }
+    return parts.join('\n')
+}
+
 // ---- small image components -------------------------------------------------
 
 function TalentIcon({ icon }) {
@@ -48,7 +70,7 @@ function TalentIcon({ icon }) {
 
 // ---- tooltip ----------------------------------------------------------------
 
-function TalentTooltip({ talent, rank, treeName, reqText, x, y }) {
+function TalentTooltip({ talent, rank, reqText, x, y }) {
     if (!talent) return null
     const shown = rank > 0 ? rank : 1
     const rankDesc = talent.ranks?.[shown - 1]?.description || ''
@@ -93,33 +115,18 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
         return m
     }, [tree])
 
-    const prereqMet = (t) => !t.reqTalent || (points[t.reqTalent] || 0) >= t.reqRank + 1
-    const cumBelow = (row) =>
-        tree.talents.reduce((s, t) => (t.row < row ? s + (points[t.id] || 0) : s), 0)
-
     const nodeState = (t) => {
         const rank = points[t.id] || 0
-        const tierOpen = cumBelow(t.row) >= 5 * t.row
-        const ok = prereqMet(t)
-        const canInc = rank < t.maxRank && totalSpent < MAX_POINTS && tierOpen && ok
+        const open = tierOpen(tree, points, t)
+        const ok = prereqMet(points, t)
+        const canInc = rank < t.maxRank && totalSpent < MAX_POINTS && open && ok
         let cls
         if (rank >= t.maxRank) cls = 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)]'
         else if (rank > 0) cls = 'border-yellow-400'
         else if (canInc) cls = 'border-zinc-300/80'
         else cls = 'border-zinc-700'
         const locked = rank === 0 && !canInc
-        return { rank, canInc, locked, cls, tierOpen, ok }
-    }
-
-    const reqTextFor = (t, st) => {
-        if (st.ok && st.tierOpen) return ''
-        const parts = []
-        if (!st.tierOpen) parts.push(`Requires ${5 * t.row} points in ${tree.name}`)
-        if (!st.ok) {
-            const req = byId[t.reqTalent]
-            parts.push(`Requires ${req?.name || 'prerequisite'}`)
-        }
-        return parts.join('\n')
+        return { rank, canInc, locked, cls }
     }
 
     // Arrows from each prerequisite to its dependent talent.
@@ -196,8 +203,8 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
                             key={t.id}
                             className="absolute"
                             style={{ left: cellLeft(t.col), top: cellTop(t.row), width: CELL, height: CELL }}
-                            onMouseEnter={(e) => onHover(t, st.rank, tree.name, reqTextFor(t, st), e)}
-                            onMouseMove={(e) => onHover(t, st.rank, tree.name, reqTextFor(t, st), e)}
+                            onMouseEnter={(e) => onHover(t, tree, e)}
+                            onMouseMove={(e) => onHover(t, tree, e)}
                             onMouseLeave={onLeave}
                             onClick={() => st.canInc && onChange(t.id, 1)}
                             onContextMenu={(e) => {
@@ -281,8 +288,11 @@ function TalentsPage() {
         })
     }, [])
 
-    const onHover = useCallback((talent, rank, treeName, reqText, e) => {
-        setTip({ talent, rank, treeName, reqText, x: e.clientX, y: e.clientY })
+    // Store only the hovered talent + its tree; rank and requirement text are
+    // computed from live `points` at render time so the tooltip refreshes as you
+    // add/remove points without needing to move the mouse.
+    const onHover = useCallback((talent, tree, e) => {
+        setTip({ talent, tree, x: e.clientX, y: e.clientY })
     }, [])
     const onLeave = useCallback(() => setTip(null), [])
 
@@ -365,9 +375,8 @@ function TalentsPage() {
             {tip && (
                 <TalentTooltip
                     talent={tip.talent}
-                    rank={tip.rank}
-                    treeName={tip.treeName}
-                    reqText={tip.reqText}
+                    rank={points[tip.talent.id] || 0}
+                    reqText={reqTextFor(tip.tree, points, tip.talent)}
                     x={tip.x}
                     y={tip.y}
                 />
