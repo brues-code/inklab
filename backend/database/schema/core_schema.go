@@ -256,6 +256,12 @@ func CoreSchema() string {
 	CREATE INDEX IF NOT EXISTS idx_talent_tab_class ON talent_tab(class);
 	CREATE INDEX IF NOT EXISTS idx_talent_tab_id ON talent(tab_id);
 
+	-- Beast families (CreatureFamily.dbc), for the NPC Beast family sub-filter.
+	CREATE TABLE IF NOT EXISTS creature_family (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
+
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
 	-- px/py are 0-100 percentages on the node's continent overview map.
 	CREATE TABLE IF NOT EXISTS taxi_node (

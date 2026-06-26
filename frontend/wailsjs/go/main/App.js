@@ -10,6 +10,10 @@ export function AdvancedSearch(arg1) {
   return window['go']['main']['App']['AdvancedSearch'](arg1);
 }
 
+export function BrowseCreaturesByFamilyPaged(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['BrowseCreaturesByFamilyPaged'](arg1, arg2, arg3, arg4);
+}
+
 export function BrowseCreaturesByType(arg1, arg2) {
   return window['go']['main']['App']['BrowseCreaturesByType'](arg1, arg2);
 }
@@ -68,6 +72,10 @@ export function FullSyncSpells(arg1, arg2, arg3) {
 
 export function GetAllFavorites() {
   return window['go']['main']['App']['GetAllFavorites']();
+}
+
+export function GetBeastFamilies() {
+  return window['go']['main']['App']['GetBeastFamilies']();
 }
 
 export function GetCategories() {

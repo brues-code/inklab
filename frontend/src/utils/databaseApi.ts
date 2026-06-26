@@ -95,6 +95,21 @@ export const GetCreatureLoot = (entry: number) => {
     return Promise.resolve([])
 }
 
+// Beast families (sub-filter for the Beast creature type)
+export const GetBeastFamilies = () => {
+    if (window?.go?.main?.App?.GetBeastFamilies) {
+        return window.go.main.App.GetBeastFamilies()
+    }
+    return Promise.resolve([])
+}
+
+export const BrowseCreaturesByFamilyPaged = (family: number, nameFilter = '', limit = 100, offset = 0) => {
+    if (window?.go?.main?.App?.BrowseCreaturesByFamilyPaged) {
+        return window.go.main.App.BrowseCreaturesByFamilyPaged(family, nameFilter, limit, offset)
+    }
+    return Promise.resolve({ creatures: [], total: 0, hasMore: false })
+}
+
 // Quest APIs
 export const GetQuestCategories = () => {
     if (window?.go?.main?.App?.GetQuestCategories) {

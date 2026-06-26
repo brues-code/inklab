@@ -8,6 +8,8 @@ export function AddFavorite(arg1:number,arg2:string):Promise<models.FavoriteResu
 
 export function AdvancedSearch(arg1:models.SearchFilter):Promise<models.SearchResult>;
 
+export function BrowseCreaturesByFamilyPaged(arg1:number,arg2:string,arg3:number,arg4:number):Promise<main.CreaturePageResult>;
+
 export function BrowseCreaturesByType(arg1:number,arg2:string):Promise<Array<models.Creature>>;
 
 export function BrowseCreaturesByTypePaged(arg1:number,arg2:string,arg3:number,arg4:number):Promise<main.CreaturePageResult>;
@@ -37,6 +39,8 @@ export function FullSyncQuests(arg1:number,arg2:number):Promise<string>;
 export function FullSyncSpells(arg1:number,arg2:boolean,arg3:number):Promise<string>;
 
 export function GetAllFavorites():Promise<Array<models.FavoriteItem>>;
+
+export function GetBeastFamilies():Promise<Array<models.BeastFamily>>;
 
 export function GetCategories():Promise<Array<string>>;
 

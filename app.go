@@ -289,6 +289,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportTaxi(filepath.Join(dataDir, "taxi.json")); err != nil {
 		fmt.Printf("⚠️ Taxi import failed: %v\n", err)
 	}
+	if err := gen.ImportCreatureFamilies(filepath.Join(dataDir, "creature_families.json")); err != nil {
+		fmt.Printf("⚠️ Creature family import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }

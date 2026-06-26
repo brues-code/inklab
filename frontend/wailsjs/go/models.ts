@@ -716,6 +716,22 @@ export namespace models {
 	        this.displayName = source["displayName"];
 	    }
 	}
+	export class BeastFamily {
+	    family: number;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BeastFamily(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.family = source["family"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
 	export class Category {
 	    id: number;
 	    key: string;

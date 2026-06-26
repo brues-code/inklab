@@ -60,6 +60,30 @@ func (a *App) BrowseCreaturesByTypePaged(creatureType int, nameFilter string, li
 	}
 }
 
+// GetBeastFamilies returns beast families (with counts) for sub-filtering Beasts.
+func (a *App) GetBeastFamilies() []*database.BeastFamily {
+	families, err := a.creatureRepo.GetBeastFamilies()
+	if err != nil {
+		fmt.Printf("[API] Error getting beast families: %v\n", err)
+		return []*database.BeastFamily{}
+	}
+	return families
+}
+
+// BrowseCreaturesByFamilyPaged returns Beast-type creatures of a family, paged.
+func (a *App) BrowseCreaturesByFamilyPaged(family int, nameFilter string, limit, offset int) *CreaturePageResult {
+	creatures, total, err := a.creatureRepo.GetCreaturesByFamily(family, nameFilter, limit, offset)
+	if err != nil {
+		fmt.Printf("[API] Error browsing creatures by family: %v\n", err)
+		return &CreaturePageResult{Creatures: []*database.Creature{}, Total: 0, HasMore: false}
+	}
+	return &CreaturePageResult{
+		Creatures: creatures,
+		Total:     total,
+		HasMore:   (offset + len(creatures)) < total,
+	}
+}
+
 // SearchCreatures searches for creatures by name
 func (a *App) SearchCreatures(query string) []*database.Creature {
 	creatures, err := a.creatureRepo.SearchCreatures(query, 50)

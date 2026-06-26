@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetCreatureTypes, BrowseCreaturesByTypePaged, filterItems } from '../../../utils/databaseApi'
+import { GetCreatureTypes, BrowseCreaturesByTypePaged, GetBeastFamilies, BrowseCreaturesByFamilyPaged, filterItems } from '../../../utils/databaseApi'
+
+const BEAST_TYPE = 1
 import { useNpcPortrait } from '../../../services/useImage'
 
 // NPC rank colors
@@ -41,6 +43,12 @@ function NPCsTab({ onNavigate, tooltipHook }) {
     const [typeFilter, setTypeFilter] = useState('')
     const [creatureFilter, setCreatureFilter] = useState('')
 
+    // Beast sub-filter: families for the selected Beast type, and the active one.
+    const [families, setFamilies] = useState([])
+    const [selectedFamily, setSelectedFamily] = useState(null)
+    const [familyFilter, setFamilyFilter] = useState('')
+    const isBeast = selectedCreatureType?.type === BEAST_TYPE
+
     const scrollRef = useRef(null)
 
     // Load creature types on mount
@@ -57,15 +65,23 @@ function NPCsTab({ onNavigate, tooltipHook }) {
             })
     }, [])
 
-    // Load initial creatures when a type is selected
+    // Browse the active selection (a beast family when one is picked, else the type).
+    const browsePage = useCallback((off) => {
+        if (isBeast && selectedFamily) {
+            return BrowseCreaturesByFamilyPaged(selectedFamily.family, '', PAGE_SIZE, off)
+        }
+        return BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, off)
+    }, [isBeast, selectedFamily, selectedCreatureType])
+
+    // Load initial creatures when the type or family selection changes
     useEffect(() => {
         if (selectedCreatureType !== null) {
             setLoading(true)
             setCreatures([])
             setOffset(0)
             setHasMore(false)
-            
-            BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, 0)
+
+            browsePage(0)
                 .then(res => {
                     setCreatures(res.creatures || [])
                     setTotal(res.total || 0)
@@ -78,14 +94,14 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                     setLoading(false)
                 })
         }
-    }, [selectedCreatureType])
+    }, [selectedCreatureType, selectedFamily])
 
     // Load more creatures function
     const loadMore = useCallback(() => {
         if (!hasMore || loadingMore || !selectedCreatureType) return
-        
+
         setLoadingMore(true)
-        BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, offset)
+        browsePage(offset)
             .then(res => {
                 setCreatures(prev => [...prev, ...(res.creatures || [])])
                 setHasMore(res.hasMore || false)
@@ -96,7 +112,7 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                 console.error("Failed to load more creatures:", err)
                 setLoadingMore(false)
             })
-    }, [hasMore, loadingMore, selectedCreatureType, offset])
+    }, [hasMore, loadingMore, selectedCreatureType, offset, browsePage])
 
     // Infinite scroll handler
     const handleScroll = useCallback((e) => {
@@ -108,6 +124,7 @@ function NPCsTab({ onNavigate, tooltipHook }) {
     }, [loadMore])
 
     const filteredTypes = useMemo(() => filterItems(creatureTypes, typeFilter), [creatureTypes, typeFilter])
+    const filteredFamilies = useMemo(() => filterItems(families, familyFilter), [families, familyFilter])
     const filteredCreatures = useMemo(() => filterItems(creatures, creatureFilter), [creatures, creatureFilter])
 
     return (
@@ -130,6 +147,13 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                             onClick={() => {
                                 setSelectedCreatureType(type)
                                 setCreatureFilter('')
+                                setSelectedFamily(null)
+                                setFamilyFilter('')
+                                if (type.type === BEAST_TYPE) {
+                                    GetBeastFamilies().then(f => setFamilies(f || []))
+                                } else {
+                                    setFamilies([])
+                                }
                             }}
                         >
                             <span className="flex justify-between w-full">
@@ -141,17 +165,49 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                 </ScrollList>
             </SidebarPanel>
 
+            {/* Beast families (dynamic 3rd column, only for the Beast type) */}
+            {isBeast && families.length > 0 && (
+                <SidebarPanel className="col-span-1">
+                    <SectionHeader
+                        title={`Families (${filteredFamilies.length})`}
+                        placeholder="Filter families..."
+                        onFilterChange={setFamilyFilter}
+                    />
+                    <ScrollList>
+                        <ListItem active={!selectedFamily} onClick={() => setSelectedFamily(null)}>
+                            <span className="flex justify-between w-full">
+                                <span>All {selectedCreatureType.name}</span>
+                                <span className="text-gray-600 text-xs">({selectedCreatureType.count})</span>
+                            </span>
+                        </ListItem>
+                        {filteredFamilies.map(f => (
+                            <ListItem
+                                key={f.family}
+                                active={selectedFamily?.family === f.family}
+                                onClick={() => setSelectedFamily(f)}
+                            >
+                                <span className="flex justify-between w-full">
+                                    <span>{f.name}</span>
+                                    <span className="text-gray-600 text-xs">({f.count})</span>
+                                </span>
+                            </ListItem>
+                        ))}
+                    </ScrollList>
+                </SidebarPanel>
+            )}
+
             {/* Creatures List (spans remaining columns) */}
-            <ContentPanel className="col-span-3">
-                <SectionHeader 
-                    title={selectedCreatureType 
-                        ? `${selectedCreatureType.name} (${filteredCreatures.length}${total > creatures.length ? ` of ${total}` : ''})` 
+            <ContentPanel className={isBeast && families.length > 0 ? 'col-span-2' : 'col-span-3'}>
+                <SectionHeader
+                    title={selectedCreatureType
+                        ? `${selectedFamily ? selectedFamily.name : selectedCreatureType.name} (${filteredCreatures.length}${total > creatures.length ? ` of ${total}` : ''})`
                         : 'Select a Type'
                     }
                     placeholder="Filter NPCs..."
                     onFilterChange={setCreatureFilter}
                 />
-                
+
+
                 {loading && selectedCreatureType && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading creatures...

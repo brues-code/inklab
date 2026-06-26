@@ -38,6 +38,14 @@ type CreatureType struct {
 	Count int    `json:"count"`
 }
 
+// BeastFamily represents a beast family (CreatureFamily.dbc) with its NPC count,
+// used to sub-filter the Beast creature type on the NPCs page.
+type BeastFamily struct {
+	Family int    `json:"family"`
+	Name   string `json:"name"`
+	Count  int    `json:"count"`
+}
+
 // CreatureDetail includes a creature with its loot and quests
 type CreatureDetail struct {
 	*Creature

@@ -108,6 +108,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"spells", "spells_enhanced.json"},
 		{"talents", "talents.json"},
 		{"taxi", "taxi.json"},
+		{"creaturefamilies", "creature_families.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -139,6 +140,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genTalents(cf)
 	case "taxi":
 		v, err = genTaxi(cf)
+	case "creaturefamilies":
+		v, err = genCreatureFamilies(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -195,6 +198,28 @@ func genSkills(cf ClientFiles) (interface{}, error) {
 	for r := 0; r < d.RecordCount; r++ {
 		out = append(out, map[string]interface{}{
 			"skillID": d.U32(r, 0), "categoryID": d.I32(r, 1), "name_loc0": d.Str(r, 3),
+		})
+	}
+	return out, nil
+}
+
+// CreatureFamily.dbc (18 fields): id(0), name_loc[8](8-15), enUS at field 8.
+// Maps creature_template.beast_family -> a family name (Wolf, Cat, …). Octo's
+// ids extend the vanilla set (e.g. 35 Serpent, 36 Fox), so they're read from
+// the client rather than assumed.
+func genCreatureFamilies(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "CreatureFamily.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		name := d.Str(r, 8)
+		if name == "" {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"id": d.U32(r, 0), "name_loc0": name,
 		})
 	}
 	return out, nil

@@ -110,6 +110,88 @@ func (r *CreatureRepository) GetCreaturesByType(creatureType int, nameFilter str
 	return creatures, count, nil
 }
 
+// GetBeastFamilies returns the beast families present among Beast-type creatures
+// (with counts), named from creature_family. Used to sub-filter the Beast type.
+func (r *CreatureRepository) GetBeastFamilies() ([]*models.BeastFamily, error) {
+	rows, err := r.db.Query(`
+		SELECT ct.beast_family, COALESCE(cf.name, ''), COUNT(*) AS count
+		FROM creature_template ct
+		LEFT JOIN creature_family cf ON cf.id = ct.beast_family
+		WHERE ct.type = 1 AND ct.beast_family > 0
+		GROUP BY ct.beast_family
+		ORDER BY cf.name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*models.BeastFamily
+	for rows.Next() {
+		f := &models.BeastFamily{}
+		if err := rows.Scan(&f.Family, &f.Name, &f.Count); err != nil {
+			continue
+		}
+		if f.Name == "" {
+			f.Name = fmt.Sprintf("Family %d", f.Family)
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// GetCreaturesByFamily returns Beast-type creatures of a specific beast family.
+func (r *CreatureRepository) GetCreaturesByFamily(family int, nameFilter string, limit, offset int) ([]*models.Creature, int, error) {
+	whereClause := "WHERE type = 1 AND beast_family = ?"
+	args := []interface{}{family}
+	if nameFilter != "" {
+		whereClause += " AND name LIKE ?"
+		args = append(args, "%"+nameFilter+"%")
+	}
+
+	var count int
+	if err := r.db.QueryRow("SELECT COUNT(*) FROM creature_template "+whereClause, args...).Scan(&count); err != nil {
+		return nil, 0, err
+	}
+
+	dataArgs := append(args, limit, offset)
+	dataQuery := fmt.Sprintf(`
+		SELECT entry, name, subname, level_min, level_max,
+			health_min, health_max, mana_min, mana_max,
+			type, rank, faction, npc_flags, display_id1
+		FROM creature_template
+		%s
+		ORDER BY level_max DESC, name
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	rows, err := r.db.Query(dataQuery, dataArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var creatures []*models.Creature
+	for rows.Next() {
+		c := &models.Creature{}
+		var subname *string
+		if err := rows.Scan(
+			&c.Entry, &c.Name, &subname, &c.LevelMin, &c.LevelMax,
+			&c.HealthMin, &c.HealthMax, &c.ManaMin, &c.ManaMax,
+			&c.Type, &c.Rank, &c.Faction, &c.NPCFlags, &c.DisplayID1,
+		); err != nil {
+			continue
+		}
+		if subname != nil {
+			c.Subname = *subname
+		}
+		c.TypeName = helpers.GetCreatureTypeName(c.Type)
+		c.RankName = helpers.GetCreatureRankName(c.Rank)
+		creatures = append(creatures, c)
+	}
+	return creatures, count, nil
+}
+
 // SearchCreatures searches for creatures by name or ID
 func (r *CreatureRepository) SearchCreatures(query string, limit int) ([]*models.Creature, error) {
 	var rows *sql.Rows

@@ -33,6 +33,7 @@ type ItemSetEntry = models.ItemSetEntry
 
 type Creature = models.Creature
 type CreatureType = models.CreatureType
+type BeastFamily = models.BeastFamily
 type CreatureDetail = models.CreatureDetail
 type CreatureTemplateEntry = models.CreatureTemplateEntry
 

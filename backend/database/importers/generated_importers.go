@@ -275,6 +275,49 @@ func (i *GeneratedImporter) ImportTalents(jsonPath string) error {
 	return nil
 }
 
+// creatureFamilyJSON mirrors an entry in data/creature_families.json.
+type creatureFamilyJSON struct {
+	ID   int    `json:"id"`
+	Name string `json:"name_loc0"`
+}
+
+// ImportCreatureFamilies loads CreatureFamily.dbc names (id -> "Wolf", "Cat", …)
+// into creature_family, used to label the NPC Beast family sub-filter. Existing
+// rows are replaced so a re-import refreshes the data.
+func (i *GeneratedImporter) ImportCreatureFamilies(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var fams []creatureFamilyJSON
+	if err := json.Unmarshal(data, &fams); err != nil {
+		fmt.Printf("  ERROR parsing creature_families.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM creature_family")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO creature_family (id, name) VALUES (?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, f := range fams {
+		if _, err := stmt.Exec(f.ID, f.Name); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d creature families\n", n)
+	return nil
+}
+
 // taxiJSON mirrors data/taxi.json (datatools.TaxiData).
 type taxiJSON struct {
 	Continents []struct {
