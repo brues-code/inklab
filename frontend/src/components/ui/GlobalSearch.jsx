@@ -156,6 +156,11 @@ function GlobalSearch() {
                                         style={{ color: item.type === 'item' ? getQualityColor(item.quality) : (TYPE_COLOR[item.type] || '#fff') }}
                                     >
                                         {item.name}
+                                        {item.type === 'spell' && item.subname && (
+                                            <span className="ml-1.5 text-[11px] font-normal text-gray-500">
+                                                {item.subname}
+                                            </span>
+                                        )}
                                     </span>
                                     <span className="block text-[11px] text-gray-500 truncate">{subtitle(item)}</span>
                                 </span>
