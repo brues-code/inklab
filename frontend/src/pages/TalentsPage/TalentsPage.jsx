@@ -1,15 +1,9 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Navigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
 import { queryClient } from '../../queryClient'
+import { useTalentClasses, useTalentTrees, talentTreesQuery } from '../../hooks/queries/talents'
 import { useTalentBuild, getLastTalentClass } from './useTalentBuild'
 import { useIcon, useImage } from '../../services/useImage'
-
-// Direct Wails bindings (mirrors the codebase convention for app methods).
-const GetTalentClasses = () =>
-    window?.go?.main?.App?.GetTalentClasses ? window.go.main.App.GetTalentClasses() : Promise.resolve([])
-const GetTalentTrees = (cls) =>
-    window?.go?.main?.App?.GetTalentTrees ? window.go.main.App.GetTalentTrees(cls) : Promise.resolve(null)
 
 // Talent tree geometry (a 4-column × up-to-7-row grid drawn over the parchment).
 const CELL = 40
@@ -394,13 +388,8 @@ function TalentsPage() {
     // tree query is keyed by class, `data` always corresponds to `selected` —
     // there's no stale-other-class window (which previously needed a dataClass
     // guard), and switching back to a visited class is instant from cache.
-    const classesQuery = useQuery({ queryKey: ['talentClasses'], queryFn: GetTalentClasses, staleTime: Infinity })
-    const treesQuery = useQuery({
-        queryKey: ['talentTrees', selected],
-        queryFn: () => GetTalentTrees(selected),
-        enabled: !!selected,
-        staleTime: Infinity,
-    })
+    const classesQuery = useTalentClasses()
+    const treesQuery = useTalentTrees(selected, !!selected)
     const data = treesQuery.data || null
     const loading = treesQuery.isLoading
 
@@ -521,11 +510,7 @@ function TalentsPage() {
         const apply = async (classKey, makeOrder) => {
             let d
             try {
-                d = await queryClient.ensureQueryData({
-                    queryKey: ['talentTrees', classKey],
-                    queryFn: () => GetTalentTrees(classKey),
-                    staleTime: Infinity,
-                })
+                d = await queryClient.ensureQueryData(talentTreesQuery(classKey))
             } catch {
                 d = null
             }

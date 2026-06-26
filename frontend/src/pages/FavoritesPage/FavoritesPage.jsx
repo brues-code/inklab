@@ -5,7 +5,7 @@ import { getQualityColor } from '../../utils/wow';
 import { useIcon } from '../../services/useImage';
 import { ItemTooltip } from '../../components/ui';
 import { useEntityNavigate } from '../../utils/entityNav';
-import { tooltipQuery } from '../../hooks/useItemTooltip';
+import { tooltipQuery } from '../../hooks/queries/tooltip';
 import { queryClient } from '../../queryClient';
 
 // Simple item card for favorites

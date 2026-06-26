@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem } from '../../ui'
-import { GetItemSets, GetItemSetDetail, GetTalentClasses, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useItemSets, useItemSetDetail } from '../../../hooks/queries/sets'
+import { useTalentClasses } from '../../../hooks/queries/talents'
 
 function SetsTab({ tooltipHook }) {
     const [selectedSet, setSelectedSet] = useState(null)
@@ -17,8 +18,8 @@ function SetsTab({ tooltipHook }) {
 
     // Item sets + playable classes are static for a session; set detail is keyed
     // by the shown set. No effects — everything derives from the queries.
-    const itemSetsQuery = useQuery({ queryKey: ['itemSets'], queryFn: GetItemSets, staleTime: Infinity })
-    const classesQuery = useQuery({ queryKey: ['talentClasses'], queryFn: GetTalentClasses, staleTime: Infinity })
+    const itemSetsQuery = useItemSets()
+    const classesQuery = useTalentClasses()
 
     const itemSets = itemSetsQuery.data || []
 
@@ -33,11 +34,7 @@ function SetsTab({ tooltipHook }) {
     // the current class filter, so the detail panel always shows something.
     const effectiveSet = selectedSet || classFilteredSets[0] || null
 
-    const setDetailQuery = useQuery({
-        queryKey: ['itemSetDetail', effectiveSet?.itemsetId],
-        queryFn: () => GetItemSetDetail(effectiveSet.itemsetId),
-        enabled: !!effectiveSet,
-    })
+    const setDetailQuery = useItemSetDetail(effectiveSet?.itemsetId, !!effectiveSet)
     const setDetail = setDetailQuery.data || null
 
     // Class options from game data (ChrClasses.dbc); bit = 1 << (classId - 1) to

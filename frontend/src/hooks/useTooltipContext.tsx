@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouterState } from '@tanstack/react-router'
-import { useItemTooltip, tooltipQuery, type TooltipHook } from './useItemTooltip'
+import { useItemTooltip, type TooltipHook } from './useItemTooltip'
+import { tooltipQuery } from './queries/tooltip'
 import { ItemTooltip } from '../components/ui'
 
 /**

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { tooltipQuery } from "../../../hooks/useItemTooltip";
+import { tooltipQuery } from "../../../hooks/queries/tooltip";
+import { useItemDetail, useItemFavorite } from "../../../hooks/queries/items";
 import { queryClient } from "../../../queryClient";
-import { GetItemDetail, IsFavorite, ToggleFavorite } from "../../../services/api";
+import { ToggleFavorite } from "../../../services/api";
 import {
   FixSingleItemIcon,
   SyncSingleItem,
@@ -74,22 +75,14 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // The item's tooltip payload, from the shared Query cache (warmed by hover
   // elsewhere). Invalidating it (after a sync/icon fix) refetches this view.
   const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry });
-  const { data: detail, isLoading: loading, refetch: refetchDetail } = useQuery({
-    queryKey: ["itemDetail", entry],
-    queryFn: () => GetItemDetail(entry),
-    enabled: !!entry,
-  });
+  const { data: detail, isLoading: loading, refetch: refetchDetail } = useItemDetail(entry);
   const [imgError, setImgError] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   // Favorite status, cached per item and derived from the query (not state);
   // toggled optimistically in handleFavoriteToggle.
-  const { data: isFavorite = false } = useQuery({
-    queryKey: ["itemFavorite", entry],
-    queryFn: () => IsFavorite(entry),
-    enabled: !!entry,
-  });
+  const { data: isFavorite = false } = useItemFavorite(entry);
 
   // Reset the icon-error flag when the item changes (render-time, no effect).
   const [imgErrKey, setImgErrKey] = useState(entry);

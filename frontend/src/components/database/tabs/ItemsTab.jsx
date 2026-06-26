@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { GetItemClasses, BrowseItemsByClass } from '../../../../wailsjs/go/main/App'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem, ContentGrid } from '../../ui'
-import { BrowseItemsByClassAndSlot, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useItemClasses, useItems } from '../../../hooks/queries/items'
 import { getCategoryIcon } from '../../../utils/categoryIcons'
 import { 
     GRID_LAYOUT, ITEMS_LAYOUT, 
@@ -107,23 +106,20 @@ function ItemsTab({ tooltipHook, onNavigate }) {
     const { setHoveredItem, handleItemEnter, handleMouseMove } = tooltipHook
 
     // Item classes load once (static for a session).
-    const classesQuery = useQuery({ queryKey: ['itemClasses'], queryFn: GetItemClasses, staleTime: Infinity })
+    const classesQuery = useItemClasses()
     const itemClasses = classesQuery.data || []
 
     // Check if the selected class needs slot filtering (Armor = 4, Weapon = 2)
     const needsSlotFilter = selectedClass?.class === 4 || selectedClass?.class === 2
 
-    // Browse items for the current class/subclass/(slot). A specific slot uses
-    // the slot-aware query; "All Slots" (inventoryType -1) or non-slot classes use
-    // the class+subclass query. Gated until the needed selections exist.
-    const useSlot = selectedSlot !== null && selectedSlot.inventoryType !== -1
-    const itemsQuery = useQuery({
-        queryKey: ['items', selectedClass?.class, selectedSubClass?.subClass, useSlot ? selectedSlot.inventoryType : 'all'],
-        queryFn: () => useSlot
-            ? BrowseItemsByClassAndSlot(selectedClass.class, selectedSubClass.subClass, selectedSlot.inventoryType, '')
-            : BrowseItemsByClass(selectedClass.class, selectedSubClass.subClass, ''),
-        enabled: selectedClass !== null && selectedSubClass !== null && (!needsSlotFilter || selectedSlot !== null),
-    })
+    // Browse items for the current class/subclass/(slot). Gated until the needed
+    // selections exist (the slot-aware vs class+subclass choice lives in the hook).
+    const itemsQuery = useItems(
+        selectedClass,
+        selectedSubClass,
+        selectedSlot,
+        selectedClass !== null && selectedSubClass !== null && (!needsSlotFilter || selectedSlot !== null)
+    )
     const items = itemsQuery.data || []
     const loading = itemsQuery.isLoading
 
