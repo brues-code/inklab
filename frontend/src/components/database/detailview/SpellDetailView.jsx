@@ -95,8 +95,9 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     if (error) return <DetailError message={error} onBack={onBack} />
     if (!detail) return <DetailError message="Spell not found" onBack={onBack} />
     
-    // School name + its client font color (Physical has none → default text).
-    const schoolName = getSchoolName(detail.school)
+    // Localized school name from the client (spell_schools), English fallback.
+    // Color is a client UI constant keyed by school index (Physical has none).
+    const schoolName = detail.schoolName || getSchoolName(detail.school)
     const schoolColor = getSchoolColor(detail.school)
 
     // Format power type

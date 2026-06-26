@@ -366,6 +366,52 @@ func (i *GeneratedImporter) ImportClasses(jsonPath string) error {
 	return nil
 }
 
+// spellSchoolJSON mirrors an entry in data/spell_schools.json (GlobalStrings.lua).
+type spellSchoolJSON struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// ImportSpellSchools loads localized spell-school names (index -> name) from the
+// client's GlobalStrings.lua into spell_schools, so school names follow the
+// client's locale rather than built-in English. Rows are replaced on re-import.
+func (i *GeneratedImporter) ImportSpellSchools(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var schools []spellSchoolJSON
+	if err := json.Unmarshal(data, &schools); err != nil {
+		fmt.Printf("  ERROR parsing spell_schools.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM spell_schools")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO spell_schools (id, name) VALUES (?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, s := range schools {
+		if s.Name == "" {
+			continue
+		}
+		if _, err := stmt.Exec(s.ID, s.Name); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d spell schools\n", n)
+	return nil
+}
+
 // lockJSON mirrors an entry in data/locks.json (Lock.dbc, first 5 slots).
 type lockJSON struct {
 	ID    int `json:"id"`

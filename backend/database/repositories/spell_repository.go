@@ -339,6 +339,10 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 
 	detail.Icon = iconName
 
+	// Localized school name from GlobalStrings.lua (spell_schools); empty when the
+	// reference hasn't been imported, so the frontend falls back to English.
+	r.db.QueryRow("SELECT name FROM spell_schools WHERE id = ?", s.School).Scan(&detail.SchoolName)
+
 	// Fetch Duration
 	var durationStr string = "Instant"
 	if s.Durationindex > 0 {

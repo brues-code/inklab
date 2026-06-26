@@ -2345,6 +2345,7 @@ export namespace models {
 	    requiredAuraVision: number;
 	    customFlags: number;
 	    icon: string;
+	    schoolName: string;
 	    toolTip: string;
 	    castTime: string;
 	    range: string;
@@ -2508,6 +2509,7 @@ export namespace models {
 	        this.requiredAuraVision = source["requiredAuraVision"];
 	        this.customFlags = source["customFlags"];
 	        this.icon = source["icon"];
+	        this.schoolName = source["schoolName"];
 	        this.toolTip = source["toolTip"];
 	        this.castTime = source["castTime"];
 	        this.range = source["range"];

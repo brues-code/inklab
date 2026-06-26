@@ -271,6 +271,14 @@ func CoreSchema() string {
 		color TEXT DEFAULT ''
 	);
 
+	-- Spell schools (FrameXML GlobalStrings.lua SPELL_SCHOOLn_CAP):
+	-- school index -> localized display name. Colors are a client UI constant
+	-- kept on the frontend; only the names follow the client's locale.
+	CREATE TABLE IF NOT EXISTS spell_schools (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
+
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
 	-- px/py are 0-100 percentages on the node's continent overview map.
 	CREATE TABLE IF NOT EXISTS taxi_node (

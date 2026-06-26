@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -112,6 +113,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"creaturefamilies", "creature_families.json"},
 		{"locks", "locks.json"},
 		{"classes", "classes.json"},
+		{"spellschools", "spell_schools.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -149,6 +151,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genLocks(cf)
 	case "classes":
 		v, err = genClasses(cf)
+	case "spellschools":
+		v, err = genSpellSchools(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -294,6 +298,38 @@ func genClasses(cf ClientFiles) (interface{}, error) {
 			"id": d.U32(r, 0), "name_loc0": d.Str(r, 5), "token": token,
 			"color": colors[strings.ToUpper(token)],
 		})
+	}
+	return out, nil
+}
+
+// spellSchoolRe matches a localized spell-school name in the client FrameXML
+// GlobalStrings.lua, e.g. SPELL_SCHOOL3_CAP = "Nature".
+var spellSchoolRe = regexp.MustCompile(`SPELL_SCHOOL(\d+)_CAP\s*=\s*"([^"]*)"`)
+
+// genSpellSchools reads the spell-school display names from the client's
+// FrameXML/GlobalStrings.lua (index -> localized name). Schools aren't in a DBC;
+// the names live in the UI strings, so they follow the client's locale.
+// Best-effort: returns an empty set if the file isn't present (callers fall back
+// to built-in English names).
+func genSpellSchools(cf ClientFiles) (interface{}, error) {
+	var b []byte
+	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\GlobalStrings.lua`, `Interface\FrameXML\GlobalStrings.lua`} {
+		if data, err := cf.ReadFile(p); err == nil {
+			b = data
+			break
+		}
+	}
+	out := make([]map[string]interface{}, 0, 7)
+	if b == nil {
+		fmt.Printf("[dbc] spell schools skipped: GlobalStrings.lua not found\n")
+		return out, nil
+	}
+	for _, m := range spellSchoolRe.FindAllStringSubmatch(string(b), -1) {
+		id, err := strconv.Atoi(m[1])
+		if err != nil {
+			continue
+		}
+		out = append(out, map[string]interface{}{"id": id, "name": m[2]})
 	}
 	return out, nil
 }

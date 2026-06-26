@@ -12,6 +12,7 @@ type SpellUsedByItem struct {
 type SpellDetail struct {
 	*SpellTemplateFull
 	Icon        string             `json:"icon"`
+	SchoolName  string             `json:"schoolName"` // localized, from spell_schools (else "")
 	ToolTip     string             `json:"toolTip"`
 	CastTime    string             `json:"castTime"`
 	Range       string             `json:"range"`
