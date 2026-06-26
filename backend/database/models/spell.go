@@ -29,6 +29,7 @@ type SpellClass struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	SkillCount int    `json:"skillCount"`
+	Color      string `json:"color,omitempty"`
 }
 
 // SpellEntry represents a spell for JSON import

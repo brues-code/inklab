@@ -175,7 +175,7 @@ function SpellsTab({ onNavigate }) {
                             }}
                         >
                             <span className="flex justify-between w-full">
-                                <span>{cls.name}</span>
+                                <span style={{ color: cls.color || undefined }}>{cls.name}</span>
                                 <span className="text-gray-600 text-xs">({cls.skillCount})</span>
                             </span>
                         </ListItem>

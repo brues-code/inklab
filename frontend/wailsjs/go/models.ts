@@ -2160,6 +2160,7 @@ export namespace models {
 	    id: number;
 	    name: string;
 	    skillCount: number;
+	    color?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SpellClass(source);
@@ -2170,6 +2171,7 @@ export namespace models {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.skillCount = source["skillCount"];
+	        this.color = source["color"];
 	    }
 	}
 	export class SpellUsedByItem {

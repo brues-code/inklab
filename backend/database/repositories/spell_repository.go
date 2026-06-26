@@ -3,6 +3,8 @@ package repositories
 import (
 	"database/sql"
 	"fmt"
+	"math/bits"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -129,32 +131,61 @@ func (r *SpellRepository) GetSpellSkillsByCategory(categoryID int) ([]*models.Sp
 	return skills, nil
 }
 
-// spellClasses lists the WoW classes (by classmask bit) in display order,
-// plus a General bucket (0) for class-category skills with no single class
-// (Mounts, Companions, Glyphs, ...).
-var spellClasses = []struct {
-	ID   int
-	Name string
-}{
-	{1, "Warrior"}, {2, "Paladin"}, {4, "Hunter"}, {8, "Rogue"}, {16, "Priest"},
-	{64, "Shaman"}, {128, "Mage"}, {256, "Warlock"}, {1024, "Druid"}, {0, "General"},
-}
+// spellClassBits lists the class-mask bits (in display order) under the Class
+// Skills category, plus a General bucket (0) for class-category skills with no
+// single class (Mounts, Companions, Glyphs, ...). Display names come from
+// class_info (ChrClasses.dbc), not hardcoded here.
+var spellClassBits = []int{1, 2, 4, 8, 16, 64, 128, 256, 1024, 0}
 
 // GetSpellClasses returns the classes under the Class Skills category that have
-// at least one non-empty skill line, with the count of those skills.
+// at least one non-empty skill line, with the count of those skills. Class names
+// come from class_info; spell_skills.class_id is a class-mask bit, so the class
+// id is the bit's index + 1.
 func (r *SpellRepository) GetSpellClasses() ([]*models.SpellClass, error) {
+	nameByID := map[int]string{}
+	colorByID := map[int]string{}
+	if cr, err := r.db.Query("SELECT id, name, COALESCE(color,'') FROM class_info"); err == nil {
+		for cr.Next() {
+			var id int
+			var name, color string
+			if cr.Scan(&id, &name, &color) == nil {
+				nameByID[id] = name
+				colorByID[id] = color
+			}
+		}
+		cr.Close()
+	}
+	// bit -> class id (bit's index + 1); 0 is the General bucket.
+	classID := func(bit int) int { return bits.TrailingZeros32(uint32(bit)) + 1 }
+	className := func(bit int) string {
+		if bit == 0 {
+			return "General"
+		}
+		if n := nameByID[classID(bit)]; n != "" {
+			return n
+		}
+		return fmt.Sprintf("Class %d", classID(bit))
+	}
+
 	var out []*models.SpellClass
-	for _, c := range spellClasses {
+	for _, bit := range spellClassBits {
 		var n int
 		r.db.QueryRow(`
 			SELECT COUNT(*) FROM spell_skills s
 			WHERE s.category_id = 7 AND s.class_id = ?
 				AND (SELECT COUNT(*) FROM spell_skill_spells ss JOIN spell_template sp ON sp.entry = ss.spell_id WHERE ss.skill_id = s.id) > 0
-		`, c.ID).Scan(&n)
+		`, bit).Scan(&n)
 		if n > 0 {
-			out = append(out, &models.SpellClass{ID: c.ID, Name: c.Name, SkillCount: n})
+			out = append(out, &models.SpellClass{ID: bit, Name: className(bit), SkillCount: n, Color: colorByID[classID(bit)]})
 		}
 	}
+	// Sort classes alphabetically by name, keeping the General bucket last.
+	sort.Slice(out, func(i, j int) bool {
+		if (out[i].ID == 0) != (out[j].ID == 0) {
+			return out[j].ID == 0
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out, nil
 }
 
