@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetCreatureTypes, BrowseCreaturesByTypePaged, GetBeastFamilies, BrowseCreaturesByFamilyPaged, filterItems } from '../../../utils/databaseApi'
 
@@ -31,97 +32,58 @@ const NpcPortraitThumb = ({ displayId, rankColor }) => {
 const PAGE_SIZE = 100
 
 function NPCsTab({ onNavigate, tooltipHook }) {
-    const [creatureTypes, setCreatureTypes] = useState([])
     const [selectedCreatureType, setSelectedCreatureType] = useState(null)
-    const [creatures, setCreatures] = useState([])
-    const [loading, setLoading] = useState(false)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [total, setTotal] = useState(0)
-    const [hasMore, setHasMore] = useState(false)
-    const [offset, setOffset] = useState(0)
+    const [selectedFamily, setSelectedFamily] = useState(null)
 
     const [typeFilter, setTypeFilter] = useState('')
     const [creatureFilter, setCreatureFilter] = useState('')
-
-    // Beast sub-filter: families for the selected Beast type, and the active one.
-    const [families, setFamilies] = useState([])
-    const [selectedFamily, setSelectedFamily] = useState(null)
     const [familyFilter, setFamilyFilter] = useState('')
+
     const isBeast = selectedCreatureType?.type === BEAST_TYPE
 
     const scrollRef = useRef(null)
 
-    // Load creature types on mount
-    useEffect(() => {
-        setLoading(true)
-        GetCreatureTypes()
-            .then(types => {
-                setCreatureTypes(types || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load creature types:", err)
-                setLoading(false)
-            })
-    }, [])
+    const typesQuery = useQuery({ queryKey: ['creatureTypes'], queryFn: GetCreatureTypes, staleTime: Infinity })
+    const creatureTypes = typesQuery.data || []
 
-    // Browse the active selection (a beast family when one is picked, else the type).
-    const browsePage = useCallback((off) => {
-        if (isBeast && selectedFamily) {
-            return BrowseCreaturesByFamilyPaged(selectedFamily.family, '', PAGE_SIZE, off)
-        }
-        return BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, off)
-    }, [isBeast, selectedFamily, selectedCreatureType])
+    // Beast families load only for the Beast type (the dynamic 3rd column).
+    const familiesQuery = useQuery({ queryKey: ['beastFamilies'], queryFn: GetBeastFamilies, enabled: isBeast, staleTime: Infinity })
+    const families = familiesQuery.data || []
 
-    // Load initial creatures when the type or family selection changes
-    useEffect(() => {
-        if (selectedCreatureType !== null) {
-            setLoading(true)
-            setCreatures([])
-            setOffset(0)
-            setHasMore(false)
+    // Paginated creature browse for the active selection (a beast family when one
+    // is picked, else the type), as an infinite query keyed by that selection.
+    const creaturesQuery = useInfiniteQuery({
+        queryKey: ['creatures', isBeast && selectedFamily ? `family:${selectedFamily.family}` : `type:${selectedCreatureType?.type}`],
+        queryFn: ({ pageParam }) =>
+            isBeast && selectedFamily
+                ? BrowseCreaturesByFamilyPaged(selectedFamily.family, '', PAGE_SIZE, pageParam)
+                : BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, pageParam),
+        enabled: selectedCreatureType != null,
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages) => (lastPage?.hasMore ? allPages.length * PAGE_SIZE : undefined),
+    })
 
-            browsePage(0)
-                .then(res => {
-                    setCreatures(res.creatures || [])
-                    setTotal(res.total || 0)
-                    setHasMore(res.hasMore || false)
-                    setOffset(PAGE_SIZE)
-                    setLoading(false)
-                })
-                .catch(err => {
-                    console.error("Failed to load creatures:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedCreatureType, selectedFamily])
+    const creatures = useMemo(
+        () => creaturesQuery.data?.pages.flatMap(p => p.creatures || []) || [],
+        [creaturesQuery.data]
+    )
+    const total = creaturesQuery.data?.pages?.[0]?.total || 0
 
-    // Load more creatures function
-    const loadMore = useCallback(() => {
-        if (!hasMore || loadingMore || !selectedCreatureType) return
-
-        setLoadingMore(true)
-        browsePage(offset)
-            .then(res => {
-                setCreatures(prev => [...prev, ...(res.creatures || [])])
-                setHasMore(res.hasMore || false)
-                setOffset(prev => prev + PAGE_SIZE)
-                setLoadingMore(false)
-            })
-            .catch(err => {
-                console.error("Failed to load more creatures:", err)
-                setLoadingMore(false)
-            })
-    }, [hasMore, loadingMore, selectedCreatureType, offset, browsePage])
-
-    // Infinite scroll handler
+    // Infinite scroll: fetch the next page near the bottom.
     const handleScroll = useCallback((e) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target
-        // Load more when user scrolls to bottom (with 200px threshold)
-        if (scrollHeight - scrollTop - clientHeight < 200) {
-            loadMore()
+        if (scrollHeight - scrollTop - clientHeight < 200 && creaturesQuery.hasNextPage && !creaturesQuery.isFetchingNextPage) {
+            creaturesQuery.fetchNextPage()
         }
-    }, [loadMore])
+    }, [creaturesQuery])
+
+    // Selecting a type clears the family + filters; families load via the query.
+    const pickType = (type) => {
+        setSelectedCreatureType(type)
+        setSelectedFamily(null)
+        setCreatureFilter('')
+        setFamilyFilter('')
+    }
 
     const filteredTypes = useMemo(() => filterItems(creatureTypes, typeFilter), [creatureTypes, typeFilter])
     const filteredFamilies = useMemo(() => filterItems(families, familyFilter), [families, familyFilter])
@@ -137,24 +99,14 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                     onFilterChange={setTypeFilter}
                 />
                 <ScrollList>
-                    {loading && creatureTypes.length === 0 && (
+                    {typesQuery.isLoading && (
                         <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading types...</div>
                     )}
                     {filteredTypes.map(type => (
                         <ListItem
                             key={type.type}
                             active={selectedCreatureType?.type === type.type}
-                            onClick={() => {
-                                setSelectedCreatureType(type)
-                                setCreatureFilter('')
-                                setSelectedFamily(null)
-                                setFamilyFilter('')
-                                if (type.type === BEAST_TYPE) {
-                                    GetBeastFamilies().then(f => setFamilies(f || []))
-                                } else {
-                                    setFamilies([])
-                                }
-                            }}
+                            onClick={() => pickType(type)}
                         >
                             <span className="flex justify-between w-full">
                                 <span>{type.name}</span>
@@ -208,13 +160,13 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                 />
 
 
-                {loading && selectedCreatureType && (
+                {creaturesQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading creatures...
                     </div>
                 )}
-                
-                {!loading && creatures.length > 0 && (
+
+                {!creaturesQuery.isLoading && creatures.length > 0 && (
                     <ScrollList 
                         ref={scrollRef}
                         className="p-2 space-y-1"
@@ -280,22 +232,22 @@ function NPCsTab({ onNavigate, tooltipHook }) {
                         })}
                         
                         {/* Loading more indicator */}
-                        {loadingMore && (
+                        {creaturesQuery.isFetchingNextPage && (
                             <div className="p-4 text-center text-wow-gold italic animate-pulse">
                                 Loading more...
                             </div>
                         )}
-                        
+
                         {/* Has more indicator */}
-                        {hasMore && !loadingMore && (
+                        {creaturesQuery.hasNextPage && !creaturesQuery.isFetchingNextPage && (
                             <div className="p-2 text-center text-gray-600 text-sm">
                                 Scroll for more ({creatures.length} of {total})
                             </div>
                         )}
                     </ScrollList>
                 )}
-                
-                {!selectedCreatureType && !loading && (
+
+                {!selectedCreatureType && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select a creature type to browse NPCs
                     </div>
