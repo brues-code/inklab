@@ -20,7 +20,17 @@ type ScrapedNpcData struct {
 	ZoneName      string            `json:"zoneName"`
 	X             float64           `json:"x"`
 	Y             float64           `json:"y"`
-	Sells         []VendorSale      `json:"sells"` // items this NPC sells (octowow "sells" tab)
+	Spawns        []ScrapedSpawn    `json:"spawns"` // every spawn point across every zone (octowow mapper data)
+	Sells         []VendorSale      `json:"sells"`  // items this NPC sells (octowow "sells" tab)
+}
+
+// ScrapedSpawn is one spawn point: its zone (id + resolved name) and the
+// zone-relative 0-100 map coordinates octowow reports for it.
+type ScrapedSpawn struct {
+	ZoneID   int     `json:"zoneId"`
+	ZoneName string  `json:"zoneName"`
+	X        float64 `json:"x"`
+	Y        float64 `json:"y"`
 }
 
 // VendorSale is one item an NPC sells: the item entry, money cost (copper, 0 for
@@ -280,6 +290,29 @@ func stripTags_Local(input string) string {
 var npcSellsRe = regexp.MustCompile(`(?s)id:'sells'.*?data: ?\[(.*?)\]\}\)`)
 var sellObjRe = regexp.MustCompile(`\{[^{}]*\}`)
 
+// spawnZoneRe captures every octowow mapper block that carries coordinates:
+// `myMapper.update({zone: 267,coords: [[22.55,43.17,{..}],[56.36,58.31,{..}]]})`.
+// The coords array never contains "]]" until it closes (inner items end with
+// "}]," ), so a non-greedy capture to the first "]]" grabs the whole array.
+var spawnZoneRe = regexp.MustCompile(`(?:myMapper\.update|new Mapper)\(\{[^{}]*?\bzone:\s*'?(\d+)'?\s*,\s*coords:\s*(\[\[.*?\]\])`)
+
+// zoneNameByID maps the AoWoW/octowow numeric zone id to its display name, the
+// reverse of the name->id table used for map URLs. Covers the classic 1.12
+// open-world zones spawns are reported in.
+var zoneNameByID = map[int]string{
+	1422: "Western Plaguelands", 1423: "Eastern Plaguelands", 85: "Tirisfal Glades",
+	130: "Silverpine Forest", 267: "Hillsbrad Foothills", 36: "Alterac Mountains",
+	33: "Stranglethorn Vale", 10: "Duskwood", 40: "Westfall", 12: "Elwynn Forest",
+	44: "Redridge Mountains", 46: "Burning Steppes", 51: "Searing Gorge", 3: "Badlands",
+	8: "Swamp of Sorrows", 4: "Blasted Lands", 41: "Deadwind Pass", 1: "Dun Morogh",
+	38: "Loch Modan", 11: "Wetlands", 45: "Arathi Highlands", 47: "The Hinterlands",
+	14: "Durotar", 17: "The Barrens", 215: "Mulgore", 406: "Stonetalon Mountains",
+	331: "Ashenvale", 400: "Thousand Needles", 405: "Desolace", 357: "Feralas",
+	15: "Dustwallow Marsh", 440: "Tanaris", 490: "Un'Goro Crater", 1377: "Silithus",
+	361: "Felwood", 618: "Winterspring", 493: "Moonglade", 16: "Azshara",
+	141: "Teldrassil", 148: "Darkshore",
+}
+
 // parseNpcSells extracts the items an NPC sells from its page's "sells" tab.
 func parseNpcSells(content string) []VendorSale {
 	m := npcSellsRe.FindStringSubmatch(content)
@@ -393,6 +426,26 @@ func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
 			if m := coordRe.FindStringSubmatch(fullHTML); len(m) > 2 {
 				data.X, _ = strconv.ParseFloat(m[1], 64)
 				data.Y, _ = strconv.ParseFloat(m[2], 64)
+			}
+		}
+
+		// Capture EVERY spawn point across EVERY zone. An NPC can spawn in
+		// multiple zones (e.g. Hillsbrad + Arathi), each with several points;
+		// the single X/Y above only describes the first one.
+		for _, zb := range spawnZoneRe.FindAllStringSubmatch(fullHTML, -1) {
+			zoneID, _ := strconv.Atoi(zb[1])
+			for _, c := range spawnCoordRe.FindAllStringSubmatch(zb[2], -1) {
+				x, ex := strconv.ParseFloat(c[1], 64)
+				y, ey := strconv.ParseFloat(c[2], 64)
+				if ex != nil || ey != nil || (x == 0 && y == 0) {
+					continue
+				}
+				data.Spawns = append(data.Spawns, ScrapedSpawn{
+					ZoneID:   zoneID,
+					ZoneName: zoneNameByID[zoneID],
+					X:        x,
+					Y:        y,
+				})
 			}
 		}
 	}

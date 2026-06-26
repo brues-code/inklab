@@ -12,6 +12,8 @@ import (
 	"inklab/backend/database"
 	"inklab/backend/datatools"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -465,30 +467,29 @@ func (s *NpcService) syncCreatureFromMySQL(entry int) error {
 	return nil
 }
 
-// syncCreatureSpawnsFromMySQL syncs creature spawn coordinates from MySQL creature table
+// syncCreatureSpawnsFromMySQL refreshes a creature's spawn points. It prefers
+// MySQL (the structured core data) but falls back to the scraped octowow
+// metadata when MySQL is unavailable or has no rows for this entry — which is
+// the case for Octo's custom NPCs (e.g. 62261), absent from the base dump.
 func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
-	if s.mysql == nil {
-		return
-	}
-
-	// creature_spawn is created once in ensureSchema. Replace this creature's rows.
-	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
-
 	spawnCount := 0
 
-	// Query spawn points from MySQL if available
+	// Query spawn points from MySQL if available. We only clear the existing
+	// rows once we have MySQL data to replace them with, so a missing/empty
+	// MySQL doesn't wipe a spawn we can't re-derive.
 	if s.mysql != nil {
 		// Using aggregation functions to satisfy only_full_group_by sql_mode
 		rows, err := s.mysql.DB().Query(`
 			SELECT map, AVG(position_x) as avg_x, AVG(position_y) as avg_y, AVG(position_z) as avg_z
-			FROM creature 
-			WHERE id = ? 
+			FROM creature
+			WHERE id = ?
 			GROUP BY map, ROUND(position_x, -1), ROUND(position_y, -1)
 			LIMIT 20
 		`, entry)
 
 		if err == nil {
 			defer rows.Close()
+			s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 			for rows.Next() {
 				var mapId int
 				var worldX, worldY, z float64
@@ -514,35 +515,29 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 
 	if spawnCount > 0 {
 		fmt.Printf("  ✓ Synced %d spawn points for creature %d\n", spawnCount, entry)
-	} else {
-		// Fallback: If no MySQL spawns, try to use scraped metadata from SQLite
-		// We just inserted/updated it in SyncNpcData, so it should be fresh.
-		var metaX, metaY float64
-		var metaZone string
-		err := s.sqlite.QueryRow("SELECT x, y, zone_name FROM creature_metadata WHERE entry = ?", entry).Scan(&metaX, &metaY, &metaZone)
-		if err == nil && metaZone != "" && (metaX > 0 || metaY > 0) {
-			fmt.Printf("  ⚠ No MySQL spawns for %d, falling back to scraped data: %s (%.1f, %.1f)\n", entry, metaZone, metaX, metaY)
+		return
+	}
 
-			// Insert pseudo-spawn
-			// We don't have MapID or Z, but we have ZoneName and Map Coords
-			// Use a dummy MapID (maybe 0 or derived if possible, but 0 is safe-ish for display only)
-			// Or try to map ZoneName to MapID if we really want to be fancy.
-
-			_, err = s.sqlite.Exec(`
-				INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-				VALUES (?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT(creature_entry, map_id, position_x, position_y) DO UPDATE SET
-					zone_name = excluded.zone_name
-			`, entry, 0, 0, metaZone, metaX, metaY, 0)
-
-			if err == nil {
-				fmt.Printf("  ✓ Created pseudo-spawn from web data for creature %d\n", entry)
-			} else {
-				fmt.Printf("  ✕ Failed to create pseudo-spawn: %v\n", err)
-			}
+	// Fallback: use the scraped octowow metadata (refreshed by SyncNpcData just
+	// before this runs). Replace the existing rows only when we actually have a
+	// valid coordinate to store, so we never blank out a spawn we can't recover.
+	var metaX, metaY float64
+	var metaZone string
+	err := s.sqlite.QueryRow("SELECT x, y, zone_name FROM creature_metadata WHERE entry = ?", entry).Scan(&metaX, &metaY, &metaZone)
+	if err == nil && metaZone != "" && (metaX > 0 || metaY > 0) {
+		fmt.Printf("  ⚠ No MySQL spawns for %d, falling back to scraped data: %s (%.1f, %.1f)\n", entry, metaZone, metaX, metaY)
+		s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
+		_, err = s.sqlite.Exec(`
+			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, entry, 0, 0, metaZone, metaX, metaY, 0)
+		if err == nil {
+			fmt.Printf("  ✓ Created pseudo-spawn from web data for creature %d\n", entry)
 		} else {
-			fmt.Printf("  ⚠ No spawn points found in MySQL and no valid scraped metadata for entry %d\n", entry)
+			fmt.Printf("  ✕ Failed to create pseudo-spawn: %v\n", err)
 		}
+	} else {
+		fmt.Printf("  ⚠ No spawn points found in MySQL and no valid scraped metadata for entry %d\n", entry)
 	}
 }
 
@@ -1209,11 +1204,14 @@ func (s *NpcService) FullSyncObjectSpawns(startFrom int, delayMs int, progressCb
 // missing model/map without re-syncing (and potentially overwriting) the
 // creature's stat data from the frozen MySQL dump.
 func (s *NpcService) RefreshNpcImages(entry int) error {
-	return s.syncNpcImages(entry)
+	_, err := s.syncNpcImages(entry)
+	return err
 }
 
 // syncNpcImages performs the scrape + image download + creature_metadata upsert.
-func (s *NpcService) syncNpcImages(entry int) error {
+// It returns the scraped data so callers (e.g. SyncNpcData) can apply the live
+// octowow stats to creature_template; RefreshNpcImages ignores it on purpose.
+func (s *NpcService) syncNpcImages(entry int) (*ScrapedNpcData, error) {
 	// A. Scrape Wowhead for Metadata
 	scrapedData, err := s.scraper.ScrapeNpcData(entry)
 	scrapeOK := err == nil
@@ -1259,9 +1257,79 @@ func (s *NpcService) syncNpcImages(entry int) error {
 			y = excluded.y
 	`, entry, scrapedData.MapURL, string(infoboxBytes), scrapedData.ModelImageURL, localModelPath, localMapPath, scrapedData.ZoneName, scrapedData.X, scrapedData.Y)
 	if err != nil {
-		return fmt.Errorf("failed to save metadata: %w", err)
+		return scrapedData, fmt.Errorf("failed to save metadata: %w", err)
 	}
-	return nil
+	return scrapedData, nil
+}
+
+// applyScrapedStats writes the live octowow infobox stats (Level, Health,
+// Faction, Armor, Display ID) onto creature_template. octowow.st is the running
+// server and the source of truth for these visible numbers, so its values win
+// over the frozen MySQL dump — which in particular has no rows for Octo's
+// custom NPCs, leaving them at placeholder stats until this runs.
+func (s *NpcService) applyScrapedStats(entry int, data *ScrapedNpcData) {
+	if data == nil || data.Infobox == nil {
+		return
+	}
+	num := func(v string) (int, bool) {
+		v = strings.ReplaceAll(strings.TrimSpace(v), ",", "")
+		n, err := strconv.Atoi(v)
+		return n, err == nil
+	}
+	// "26 - 27" -> (26, 27); a single "26" -> (26, 26).
+	rng := func(v string) (lo, hi int, ok bool) {
+		parts := strings.SplitN(v, "-", 2)
+		lo, ok = num(parts[0])
+		if !ok {
+			return 0, 0, false
+		}
+		hi = lo
+		if len(parts) == 2 {
+			if h, hok := num(parts[1]); hok {
+				hi = h
+			}
+		}
+		return lo, hi, true
+	}
+
+	if lo, hi, ok := rng(data.Infobox["Level"]); ok {
+		s.sqlite.Exec("UPDATE creature_template SET level_min=?, level_max=? WHERE entry=?", lo, hi, entry)
+	}
+	if _, hi, ok := rng(data.Infobox["Health"]); ok && hi > 0 {
+		s.sqlite.Exec("UPDATE creature_template SET health_max=? WHERE entry=?", hi, entry)
+	}
+	if fid, ok := num(data.Infobox["Faction ID"]); ok && fid > 0 {
+		s.sqlite.Exec("UPDATE creature_template SET faction=? WHERE entry=?", fid, entry)
+	}
+	if armor, ok := num(data.Infobox["Armor"]); ok && armor > 0 {
+		s.sqlite.Exec("UPDATE creature_template SET armor=? WHERE entry=?", armor, entry)
+	}
+	if did, ok := num(data.Infobox["Display ID"]); ok && did > 0 {
+		s.sqlite.Exec("UPDATE creature_template SET display_id1=? WHERE entry=?", did, entry)
+	}
+}
+
+// applyScrapedSpawns replaces a creature's spawn rows with the full set octowow
+// reports (every point across every zone). octowow.st is the source of truth, so
+// when it lists spawns they win over the single-point scrape fallback and the
+// (often missing, for custom NPCs) MySQL spawns.
+func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
+	if data == nil || len(data.Spawns) == 0 {
+		return
+	}
+	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
+	inserted := 0
+	for _, sp := range data.Spawns {
+		_, err := s.sqlite.Exec(`
+			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(creature_entry, map_id, position_x, position_y) DO NOTHING
+		`, entry, 0, sp.ZoneID, sp.ZoneName, sp.X, sp.Y, 0)
+		if err == nil {
+			inserted++
+		}
+	}
+	fmt.Printf("  ✓ Applied %d scraped spawn point(s) for creature %d\n", inserted, entry)
 }
 
 func (s *NpcService) SyncNpcData(entry int) error {
@@ -1269,8 +1337,9 @@ func (s *NpcService) SyncNpcData(entry int) error {
 	// here (e.g. scrape hiccup, transient write contention) must NOT skip the
 	// MySQL stats + spawn sync below — that's how a full sync could leave an NPC
 	// without its spawn/zone while a manual re-sync fixed it.
-	if err := s.syncNpcImages(entry); err != nil {
-		fmt.Printf("[SyncNpcData] metadata step failed for %d (continuing to MySQL sync): %v\n", entry, err)
+	scraped, scrapeErr := s.syncNpcImages(entry)
+	if scrapeErr != nil {
+		fmt.Printf("[SyncNpcData] metadata step failed for %d (continuing to MySQL sync): %v\n", entry, scrapeErr)
 	}
 	var err error
 
@@ -1399,6 +1468,11 @@ func (s *NpcService) SyncNpcData(entry int) error {
 		fmt.Printf("[SyncNpcData] No MySQL connection. Attempting to use scraped spawn data for %d...\n", entry)
 		s.syncCreatureSpawnsFromMySQL(entry)
 	}
+
+	// Apply the live octowow stats and spawns last so they win over the (often
+	// stale or missing) MySQL dump — octowow.st is the source of truth for these.
+	s.applyScrapedStats(entry, scraped)
+	s.applyScrapedSpawns(entry, scraped)
 
 	return nil
 }
