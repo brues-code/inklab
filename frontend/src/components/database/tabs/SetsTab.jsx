@@ -1,72 +1,26 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem } from '../../ui'
 import { GetItemSets, GetItemSetDetail, GetTalentClasses, filterItems } from '../../../utils/databaseApi'
 
 function SetsTab({ tooltipHook }) {
-    const [itemSets, setItemSets] = useState([])
     const [selectedSet, setSelectedSet] = useState(null)
-    const [setDetail, setSetDetail] = useState(null)
-    const [loading, setLoading] = useState(false)
+    // First column: playable classes, each with its allowable_class bit
+    // (1<<(id-1)). bit 0 = "All Classes".
+    const [classBit, setClassBit] = useState(0)
 
     const [classFilter, setClassFilter] = useState('')
     const [setFilter, setSetFilter] = useState('')
     const [itemFilter, setItemFilter] = useState('')
 
-    // First column: playable classes, each with its allowable_class bit
-    // (1<<(id-1)). bit 0 = "All Classes".
-    const [classOptions, setClassOptions] = useState([])
-    const [classBit, setClassBit] = useState(0)
+    const { setHoveredItem, handleItemEnter, handleMouseMove } = tooltipHook
 
-    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove } = tooltipHook
+    // Item sets + playable classes are static for a session; set detail is keyed
+    // by the shown set. No effects — everything derives from the queries.
+    const itemSetsQuery = useQuery({ queryKey: ['itemSets'], queryFn: GetItemSets, staleTime: Infinity })
+    const classesQuery = useQuery({ queryKey: ['talentClasses'], queryFn: GetTalentClasses, staleTime: Infinity })
 
-    // Load item sets on mount
-    useEffect(() => {
-        setLoading(true)
-        GetItemSets()
-            .then(sets => {
-                setItemSets(sets || [])
-                setSelectedSet((sets || [])[0] || null) // default to the first set
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load item sets:", err)
-                setLoading(false)
-            })
-    }, [])
-
-    // Load classes for the filter; name comes from game data (ChrClasses.dbc),
-    // bit = 1 << (classId - 1) to match items' allowable_class.
-    useEffect(() => {
-        GetTalentClasses().then(list => {
-            setClassOptions(
-                (list || [])
-                    .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1), color: c.color }))
-                    .sort((a, b) => a.name.localeCompare(b.name))
-            )
-        })
-    }, [])
-
-    // Load set detail when a set is selected
-    useEffect(() => {
-        if (selectedSet) {
-            setLoading(true)
-            GetItemSetDetail(selectedSet.itemsetId)
-                .then(detail => {
-                    setSetDetail(detail)
-                    setLoading(false)
-                    // Preload tooltips for set items (idempotent — cached/deduped)
-                    if (detail?.items) {
-                        detail.items.forEach(item => {
-                            if (item.entry) loadTooltipData(item.entry)
-                        })
-                    }
-                })
-                .catch(err => {
-                    console.error("Failed to load set detail:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedSet])
+    const itemSets = itemSetsQuery.data || []
 
     // Class filter: a set matches when its derived classMask has the bit set.
     // Unrestricted sets (classMask 0) only show under "All".
@@ -74,6 +28,27 @@ function SetsTab({ tooltipHook }) {
         () => classBit === 0 ? itemSets : itemSets.filter(s => (s.classMask & classBit) !== 0),
         [itemSets, classBit]
     )
+
+    // The set to show detail for: the explicit selection, else the first set of
+    // the current class filter, so the detail panel always shows something.
+    const effectiveSet = selectedSet || classFilteredSets[0] || null
+
+    const setDetailQuery = useQuery({
+        queryKey: ['itemSetDetail', effectiveSet?.itemsetId],
+        queryFn: () => GetItemSetDetail(effectiveSet.itemsetId),
+        enabled: !!effectiveSet,
+    })
+    const setDetail = setDetailQuery.data || null
+
+    // Class options from game data (ChrClasses.dbc); bit = 1 << (classId - 1) to
+    // match items' allowable_class.
+    const classOptions = useMemo(
+        () => (classesQuery.data || [])
+            .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1), color: c.color }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        [classesQuery.data]
+    )
+
     const filteredItemSets = useMemo(() => filterItems(classFilteredSets, setFilter), [classFilteredSets, setFilter])
     const filteredSetItems = useMemo(() => {
         if (!setDetail?.items) return []
@@ -85,19 +60,13 @@ function SetsTab({ tooltipHook }) {
         bit === 0 ? itemSets.length : itemSets.filter(s => (s.classMask & bit) !== 0).length
     const filteredClasses = useMemo(() => filterItems(classOptions, classFilter), [classOptions, classFilter])
 
-    // First set of a class's list (bit 0 = all), used to default the selection.
-    const firstSetForClass = (bit) => {
-        const list = bit === 0 ? itemSets : itemSets.filter(s => (s.classMask & bit) !== 0)
-        return list[0] || null
-    }
-
-    // Selecting a class resets the set filter and defaults to its first set, so
-    // the detail panel always shows something.
+    // Selecting a class resets filters and clears the explicit set, so the detail
+    // defaults to that class's first set (via effectiveSet).
     const selectClass = (bit) => {
         setClassBit(bit)
         setSetFilter('')
         setItemFilter('')
-        setSelectedSet(firstSetForClass(bit))
+        setSelectedSet(null)
     }
 
     return (
@@ -135,13 +104,13 @@ function SetsTab({ tooltipHook }) {
                     onFilterChange={setSetFilter}
                 />
                 <ScrollList>
-                    {loading && itemSets.length === 0 && (
+                    {itemSetsQuery.isLoading && (
                         <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading sets...</div>
                     )}
                     {filteredItemSets.map(set => (
                         <ListItem
                             key={set.itemsetId}
-                            active={selectedSet?.itemsetId === set.itemsetId}
+                            active={effectiveSet?.itemsetId === set.itemsetId}
                             onClick={() => {
                                 setSelectedSet(set)
                                 setItemFilter('')
@@ -158,19 +127,19 @@ function SetsTab({ tooltipHook }) {
 
             {/* Set Details */}
             <ContentPanel>
-                <SectionHeader 
-                    title={selectedSet ? `${selectedSet.name} (${filteredSetItems.length})` : 'Select a Set'}
+                <SectionHeader
+                    title={effectiveSet ? `${effectiveSet.name} (${filteredSetItems.length})` : 'Select a Set'}
                     placeholder="Filter items..."
                     onFilterChange={setItemFilter}
                 />
-                
-                {loading && selectedSet && (
+
+                {setDetailQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading set details...
                     </div>
                 )}
-                
-                {setDetail && !loading && (
+
+                {setDetail && !setDetailQuery.isLoading && (
                     <ScrollList className="p-2 space-y-2">
                         {/* Set Items */}
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-1">
@@ -215,7 +184,7 @@ function SetsTab({ tooltipHook }) {
                     </ScrollList>
                 )}
                 
-                {!selectedSet && !loading && (
+                {!effectiveSet && !itemSetsQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select an item set to view its items
                     </div>
