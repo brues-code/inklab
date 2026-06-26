@@ -74,10 +74,12 @@ const flatTalents = (trees) =>
         .sort((a, b) => a.order - b.order)
         .flatMap((tr) => [...tr.talents].sort((a, b) => a.row - b.row || a.col - b.col))
 
+// id -> talent lookup over a list of talents.
+const byTalentId = (talents) => Object.fromEntries(talents.map((t) => [t.id, t]))
+
 function encodeBuild(classId, trees, order) {
     const flat = flatTalents(trees)
-    const indexById = {}
-    flat.forEach((t, i) => (indexById[t.id] = i))
+    const indexById = Object.fromEntries(flat.map((t, i) => [t.id, i]))
     let body = ''
     for (const id of order) {
         const i = indexById[id]
@@ -244,11 +246,7 @@ const BADGE_TEXT = {
 function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, onLeave }) {
     const { src: bg } = useImage('talent_bg', tree.background)
 
-    const byId = useMemo(() => {
-        const m = {}
-        tree.talents.forEach((t) => (m[t.id] = t))
-        return m
-    }, [tree])
+    const byId = useMemo(() => byTalentId(tree.talents), [tree])
 
     const nodeState = (t) => {
         const rank = points[t.id] || 0
@@ -453,11 +451,7 @@ function TalentsPage() {
 
     // Flat talent lookup, and the leveling order: one row per point spent, with
     // the level it was taken (first point is level 10) and the rank reached.
-    const talentById = useMemo(() => {
-        const m = {}
-        data?.trees?.forEach((tr) => tr.talents.forEach((t) => (m[t.id] = t)))
-        return m
-    }, [data])
+    const talentById = useMemo(() => byTalentId(flatTalents(data?.trees || [])), [data])
     const leveling = useMemo(() => {
         const seen = {}
         return order.map((id, i) => {
