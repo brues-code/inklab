@@ -72,7 +72,7 @@ func (r *SpellRepository) SearchSpells(query string) ([]*models.Spell, error) {
 		s := &models.Spell{}
 		var desc *string
 		var bp1, bp2, bp3 int
-		if err := rows.Scan(&s.Entry, &s.Name, &desc, &s.Icon, &bp1, &bp2, &bp3); err != nil {
+		if err := rows.Scan(&s.Entry, &s.Name, &desc, &s.Icon, &bp1, &bp2, &bp3, &s.SubName); err != nil {
 			fmt.Printf("Scan error: %v\n", err)
 			continue
 		}
@@ -227,7 +227,8 @@ func (r *SpellRepository) GetSpellsBySkill(skillID int, nameFilter string) ([]*m
 
 	query := fmt.Sprintf(`
 		SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
-		       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
+		       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
+		       COALESCE(sp.nameSubtext, '')
 		FROM spell_template sp
 		INNER JOIN spell_skill_spells ss ON ss.spell_id = sp.entry
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
@@ -247,7 +248,7 @@ func (r *SpellRepository) GetSpellsBySkill(skillID int, nameFilter string) ([]*m
 		s := &models.Spell{}
 		var desc *string
 		var bp1, bp2, bp3 int
-		if err := rows.Scan(&s.Entry, &s.Name, &desc, &s.Icon, &bp1, &bp2, &bp3); err != nil {
+		if err := rows.Scan(&s.Entry, &s.Name, &desc, &s.Icon, &bp1, &bp2, &bp3, &s.SubName); err != nil {
 			continue
 		}
 		if desc != nil {
@@ -263,11 +264,12 @@ func (r *SpellRepository) GetSpellByID(entry int) (*models.Spell, error) {
 	s := &models.Spell{}
 	var desc *string
 	err := r.db.QueryRow(`
-		SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, '')
+		SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
+		       COALESCE(sp.nameSubtext, '')
 		FROM spell_template sp
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 		WHERE sp.entry = ?
-	`, entry).Scan(&s.Entry, &s.Name, &desc, &s.Icon)
+	`, entry).Scan(&s.Entry, &s.Name, &desc, &s.Icon, &s.SubName)
 	if err != nil {
 		return nil, err
 	}
@@ -300,11 +302,12 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	// Use spell_icons table to get icon name via spellIconId
 	query := `
 		SELECT 
-			sp.entry, sp.name, sp.description, sp.durationIndex, sp.rangeIndex, 
+			sp.entry, sp.name, sp.description, sp.durationIndex, sp.rangeIndex,
 			sp.manaCost, sp.castingTimeIndex, sp.school, sp.spellLevel, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
             sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
             sp.effectDieSides1, sp.effectDieSides2, sp.effectDieSides3,
-            sp.effectBaseDice1, sp.effectBaseDice2, sp.effectBaseDice3
+            sp.effectBaseDice1, sp.effectBaseDice2, sp.effectBaseDice3,
+            COALESCE(sp.nameSubtext, '')
 		FROM spell_template sp
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 		WHERE sp.entry = ?
@@ -318,6 +321,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		&s.Entry, &s.Name, &desc, &s.Durationindex, &s.Rangeindex,
 		&s.Manacost, &s.Castingtimeindex, &s.School, &s.Spelllevel, &iconName,
 		&bp1, &bp2, &bp3, &ds1, &ds2, &ds3, &bd1, &bd2, &bd3,
+		&s.Namesubtext,
 	)
 
 	if err != nil {

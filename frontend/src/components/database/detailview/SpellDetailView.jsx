@@ -113,7 +113,7 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 title={`${detail.name} [${detail.entry}]`}
                 icon={<SpellIcon iconName={detail.icon} />}
                 titleColor="#FFD100" 
-                subtitle={`Level ${detail.spellLevel} - ${schoolName}`}
+                subtitle={[detail.nameSubtext, `Level ${detail.spellLevel}`, schoolName].filter(Boolean).join(' • ')}
                 action={
                     <div className="flex gap-2">
                         <button

@@ -263,7 +263,12 @@ function SpellsTab({ onNavigate }) {
                                         className="font-bold truncate"
                                         style={{ color: SPELL_COLOR }}
                                     >
-                                        {spell.name} {spell.subname ? `(${spell.subname})` : ''}
+                                        {spell.name}
+                                        {spell.subname && (
+                                            <span className="ml-1.5 text-[11px] font-normal text-gray-500">
+                                                {spell.subname}
+                                            </span>
+                                        )}
                                     </span>
                                     {spell.description && (
                                         <span className="text-gray-500 text-xs truncate mt-0.5">
