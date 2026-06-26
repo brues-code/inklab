@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { GetItemClasses, BrowseItemsByClass } from '../../../../wailsjs/go/main/App'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem, ContentGrid } from '../../ui'
 import { BrowseItemsByClassAndSlot, filterItems } from '../../../utils/databaseApi'
@@ -36,12 +37,9 @@ const RESISTANCE_FIELDS = {
 }
 
 function ItemsTab({ tooltipHook, onNavigate }) {
-    const [itemClasses, setItemClasses] = useState([])
     const [selectedClass, setSelectedClass] = useState(null)
     const [selectedSubClass, setSelectedSubClass] = useState(null)
     const [selectedSlot, setSelectedSlot] = useState(null)
-    const [items, setItems] = useState([])
-    const [loading, setLoading] = useState(false)
 
     // Independent filter states for each column
     const [classFilter, setClassFilter] = useState('')
@@ -106,74 +104,28 @@ function ItemsTab({ tooltipHook, onNavigate }) {
         console.groupEnd()
     }, [advancedFilters])
 
-    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove } = tooltipHook
+    const { setHoveredItem, handleItemEnter, handleMouseMove } = tooltipHook
 
-    // Load item classes on mount
-    useEffect(() => {
-        setLoading(true)
-        GetItemClasses()
-            .then(classes => {
-                setItemClasses(classes || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load item classes:", err)
-                setLoading(false)
-            })
-    }, [])
+    // Item classes load once (static for a session).
+    const classesQuery = useQuery({ queryKey: ['itemClasses'], queryFn: GetItemClasses, staleTime: Infinity })
+    const itemClasses = classesQuery.data || []
 
     // Check if the selected class needs slot filtering (Armor = 4, Weapon = 2)
     const needsSlotFilter = selectedClass?.class === 4 || selectedClass?.class === 2
 
-    // Special marker for "All Slots" selection
-    const ALL_SLOTS = { inventoryType: -1, name: 'All Slots' }
-    
-    // Browse items when class/subclass/slot selected
-    useEffect(() => {
-        if (selectedClass !== null && selectedSubClass !== null) {
-            // For classes with inventory slots, wait for slot selection (null means not yet selected)
-            if (needsSlotFilter && selectedSlot === null) {
-                setItems([])
-                return
-            }
-            
-            setLoading(true)
-            setItems([])
-            
-            // Check if "All Slots" is selected (inventoryType === -1) or a specific slot
-            if (selectedSlot !== null && selectedSlot.inventoryType !== -1) {
-                BrowseItemsByClassAndSlot(selectedClass.class, selectedSubClass.subClass, selectedSlot.inventoryType, '')
-                    .then(res => {
-                        setItems(res || [])
-                        setLoading(false)
-                    })
-                    .catch(err => {
-                        console.error("Failed to browse items by slot:", err)
-                        setLoading(false)
-                    })
-            } else {
-                // "All Slots" selected or non-slot-filtered class - load all items in subclass
-                BrowseItemsByClass(selectedClass.class, selectedSubClass.subClass, '')
-                    .then(res => {
-                        setItems(res || [])
-                        setLoading(false)
-                    })
-                    .catch(err => {
-                        console.error("Failed to browse items:", err)
-                        setLoading(false)
-                    })
-            }
-        }
-    }, [selectedSubClass, selectedSlot, needsSlotFilter])
-
-    // Preload tooltips when items change (idempotent — cached/deduped)
-    useEffect(() => {
-        if (items?.length > 0) {
-            items.slice(0, 20).forEach(item => {
-                if (item.entry) loadTooltipData(item.entry)
-            })
-        }
-    }, [items, loadTooltipData])
+    // Browse items for the current class/subclass/(slot). A specific slot uses
+    // the slot-aware query; "All Slots" (inventoryType -1) or non-slot classes use
+    // the class+subclass query. Gated until the needed selections exist.
+    const useSlot = selectedSlot !== null && selectedSlot.inventoryType !== -1
+    const itemsQuery = useQuery({
+        queryKey: ['items', selectedClass?.class, selectedSubClass?.subClass, useSlot ? selectedSlot.inventoryType : 'all'],
+        queryFn: () => useSlot
+            ? BrowseItemsByClassAndSlot(selectedClass.class, selectedSubClass.subClass, selectedSlot.inventoryType, '')
+            : BrowseItemsByClass(selectedClass.class, selectedSubClass.subClass, ''),
+        enabled: selectedClass !== null && selectedSubClass !== null && (!needsSlotFilter || selectedSlot !== null),
+    })
+    const items = itemsQuery.data || []
+    const loading = itemsQuery.isLoading
 
     // Filtered lists
     const filteredClasses = useMemo(() => filterItems(itemClasses, classFilter), [itemClasses, classFilter])
@@ -421,7 +373,6 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                                     setSelectedClass(cls)
                                     setSelectedSubClass(null)
                                     setSelectedSlot(null)
-                                    setItems([])
                                     setSubClassFilter('')
                                     setSlotFilter('')
                                     setItemFilter('')
