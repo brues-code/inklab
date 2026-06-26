@@ -8,7 +8,7 @@ import {
     DetailError
 } from '../../ui'
 import { useIcon } from '../../../services/useImage'
-import { getQualityColor } from '../../../utils/wow'
+import { getQualityColor, getSchoolName, getSchoolColor } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 
 // Helper component for Spell Icon
@@ -95,11 +95,9 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     if (error) return <DetailError message={error} onBack={onBack} />
     if (!detail) return <DetailError message="Spell not found" onBack={onBack} />
     
-    // Determine schools
-    const schoolMap = {
-        0: 'Physical', 1: 'Holy', 2: 'Fire', 3: 'Nature', 4: 'Frost', 5: 'Shadow', 6: 'Arcane'
-    }
-    const schoolName = schoolMap[detail.school] || 'Unknown'
+    // School name + its client font color (Physical has none → default text).
+    const schoolName = getSchoolName(detail.school)
+    const schoolColor = getSchoolColor(detail.school)
 
     // Format power type
     const powerTypes = {
@@ -113,7 +111,13 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 title={`${detail.name} [${detail.entry}]`}
                 icon={<SpellIcon iconName={detail.icon} />}
                 titleColor="#FFD100" 
-                subtitle={[detail.nameSubtext, `Level ${detail.spellLevel}`, schoolName].filter(Boolean).join(' • ')}
+                subtitle={
+                    <>
+                        {[detail.nameSubtext, `Level ${detail.spellLevel}`].filter(Boolean).join(' • ')}
+                        {' • '}
+                        <span style={{ color: schoolColor }}>{schoolName}</span>
+                    </>
+                }
                 action={
                     <div className="flex gap-2">
                         <button
@@ -211,7 +215,7 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             <span className="text-gray-300 text-right">{detail.castTime}</span>
 
                             <span className="text-gray-500">School:</span>
-                            <span className="text-gray-300 text-right">{schoolName}</span>
+                            <span className="text-gray-300 text-right font-medium" style={{ color: schoolColor }}>{schoolName}</span>
                             
                             <span className="text-gray-500">Level:</span>
                             <span className="text-gray-300 text-right">{detail.spellLevel}</span>

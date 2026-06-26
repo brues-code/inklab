@@ -1,3 +1,29 @@
+// Spell school index (mangos spell_template.school) -> display name.
+export const SPELL_SCHOOLS: Record<number, string> = {
+    0: 'Physical',
+    1: 'Holy',
+    2: 'Fire',
+    3: 'Nature',
+    4: 'Frost',
+    5: 'Shadow',
+    6: 'Arcane',
+}
+
+// School text colors, from the client's damageTypeFontColors (CreateSpellColor
+// RGB floats, converted to hex). Physical (school 0) has no client color, so it
+// falls back to the default text color.
+export const SPELL_SCHOOL_COLORS: Record<number, string> = {
+    1: '#f6f99e', // Holy
+    2: '#ee7d80', // Fire
+    3: '#a1db65', // Nature
+    4: '#76caed', // Frost
+    5: '#5b4a98', // Shadow
+    6: '#f4a8e4', // Arcane
+}
+
+export const getSchoolName = (school: number): string => SPELL_SCHOOLS[school] || 'Unknown'
+export const getSchoolColor = (school: number): string | undefined => SPELL_SCHOOL_COLORS[school]
+
 export const getQualityColor = (quality: number): string => {
     const colors: Record<number, string> = {
         0: '#9d9d9d', // Poor
