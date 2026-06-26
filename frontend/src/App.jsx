@@ -1,21 +1,20 @@
 import { useState, useCallback } from 'react'
 import AtlasLootPage from './pages/AtlasLootPage/AtlasLootPage'
 import DatabasePage from './pages/DatabasePage/DatabasePage'
-import SearchPage from './pages/SearchPage/SearchPage'
 import TalentsPage from './pages/TalentsPage'
 import MapsPage from './pages/MapsPage'
 import SyncPage from './pages/SyncPage'
 import ToolsPage from './pages/ToolsPage'
 import FavoritesPage from './pages/FavoritesPage/FavoritesPage'
-import { TabButton, UpdateBanner, DataStatusBanner } from './components/ui'
+import { TabButton, UpdateBanner, DataStatusBanner, GlobalSearch } from './components/ui'
 
 function App() {
     const [activeTab, setActiveTab] = useState('database')
     
-    // Pending navigation target (from SearchPage to Database)
+    // Pending navigation target (from global search / favorites to Database)
     const [pendingNavigation, setPendingNavigation] = useState(null)
 
-    // Handle navigation from SearchPage - switch to database tab and open item
+    // Handle navigation from global search / favorites - switch to database tab and open item
     const handleSearchNavigate = useCallback((type, entry) => {
         console.log(`[App] Search navigation: ${type} #${entry}`)
         setPendingNavigation({ type, entry })
@@ -58,12 +57,6 @@ function App() {
                             Favorites
                         </TabButton>
                         <TabButton
-                            active={activeTab === 'search'}
-                            onClick={() => setActiveTab('search')}
-                        >
-                            Search
-                        </TabButton>
-                        <TabButton
                             active={activeTab === 'talents'}
                             onClick={() => setActiveTab('talents')}
                         >
@@ -89,6 +82,7 @@ function App() {
                         </TabButton>
                     </nav>
                 </div>
+                <GlobalSearch onNavigate={handleSearchNavigate} />
             </header>
 
             {/* Main Content */}
@@ -98,11 +92,6 @@ function App() {
                     <DatabasePage 
                         pendingNavigation={pendingNavigation}
                         onNavigationHandled={clearPendingNavigation}
-                    />
-                )}
-                {activeTab === 'search' && (
-                    <SearchPage 
-                        onNavigate={handleSearchNavigate}
                     />
                 )}
                 {activeTab === 'favorites' && (
