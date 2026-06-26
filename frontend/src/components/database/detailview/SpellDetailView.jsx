@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { GetSpellDetail, SyncSingleSpell } from '../../../services/api'
 import { 
     DetailPageLayout, 
@@ -47,41 +48,20 @@ const ItemIcon = ({ iconName }) => {
 }
 
 const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-    const [detail, setDetail] = useState(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(null)
     const [syncing, setSyncing] = useState(false)
 
-    const loadSpell = () => {
-        setLoading(true)
-        setError(null)
-        
-        GetSpellDetail(parseInt(entry))
-            .then(res => {
-                if (!res) {
-                    setError("Spell data not found");
-                } else {
-                    setDetail(res)
-                }
-                setLoading(false)
-            })
-            .catch(err => {
-                setError(err.toString());
-                setLoading(false)
-            })
-    }
-
-    useEffect(() => {
-        loadSpell()
-    }, [entry])
+    const { data: detail, isLoading: loading, isError, error, refetch } = useQuery({
+        queryKey: ["spellDetail", entry],
+        queryFn: () => GetSpellDetail(parseInt(entry)),
+        enabled: entry != null,
+    })
 
     const handleSync = async () => {
         setSyncing(true)
         try {
             const result = await SyncSingleSpell(parseInt(entry))
             if (result?.success) {
-                // Reload spell data after sync
-                loadSpell()
+                await refetch() // reload spell data after sync
             } else {
                 console.error("Sync failed:", result?.error)
             }
@@ -92,7 +72,7 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     }
 
     if (loading) return <DetailLoading />
-    if (error) return <DetailError message={error} onBack={onBack} />
+    if (isError) return <DetailError message={String(error)} onBack={onBack} />
     if (!detail) return <DetailError message="Spell not found" onBack={onBack} />
     
     // Localized school name from the client (spell_schools), English fallback.

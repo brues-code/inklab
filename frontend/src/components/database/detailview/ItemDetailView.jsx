@@ -73,41 +73,29 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // The item's tooltip payload, from the shared Query cache (warmed by hover
   // elsewhere). Invalidating it (after a sync/icon fix) refetches this view.
   const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry });
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: detail, isLoading: loading, refetch: refetchDetail } = useQuery({
+    queryKey: ["itemDetail", entry],
+    queryFn: () => GetItemDetail(entry),
+    enabled: !!entry,
+  });
   const [imgError, setImgError] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Check favorite status on load
+  // Check favorite status (and reset the icon-error flag) when the item changes.
   useEffect(() => {
     if (entry) {
-        IsFavorite(entry).then(setIsFavorite);
+      setImgError(false);
+      IsFavorite(entry).then(setIsFavorite);
     }
   }, [entry]);
 
   const reloadData = async () => {
-    const updatedDetail = await GetItemDetail(entry);
-    setDetail(updatedDetail);
+    await refetchDetail();
     // Refresh the tooltip — invalidating refetches the active query above.
     invalidateTooltip?.(entry);
   };
-
-  useEffect(() => {
-    setLoading(true);
-    setImgError(false); // Reset error state
-    GetItemDetail(entry)
-      .then((res) => {
-        setDetail(res);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.warn(`Error getting item detail [${entry}]:`, err);
-        setDetail(null);
-        setLoading(false);
-      });
-  }, [entry]);
 
   const handleFixIcon = async () => {
     setFixing(true);
@@ -157,13 +145,9 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     try {
       const result = await SyncSingleItem(entry);
       if (result && result.success) {
-        // Reload data first
-        const updatedDetail = await GetItemDetail(entry);
-        setDetail(updatedDetail);
-
+        await refetchDetail();
         // Refresh the tooltip — invalidating refetches the active query above.
         invalidateTooltip?.(entry);
-
         setImgError(false);
       } else {
         alert(`Sync failed: ${result?.error || "Unknown error"}`);

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { GetFactionDetail } from "../../../../wailsjs/go/main/App";
 import {
@@ -10,18 +11,12 @@ import {
 } from "../../ui";
 
 const FactionDetailView = ({ id, onBack, onNavigate }) => {
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setActiveTab(null);
-    GetFactionDetail(id).then((res) => {
-      setDetail(res);
-      setLoading(false);
-    });
-  }, [id]);
+  const { data: detail, isLoading: loading } = useQuery({
+    queryKey: ["factionDetail", id],
+    queryFn: () => GetFactionDetail(id),
+    enabled: id != null,
+  });
 
   if (loading) return <DetailLoading />;
   if (!detail) return <DetailError message="Faction not found" onBack={onBack} />;

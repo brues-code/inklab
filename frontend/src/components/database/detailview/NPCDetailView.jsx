@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "../../../queryClient";
 import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
 import { useNpcModel, useNpcPortrait, useZoneMap, useIcon } from "../../../services/useImage";
 import { evictImage } from "../../../services/imageService";
@@ -34,14 +36,25 @@ const AbilityIcon = ({ iconName }) => {
 
 const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [activeTab, setActiveTab] = useState("overview");
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [showMapModal, setShowMapModal] = useState(false);
   const [imgReload, setImgReload] = useState(0);
   const [refreshingImages, setRefreshingImages] = useState(false);
   // When an NPC spawns across multiple zones, this overrides which zone's map is
   // shown; null = use the resolved primary zone (detail.zoneName).
   const [selectedZone, setSelectedZone] = useState(null);
+
+  const { data: detail, isLoading: loading } = useQuery({
+    queryKey: ["npcDetail", entry],
+    queryFn: () => GetNpcFullDetails(entry),
+    enabled: entry != null,
+  });
+
+  // Reset the zone toggle when viewing a different NPC (render-time, no effect).
+  const [npcKey, setNpcKey] = useState(entry);
+  if (entry !== npcKey) {
+    setNpcKey(entry);
+    setSelectedZone(null);
+  }
 
   // Model renders are produced locally from the client MPQs (per-creature when
   // the NPC has weapons, else the shared display render) — no network fetching.
@@ -78,20 +91,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     : allSpawns;
   const mapSpawns = zoneSpawns.length > 0 ? zoneSpawns : allSpawns;
 
-  useEffect(() => {
-    setLoading(true);
-    setSelectedZone(null); // reset zone toggle when viewing a different NPC
-    GetNpcFullDetails(entry).then((res) => {
-      setDetail(res);
-      setLoading(false);
-    });
-  }, [entry]);
-
   const handleSync = () => {
-    setLoading(true);
     SyncNpcData(entry).then((res) => {
-      setDetail(res);
-      setLoading(false);
+      if (res) queryClient.setQueryData(["npcDetail", entry], res);
     });
   };
 
@@ -101,7 +103,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     setRefreshingImages(true);
     RefreshNpcImages(entry)
       .then((res) => {
-        if (res) setDetail(res);
+        if (res) queryClient.setQueryData(["npcDetail", entry], res);
         if (displayId) {
           evictImage("npc_model", `model_${displayId}`);
           evictImage("npc_model", `model_portrait_${displayId}`);

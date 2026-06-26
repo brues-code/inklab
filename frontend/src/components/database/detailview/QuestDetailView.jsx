@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { queryClient } from '../../../queryClient'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { GetQuestDetail, SyncQuestData } from '../../../services/api'
 import { 
@@ -13,34 +15,15 @@ import {
 import { LootItem } from '../../ui'
 
 const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-    const [detail, setDetail] = useState(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(null)
-
-    useEffect(() => {
-        setLoading(true)
-        setError(null)
-        
-        GetQuestDetail(entry)
-            .then(res => {
-                if (!res) {
-                    setError("Quest data is empty or invalid.");
-                } else {
-                    setDetail(res)
-                }
-                setLoading(false)
-            })
-            .catch(err => {
-                setError(err.toString());
-                setLoading(false)
-            })
-    }, [entry])
+    const { data: detail, isLoading: loading, isError, error } = useQuery({
+        queryKey: ["questDetail", entry],
+        queryFn: () => GetQuestDetail(entry),
+        enabled: entry != null,
+    })
 
     const handleSync = () => {
-        setLoading(true);
         SyncQuestData(entry).then((res) => {
-            if (res) setDetail(res);
-            setLoading(false);
+            if (res) queryClient.setQueryData(["questDetail", entry], res);
         });
     };
 
@@ -62,7 +45,8 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     }
 
     if (loading) return <DetailLoading />
-    if (error) return <DetailError message={error} onBack={onBack} />
+    if (isError) return <DetailError message={String(error)} onBack={onBack} />
+    if (!detail) return <DetailError message="Quest data is empty or invalid." onBack={onBack} />
     if (!detail) return <DetailError message="Quest not found" onBack={onBack} />
     
     return (
