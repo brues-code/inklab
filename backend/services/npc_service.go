@@ -1309,13 +1309,24 @@ func (s *NpcService) applyScrapedStats(entry int, data *ScrapedNpcData) {
 	}
 }
 
-// applyScrapedSpawns replaces a creature's spawn rows with the full set octowow
-// reports (every point across every zone). octowow.st is the source of truth, so
-// when it lists spawns they win over the single-point scrape fallback and the
-// (often missing, for custom NPCs) MySQL spawns.
+// applyScrapedSpawns fills a creature's spawn rows from octowow's full reported
+// set (every point across every zone) — but ONLY as a fallback when MySQL has no
+// spawns for it. MySQL carries real world coordinates and the correct map id, so
+// its rows resolve to the right zone; octowow's scraped points are zone-relative
+// percentages with no map id (stored as map 0) and octowow's own zone grouping,
+// which would mis-place an NPC MySQL already knows (e.g. a Kalimdor mob landing
+// on map 0 / a neighbouring zone). So octowow only supplies spawns MySQL lacks
+// (custom NPCs absent from the dump, like Elder Forest Boar).
 func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	if data == nil || len(data.Spawns) == 0 {
 		return
+	}
+	// Keep MySQL's accurate spawns when it has any for this creature.
+	if s.mysql != nil {
+		var cnt int
+		if err := s.mysql.DB().QueryRow("SELECT COUNT(*) FROM creature WHERE id = ?", entry).Scan(&cnt); err == nil && cnt > 0 {
+			return
+		}
 	}
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 	inserted := 0
