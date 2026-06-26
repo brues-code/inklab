@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetQuestCategoryGroups, GetQuestCategoriesByGroup, GetQuestsByEnhancedCategory, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useQuestGroups, useQuestCategories, useQuestsByCategory } from '../../../hooks/queries/quests'
 
 // Quest type badge colors
 const getQuestTypeInfo = (type) => {
@@ -23,17 +23,9 @@ function QuestsTab({ onNavigate }) {
     const [questFilter, setQuestFilter] = useState('')
 
     // Cascading queries keyed by selection; resets are handler-driven (no effects).
-    const groupsQuery = useQuery({ queryKey: ['questGroups'], queryFn: GetQuestCategoryGroups, staleTime: Infinity })
-    const categoriesQuery = useQuery({
-        queryKey: ['questCategories', selectedGroup?.id],
-        queryFn: () => GetQuestCategoriesByGroup(selectedGroup.id),
-        enabled: !!selectedGroup,
-    })
-    const questsQuery = useQuery({
-        queryKey: ['questsByCategory', selectedCategory?.id],
-        queryFn: () => GetQuestsByEnhancedCategory(selectedCategory.id, ''),
-        enabled: !!selectedCategory,
-    })
+    const groupsQuery = useQuestGroups()
+    const categoriesQuery = useQuestCategories(selectedGroup?.id, !!selectedGroup)
+    const questsQuery = useQuestsByCategory(selectedCategory?.id, !!selectedCategory)
 
     const groups = groupsQuery.data || []
     const categories = categoriesQuery.data || []

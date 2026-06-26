@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetFactions, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useFactions } from '../../../hooks/queries/factions'
 
 // Faction side colors
 const getSideInfo = (side) => {
@@ -19,7 +19,7 @@ function FactionsTab({ onNavigate }) {
     const [factionFilter, setFactionFilter] = useState('')
 
     // All factions load once (static for a session); groups + filtering derive.
-    const { data: factions = [], isLoading } = useQuery({ queryKey: ['factions'], queryFn: GetFactions, staleTime: Infinity })
+    const { data: factions = [], isLoading } = useFactions()
 
     // Derive Groups from data
     const groups = useMemo(() => {

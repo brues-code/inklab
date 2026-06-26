@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "../../../queryClient";
-import { GetNpcFullDetails, SyncNpcData, RefreshNpcImages } from "../../../services/api";
+import { SyncNpcData, RefreshNpcImages } from "../../../services/api";
+import { useNpcDetail } from "../../../hooks/queries/npcs";
+import { queryKeys } from "../../../hooks/queries/keys";
 import { useNpcModel, useNpcPortrait, useZoneMap, useIcon } from "../../../services/useImage";
 import { evictImage } from "../../../services/imageService";
 import { getQualityColor, formatMoney } from "../../../utils/wow";
@@ -43,11 +44,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // shown; null = use the resolved primary zone (detail.zoneName).
   const [selectedZone, setSelectedZone] = useState(null);
 
-  const { data: detail, isLoading: loading } = useQuery({
-    queryKey: ["npcDetail", entry],
-    queryFn: () => GetNpcFullDetails(entry),
-    enabled: entry != null,
-  });
+  const { data: detail, isLoading: loading } = useNpcDetail(entry);
 
   // Reset the zone toggle when viewing a different NPC (render-time, no effect).
   const [npcKey, setNpcKey] = useState(entry);
@@ -93,7 +90,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
   const handleSync = () => {
     SyncNpcData(entry).then((res) => {
-      if (res) queryClient.setQueryData(["npcDetail", entry], res);
+      if (res) queryClient.setQueryData(queryKeys.npcDetail(entry), res);
     });
   };
 
@@ -103,7 +100,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     setRefreshingImages(true);
     RefreshNpcImages(entry)
       .then((res) => {
-        if (res) queryClient.setQueryData(["npcDetail", entry], res);
+        if (res) queryClient.setQueryData(queryKeys.npcDetail(entry), res);
         if (displayId) {
           evictImage("npc_model", `model_${displayId}`);
           evictImage("npc_model", `model_portrait_${displayId}`);

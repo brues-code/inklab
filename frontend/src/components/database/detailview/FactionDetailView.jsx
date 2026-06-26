@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
-import { GetFactionDetail } from "../../../../wailsjs/go/main/App";
+import { useFactionDetail } from "../../../hooks/queries/factions";
 import {
   DetailPageLayout,
   DetailHeader,
@@ -12,11 +11,7 @@ import {
 
 const FactionDetailView = ({ id, onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState(null);
-  const { data: detail, isLoading: loading } = useQuery({
-    queryKey: ["factionDetail", id],
-    queryFn: () => GetFactionDetail(id),
-    enabled: id != null,
-  });
+  const { data: detail, isLoading: loading } = useFactionDetail(id);
 
   if (loading) return <DetailLoading />;
   if (!detail) return <DetailError message="Faction not found" onBack={onBack} />;

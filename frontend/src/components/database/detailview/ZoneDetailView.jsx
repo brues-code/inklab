@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { GetZoneDetail } from "../../../utils/databaseApi";
+import { useZoneDetail } from "../../../hooks/queries/zones";
 import { useZoneMap } from "../../../services/useImage";
 import {
   DetailPageLayout,
@@ -40,11 +39,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [service, setService] = useState(null); // active service filter id
 
-  const { data: detail, isLoading: loading } = useQuery({
-    queryKey: ["zoneDetail", entry],
-    queryFn: () => GetZoneDetail(entry),
-    enabled: entry != null,
-  });
+  const { data: detail, isLoading: loading } = useZoneDetail(entry);
 
   // Reset the service filter when the zone changes (render-time, no effect).
   const [zoneKey, setZoneKey] = useState(entry);

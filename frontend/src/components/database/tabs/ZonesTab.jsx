@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetZones, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useZones } from '../../../hooks/queries/zones'
 
 const ZONE_COLOR = '#4ADE80'
 
@@ -11,7 +11,7 @@ function ZonesTab({ onNavigate }) {
     const [groupFilter, setGroupFilter] = useState('')
     const [zoneFilter, setZoneFilter] = useState('')
 
-    const zonesQuery = useQuery({ queryKey: ['zones'], queryFn: GetZones, staleTime: Infinity })
+    const zonesQuery = useZones()
     const zones = zonesQuery.data || []
 
     // Derive the continent/type groups from the flat zone list, preserving the

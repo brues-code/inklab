@@ -1,8 +1,9 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { queryClient } from '../../../queryClient'
+import { useQuestDetail } from '../../../hooks/queries/quests'
+import { queryKeys } from '../../../hooks/queries/keys'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
-import { GetQuestDetail, SyncQuestData } from '../../../services/api'
+import { SyncQuestData } from '../../../services/api'
 import { 
     DetailPageLayout, 
     DetailHeader, 
@@ -15,15 +16,11 @@ import {
 import { LootItem } from '../../ui'
 
 const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-    const { data: detail, isLoading: loading, isError, error } = useQuery({
-        queryKey: ["questDetail", entry],
-        queryFn: () => GetQuestDetail(entry),
-        enabled: entry != null,
-    })
+    const { data: detail, isLoading: loading, isError, error } = useQuestDetail(entry)
 
     const handleSync = () => {
         SyncQuestData(entry).then((res) => {
-            if (res) queryClient.setQueryData(["questDetail", entry], res);
+            if (res) queryClient.setQueryData(queryKeys.questDetail(entry), res);
         });
     };
 

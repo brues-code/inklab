@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetCreatureTypes, BrowseCreaturesByTypePaged, GetBeastFamilies, BrowseCreaturesByFamilyPaged, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useCreatureTypes, useBeastFamilies, useCreatures } from '../../../hooks/queries/npcs'
 
 const BEAST_TYPE = 1
 import { useNpcPortrait } from '../../../services/useImage'
@@ -29,8 +29,6 @@ const NpcPortraitThumb = ({ displayId, rankColor }) => {
     )
 }
 
-const PAGE_SIZE = 100
-
 function NPCsTab({ onNavigate, tooltipHook }) {
     const [selectedCreatureType, setSelectedCreatureType] = useState(null)
     const [selectedFamily, setSelectedFamily] = useState(null)
@@ -43,25 +41,15 @@ function NPCsTab({ onNavigate, tooltipHook }) {
 
     const scrollRef = useRef(null)
 
-    const typesQuery = useQuery({ queryKey: ['creatureTypes'], queryFn: GetCreatureTypes, staleTime: Infinity })
+    const typesQuery = useCreatureTypes()
     const creatureTypes = typesQuery.data || []
 
     // Beast families load only for the Beast type (the dynamic 3rd column).
-    const familiesQuery = useQuery({ queryKey: ['beastFamilies'], queryFn: GetBeastFamilies, enabled: isBeast, staleTime: Infinity })
+    const familiesQuery = useBeastFamilies(isBeast)
     const families = familiesQuery.data || []
 
-    // Paginated creature browse for the active selection (a beast family when one
-    // is picked, else the type), as an infinite query keyed by that selection.
-    const creaturesQuery = useInfiniteQuery({
-        queryKey: ['creatures', isBeast && selectedFamily ? `family:${selectedFamily.family}` : `type:${selectedCreatureType?.type}`],
-        queryFn: ({ pageParam }) =>
-            isBeast && selectedFamily
-                ? BrowseCreaturesByFamilyPaged(selectedFamily.family, '', PAGE_SIZE, pageParam)
-                : BrowseCreaturesByTypePaged(selectedCreatureType.type, '', PAGE_SIZE, pageParam),
-        enabled: selectedCreatureType != null,
-        initialPageParam: 0,
-        getNextPageParam: (lastPage, allPages) => (lastPage?.hasMore ? allPages.length * PAGE_SIZE : undefined),
-    })
+    // Paginated creature browse for the active selection (beast family or type).
+    const creaturesQuery = useCreatures(selectedCreatureType, selectedFamily, isBeast)
 
     const creatures = useMemo(
         () => creaturesQuery.data?.pages.flatMap(p => p.creatures || []) || [],

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetObjectTypes, GetObjectsByType, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import { useObjectTypes, useObjectsByType } from '../../../hooks/queries/objects'
 
 const OBJECT_COLOR = '#00B4FF'
 
@@ -11,12 +11,8 @@ function ObjectsTab({ onNavigate }) {
     const [typeFilter, setTypeFilter] = useState('')
     const [objectFilter, setObjectFilter] = useState('')
 
-    const typesQuery = useQuery({ queryKey: ['objectTypes'], queryFn: GetObjectTypes, staleTime: Infinity })
-    const objectsQuery = useQuery({
-        queryKey: ['objectsByType', selectedObjectType?.id],
-        queryFn: () => GetObjectsByType(selectedObjectType.id, ''),
-        enabled: selectedObjectType != null,
-    })
+    const typesQuery = useObjectTypes()
+    const objectsQuery = useObjectsByType(selectedObjectType?.id, selectedObjectType != null)
 
     const objectTypes = typesQuery.data || []
     const objects = objectsQuery.data || []

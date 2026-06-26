@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "../../../queryClient";
+import { useObjectDetail } from "../../../hooks/queries/objects";
+import { queryKeys } from "../../../hooks/queries/keys";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
-import { GetObjectDetail } from "../../../../wailsjs/go/main/App";
 import { useZoneMap } from "../../../services/useImage";
 import {
   DetailPageLayout,
@@ -19,11 +19,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [selectedZone, setSelectedZone] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
-  const { data: detail, isLoading: loading } = useQuery({
-    queryKey: ["objectDetail", entry],
-    queryFn: () => GetObjectDetail(entry),
-    enabled: entry != null,
-  });
+  const { data: detail, isLoading: loading } = useObjectDetail(entry);
 
   // Reset the selected zone when the object changes (render-time, no effect).
   const [objKey, setObjKey] = useState(entry);
@@ -60,7 +56,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     setSyncing(true);
     fn(entry)
       .then((res) => {
-        if (res) queryClient.setQueryData(["objectDetail", entry], res);
+        if (res) queryClient.setQueryData(queryKeys.objectDetail(entry), res);
         setSelectedZone(null);
       })
       .finally(() => setSyncing(false));
