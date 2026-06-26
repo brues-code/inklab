@@ -3,7 +3,7 @@
  * Filenames should exclude extension (.png/.jpg) assuming png for interface icons or jpg for item icons.
  * Based on standard WoW interface icons.
  */
-export const categoryIcons = {
+export const categoryIcons: Record<string, string> = {
     // Classes
     "Consumable": "inv_potion_07",
     "Container": "inv_misc_bag_13",
@@ -24,7 +24,7 @@ export const categoryIcons = {
     "Miscellaneous": "inv_misc_bone_orcskull_01",
 }
 
-export const getCategoryIcon = (name) => {
+export const getCategoryIcon = (name?: string | null): string | null => {
     if (!name) return null;
     const icon = categoryIcons[name] || categoryIcons[name.split(' (')[0]] // Handle "Mace (2H)" if needed
     // Assuming UI icons are in /items/ (not items/icons/) and are PNGs. 

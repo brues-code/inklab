@@ -1,16 +1,16 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type MouseEvent, type CSSProperties } from 'react'
 
 /**
  * Custom hook for item tooltip with mouse-following behavior
  * @returns {Object} Tooltip state and handlers
  */
 export function useItemTooltip() {
-    const [hoveredItem, setHoveredItem] = useState(null)
+    const [hoveredItem, setHoveredItem] = useState<number | null>(null)
     const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
-    const [tooltipCache, setTooltipCache] = useState({})
+    const [tooltipCache, setTooltipCache] = useState<Record<number, any>>({})
 
     // Get tooltip data from backend
-    const getTooltipData = useCallback(async (itemId) => {
+    const getTooltipData = useCallback(async (itemId: number) => {
         if (window?.go?.main?.App?.GetTooltipData) {
             return window.go.main.App.GetTooltipData(itemId)
         }
@@ -18,7 +18,7 @@ export function useItemTooltip() {
     }, [])
 
     // Load tooltip data for an item (forceReload bypasses cache)
-    const loadTooltipData = useCallback(async (itemId, forceReload = false) => {
+    const loadTooltipData = useCallback(async (itemId: number, forceReload = false) => {
         if (!forceReload && tooltipCache[itemId]) return tooltipCache[itemId]
         
         try {
@@ -34,7 +34,7 @@ export function useItemTooltip() {
     }, [tooltipCache, getTooltipData])
 
     // Invalidate cached tooltip for an item (force reload next time)
-    const invalidateTooltip = useCallback((itemId) => {
+    const invalidateTooltip = useCallback((itemId: number) => {
         setTooltipCache(prev => {
             const newCache = { ...prev }
             delete newCache[itemId]
@@ -43,7 +43,7 @@ export function useItemTooltip() {
     }, [])
 
     // Handle mouse move - update tooltip position following mouse
-    const handleMouseMove = useCallback((e, itemId) => {
+    const handleMouseMove = useCallback((e: MouseEvent<HTMLElement>, itemId: number) => {
         const lootContainer = e.currentTarget.closest('.loot')
         const containerRect = lootContainer 
             ? lootContainer.getBoundingClientRect() 
@@ -84,7 +84,7 @@ export function useItemTooltip() {
     }, [])
 
     // Handle item enter - load tooltip data
-    const handleItemEnter = useCallback((itemId) => {
+    const handleItemEnter = useCallback((itemId: number) => {
         loadTooltipData(itemId)
     }, [loadTooltipData])
 
@@ -94,14 +94,14 @@ export function useItemTooltip() {
     }, [])
 
     // Get event handlers for an item element
-    const getItemHandlers = useCallback((itemId) => ({
+    const getItemHandlers = useCallback((itemId: number) => ({
         onMouseEnter: () => handleItemEnter(itemId),
-        onMouseMove: (e) => handleMouseMove(e, itemId),
+        onMouseMove: (e: MouseEvent<HTMLElement>) => handleMouseMove(e, itemId),
         onMouseLeave: handleItemLeave,
     }), [handleItemEnter, handleMouseMove, handleItemLeave])
 
     // Get styles for the tooltip container
-    const getTooltipStyle = useCallback(() => ({
+    const getTooltipStyle = useCallback((): CSSProperties => ({
         position: 'fixed',
         left: tooltipPos.left,
         top: tooltipPos.top,
@@ -122,5 +122,8 @@ export function useItemTooltip() {
         getTooltipStyle,
     }
 }
+
+/** Return shape of useItemTooltip — pass as the `tooltipHook` prop. */
+export type TooltipHook = ReturnType<typeof useItemTooltip>
 
 export default useItemTooltip

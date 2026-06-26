@@ -8,7 +8,7 @@ export const DATABASE_BASE_URL = 'https://octowow.st/db'
 export const DEFAULT_WOW_BASE = 'C:\\WoW\\Octo'
 
 // Resolve the configured client base path, falling back to the default.
-export const getClientBasePath = () => {
+export const getClientBasePath = (): string => {
     try {
         return (typeof localStorage !== 'undefined' && localStorage.getItem('toolsBasePath')) || DEFAULT_WOW_BASE
     } catch {
