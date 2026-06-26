@@ -368,6 +368,28 @@ function TalentsPage() {
         [treeSpent]
     )
 
+    // Flat talent lookup, and the leveling order: one row per point spent, with
+    // the level it was taken (first point is level 10) and the rank reached.
+    const talentById = useMemo(() => {
+        const m = {}
+        data?.trees?.forEach((tr) => tr.talents.forEach((t) => (m[t.id] = t)))
+        return m
+    }, [data])
+    const leveling = useMemo(() => {
+        const seen = {}
+        return order.map((id, i) => {
+            seen[id] = (seen[id] || 0) + 1
+            const t = talentById[id]
+            return {
+                level: i + 10,
+                name: t?.name || `Talent ${id}`,
+                icon: t?.icon,
+                rank: seen[id],
+                maxRank: t?.maxRank || 0,
+            }
+        })
+    }, [order, talentById])
+
     const change = useCallback((talentId, delta) => {
         setOrder((prev) => {
             if (delta > 0) return [...prev, talentId]
@@ -542,6 +564,43 @@ function TalentsPage() {
                 </div>
             ) : (
                 <div className="px-5 py-10 text-zinc-500">No talent data.</div>
+            )}
+
+            {/* leveling order: the sequence points were spent in */}
+            {leveling.length > 0 && (
+                <div className="px-5 pb-12 flex justify-center">
+                    <div className="w-full max-w-md">
+                        <h3 className="text-wow-gold font-semibold uppercase text-sm mb-2 text-center">
+                            Leveling Order
+                        </h3>
+                        <table className="w-full text-sm border-collapse">
+                            <thead>
+                                <tr className="text-zinc-500 text-[11px] uppercase tracking-wide">
+                                    <th className="text-left font-medium px-2 py-1 w-12">Lvl</th>
+                                    <th className="text-left font-medium px-2 py-1" colSpan={2}>Talent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leveling.map((row, i) => (
+                                    <tr key={i} className="border-t border-border-dark/40">
+                                        <td className="px-2 py-1 font-mono text-zinc-400 tabular-nums">{row.level}</td>
+                                        <td className="px-2 py-1 w-7">
+                                            <div className="w-6 h-6 rounded-sm overflow-hidden border border-black/50">
+                                                <TalentIcon icon={row.icon} />
+                                            </div>
+                                        </td>
+                                        <td className="px-2 py-1">
+                                            <span className="text-zinc-200">{row.name}</span>
+                                            <span className="ml-2 text-zinc-500 text-xs tabular-nums">
+                                                {row.rank}/{row.maxRank}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
             {tip && (
