@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
+import { Outlet, useNavigate, useChildMatches } from "@tanstack/react-router";
 import {
   GetCategories,
   GetInstances,
   GetTables,
 } from "../../../wailsjs/go/main/App";
-import { useItemTooltip } from "../../hooks/useItemTooltip";
 import {
   PageLayout,
   ContentGrid,
@@ -14,9 +14,8 @@ import {
   SectionHeader,
   ListItem,
   LootItem,
-  ItemTooltip,
 } from "../../components/ui";
-import { ItemDetailView, QuestDetailView, NPCDetailView } from "../../components/database/detailview";
+import { useTooltipCtx } from "../../hooks/useTooltipContext";
 import { filterItems } from "../../utils/databaseApi";
 
 // Direct call to GetLoot - using window binding
@@ -49,34 +48,26 @@ function AtlasLootPage() {
   const [tableFilter, setTableFilter] = useState("");
   const [itemFilter, setItemFilter] = useState("");
 
-  // Detail view navigation
-  const [detailStack, setDetailStack] = useState([]);
-  
-  const navigateTo = (type, entry) => {
-    console.log(`[AtlasLootPage] Navigating to ${type} with entry: ${entry}`);
-    setDetailStack(prev => [...prev, { type, entry }]);
-  };
-  
-  const goBack = () => {
-    console.log(`[AtlasLootPage] Going back. Previous stack size: ${detailStack.length}`);
-    setDetailStack(prev => prev.slice(0, -1));
-  };
+  // Detail view navigation — routed; Back uses browser history. The loot
+  // selection state is preserved across detail visits because this route stays
+  // mounted while the detail renders in <Outlet>.
+  const navigate = useNavigate();
+  const detailActive = useChildMatches().length > 0;
 
-  const currentDetail = detailStack.length > 0 ? detailStack[detailStack.length - 1] : null;
+  const navigateTo = (type, entry) =>
+    navigate({ to: "/atlas/$type/$id", params: { type, id: String(entry) } });
 
   // Check if current category uses 3-level hierarchy
   const isThreeLevelCategory = THREE_LEVEL_CATEGORIES.includes(selectedCategory);
 
-  // Use shared tooltip hook
+  // Shared app-wide tooltip (single instance lives at the router root).
   const {
-    hoveredItem,
     setHoveredItem,
     tooltipCache,
     loadTooltipData,
     handleMouseMove,
     handleItemEnter,
-    getTooltipStyle,
-  } = useItemTooltip();
+  } = useTooltipCtx();
 
   // Filtered lists
   const filteredCategories = useMemo(
@@ -288,7 +279,7 @@ function AtlasLootPage() {
   return (
     <PageLayout>
       {/* Main Loot Browser - Hidden when detail active */}
-      <div className={`flex flex-col h-full flex-1 overflow-hidden ${currentDetail ? 'hidden' : ''}`}>
+      <div className={`flex flex-col h-full flex-1 overflow-hidden ${detailActive ? 'hidden' : ''}`}>
         {error && (
           <div className="mx-3 mt-3 p-3 bg-red-900/30 border border-red-500/30 rounded flex items-center gap-3 text-red-400">
             <span>❌</span>
@@ -409,86 +400,8 @@ function AtlasLootPage() {
         </ContentGrid>
       </div>
 
-      {/* Detail View Overlay */}
-      {currentDetail && (
-        <div className="flex flex-col h-full flex-1 overflow-hidden">
-          <div className="bg-bg-hover px-4 py-2 border-b border-border-dark flex items-center gap-4">
-            <button 
-              onClick={goBack}
-              className="bg-bg-panel border border-border-light text-gray-400 px-4 py-1.5 rounded hover:bg-bg-active hover:text-white transition-colors text-sm"
-            >
-              ← Back
-            </button>
-            <span className="text-gray-500 text-sm">
-              Viewing: <b className="text-gray-300 uppercase">{currentDetail.type}</b> 
-              <span className="ml-2 font-mono bg-black/20 px-1.5 py-0.5 rounded">#{currentDetail.entry}</span>
-            </span>
-          </div>
-          
-          <div className="flex-1 overflow-auto">
-            {currentDetail.type === 'item' && (
-              <ItemDetailView 
-                entry={currentDetail.entry} 
-                onNavigate={navigateTo}
-                onBack={goBack}
-                tooltipHook={{
-                  hoveredItem,
-                  setHoveredItem,
-                  tooltipCache,
-                  loadTooltipData,
-                  handleMouseMove,
-                  handleItemEnter,
-                  getTooltipStyle,
-                  renderTooltip: () => null,
-                }}
-              />
-            )}
-            {currentDetail.type === 'quest' && (
-              <QuestDetailView 
-                entry={currentDetail.entry} 
-                onNavigate={navigateTo}
-                onBack={goBack}
-                tooltipHook={{
-                  hoveredItem,
-                  setHoveredItem,
-                  tooltipCache,
-                  loadTooltipData,
-                  handleMouseMove,
-                  handleItemEnter,
-                  getTooltipStyle,
-                  renderTooltip: () => null,
-                }}
-              />
-            )}
-            {currentDetail.type === 'npc' && (
-              <NPCDetailView 
-                entry={currentDetail.entry} 
-                onNavigate={navigateTo}
-                onBack={goBack}
-                tooltipHook={{
-                  hoveredItem,
-                  setHoveredItem,
-                  tooltipCache,
-                  loadTooltipData,
-                  handleMouseMove,
-                  handleItemEnter,
-                  getTooltipStyle,
-                  renderTooltip: () => null,
-                }}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Global Tooltip Layer */}
-      {hoveredItem && tooltipCache[hoveredItem] && (
-        <ItemTooltip
-          item={tooltipCache[hoveredItem]}
-          tooltip={tooltipCache[hoveredItem]}
-          style={getTooltipStyle()}
-        />
-      )}
+      {/* Detail View Overlay (routed) */}
+      <Outlet />
     </PageLayout>
   );
 }

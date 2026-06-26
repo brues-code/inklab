@@ -4,13 +4,13 @@ import { getQualityColor } from '../../utils/wow'
 /**
  * WoW-style item tooltip component
  */
-const ItemTooltip = ({ 
-    item, 
-    tooltip, 
+const ItemTooltip = ({
+    item,
+    tooltip,
     style,
-    onMouseEnter,
-    onMouseLeave,
-    interactive
+    onMouseEnter = undefined,
+    onMouseLeave = undefined,
+    interactive = false
 }) => {
     // Loading state
     if (!tooltip) {

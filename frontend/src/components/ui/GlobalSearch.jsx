@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { AdvancedSearch } from '../../../wailsjs/go/main/App'
 import { useIcon, useNpcPortrait } from '../../services/useImage'
 import { getQualityColor } from '../../utils/wow'
+import { useEntityNavigate } from '../../utils/entityNav'
 
 const TYPE_BADGE = { npc: 'NPC', quest: 'Q', spell: 'S', object: 'OBJ', item: '' }
 const TYPE_COLOR = { npc: '#FFD100', spell: '#a855f7', object: '#00B4FF', quest: '#fff' }
@@ -57,9 +58,9 @@ const combine = (res) => {
 
 /**
  * GlobalSearch — header search box. Type to search every entity type; pick a
- * result to navigate to its Database detail page via onNavigate(type, entry).
+ * result to navigate to its Database detail route.
  */
-function GlobalSearch({ onNavigate }) {
+function GlobalSearch() {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState([])
     const [loading, setLoading] = useState(false)
@@ -67,6 +68,7 @@ function GlobalSearch({ onNavigate }) {
     const [category, setCategory] = useState('all')
     const boxRef = useRef(null)
     const reqId = useRef(0)
+    const entityNavigate = useEntityNavigate()
 
     const runSearch = useCallback((q) => {
         const trimmed = q.trim()
@@ -108,7 +110,7 @@ function GlobalSearch({ onNavigate }) {
     }, [])
 
     const pick = (item) => {
-        onNavigate?.(item.type, item.entry)
+        entityNavigate(item.type, item.entry)
         setOpen(false)
         setQuery('')
         setResults([])

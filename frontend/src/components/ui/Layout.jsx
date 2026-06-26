@@ -10,8 +10,8 @@ export const PageLayout = ({ children, className = '' }) => (
 )
 
 /**
- * Content grid for multi-column layouts
- * @param {string} columns - Tailwind grid-cols value or custom gridTemplateColumns
+ * Content grid for multi-column layouts. `columns` is a CSS
+ * grid-template-columns value (e.g. "180px 1fr").
  */
 export const ContentGrid = ({ children, columns, className = '' }) => (
     <div 

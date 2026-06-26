@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
 import { PageLayout } from "../../components/ui";
 import { DEFAULT_WOW_BASE } from "../../utils/constants";
+import { useEntityNavigate } from "../../utils/entityNav";
 
 const DEFAULT_BASE = DEFAULT_WOW_BASE;
 
@@ -25,7 +26,8 @@ const IMPORTS = [
   },
 ];
 
-function ToolsPage({ onNavigate }) {
+function ToolsPage() {
+  const entityNavigate = useEntityNavigate();
   const [base, setBase] = useState(
     () => localStorage.getItem("toolsBasePath") || DEFAULT_BASE
   );
@@ -367,7 +369,7 @@ function ToolsPage({ onNavigate }) {
                     {g.entries?.map((e) => (
                       <button
                         key={`${e.type}-${e.id}`}
-                        onClick={() => onNavigate?.(e.type, e.id)}
+                        onClick={() => entityNavigate(e.type, e.id)}
                         title={`${e.change} — open ${e.type} ${e.id}`}
                         className={`px-2 py-1 rounded text-xs border transition-colors text-left ${
                           e.change === "added"

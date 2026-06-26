@@ -3,6 +3,7 @@ import { GetAllFavorites, GetFavoriteCategories, RemoveFavorite, GetTooltipData,
 import { getQualityColor } from '../../utils/wow';
 import { useIcon } from '../../services/useImage';
 import { ItemTooltip } from '../../components/ui';
+import { useEntityNavigate } from '../../utils/entityNav';
 
 // Simple item card for favorites
 const FavoriteItemCard = ({ item, onClick, onRemove, onStatusChange }) => {
@@ -130,7 +131,8 @@ const FavoriteItemCard = ({ item, onClick, onRemove, onStatusChange }) => {
     );
 };
 
-const FavoritesPage = ({ onNavigate }) => {
+const FavoritesPage = () => {
+    const entityNavigate = useEntityNavigate();
     const [favorites, setFavorites] = useState([]);
     const [categories, setCategories] = useState([]);
     const [activeCategory, setActiveCategory] = useState('All');
@@ -261,10 +263,10 @@ const FavoritesPage = ({ onNavigate }) => {
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                                         {items.map(item => (
-                                            <FavoriteItemCard 
-                                                key={item.id} 
-                                                item={item} 
-                                                onClick={onNavigate}
+                                            <FavoriteItemCard
+                                                key={item.id}
+                                                item={item}
+                                                onClick={entityNavigate}
                                                 onRemove={handleRemove}
                                                 onStatusChange={handleStatusChange}
                                             />

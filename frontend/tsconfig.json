@@ -20,9 +20,12 @@
         "allowJs": true,
         "checkJs": false,
         "strict": false,
+        /* TanStack Router's typed routes require strictNullChecks. Enabled on
+           its own (not full strict) so .ts/.tsx files keep migrating loosely. */
+        "strictNullChecks": true,
         "noUnusedLocals": false,
         "noUnusedParameters": false,
         "noFallthroughCasesInSwitch": true
     },
-    "include": ["src", "wailsjs"]
+    "include": ["src"]
 }
