@@ -68,6 +68,9 @@ export const queryKeys = {
     favorites: ['favorites'] as const,
     favoriteCategories: ['favoriteCategories'] as const,
 
+    // Global search
+    search: (query: unknown) => ['search', query] as const,
+
     // App chrome
     updateCheck: ['updateCheck'] as const,
     dataStatus: ['dataStatus'] as const,

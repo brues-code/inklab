@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { AdvancedSearch } from '../../../wailsjs/go/main/App'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useIcon, useNpcPortrait } from '../../services/useImage'
 import { getQualityColor } from '../../utils/wow'
 import { useEntityNavigate } from '../../utils/entityNav'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { useGlobalSearch } from '../../hooks/queries/search'
 
 const TYPE_BADGE = { npc: 'NPC', quest: 'Q', spell: 'S', object: 'OBJ', item: '' }
 const TYPE_COLOR = { npc: '#FFD100', spell: '#a855f7', object: '#00B4FF', quest: '#fff' }
@@ -62,43 +63,24 @@ const combine = (res) => {
  */
 function GlobalSearch() {
     const [query, setQuery] = useState('')
-    const [results, setResults] = useState([])
-    const [loading, setLoading] = useState(false)
     const [open, setOpen] = useState(false)
     const [category, setCategory] = useState('all')
     const boxRef = useRef(null)
-    const reqId = useRef(0)
     const entityNavigate = useEntityNavigate()
 
-    const runSearch = useCallback((q) => {
-        const trimmed = q.trim()
-        if (trimmed.length < 2) {
-            setResults([])
-            setLoading(false)
-            return
-        }
-        const id = ++reqId.current
-        setLoading(true)
-        AdvancedSearch({ query: trimmed, minLevel: 0, maxLevel: 0, quality: [], limit: 50, offset: 0 })
-            .then(res => {
-                if (id !== reqId.current) return // a newer query superseded this one
-                setResults(combine(res))
-                setCategory('all') // a fresh query starts unfiltered
-                setLoading(false)
-            })
-            .catch(err => {
-                if (id !== reqId.current) return
-                console.error('Search failed:', err)
-                setResults([])
-                setLoading(false)
-            })
-    }, [])
+    // Debounce the input, then let Query run/cache the search. Query handles
+    // request dedup and drops out-of-order responses, so no manual race guard.
+    const debounced = useDebouncedValue(query.trim(), 250)
+    const searchQuery = useGlobalSearch(debounced)
+    const loading = searchQuery.isFetching
+    const results = useMemo(() => (searchQuery.data ? combine(searchQuery.data) : []), [searchQuery.data])
 
-    // Debounce typing so results stream in without a click.
-    useEffect(() => {
-        const t = setTimeout(() => runSearch(query), 250)
-        return () => clearTimeout(t)
-    }, [query, runSearch])
+    // A fresh query starts unfiltered (render-time reset, no effect).
+    const [categoryKey, setCategoryKey] = useState(debounced)
+    if (debounced !== categoryKey) {
+        setCategoryKey(debounced)
+        setCategory('all')
+    }
 
     // Close the dropdown on outside click.
     useEffect(() => {
@@ -113,7 +95,6 @@ function GlobalSearch() {
         entityNavigate(item.type, item.entry)
         setOpen(false)
         setQuery('')
-        setResults([])
         setCategory('all')
     }
 
