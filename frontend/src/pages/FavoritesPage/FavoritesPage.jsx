@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GetAllFavorites, GetFavoriteCategories, RemoveFavorite, GetTooltipData, UpdateFavoriteStatus } from '../../services/api';
+import React, { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { GetAllFavorites, GetFavoriteCategories, RemoveFavorite, UpdateFavoriteStatus } from '../../services/api';
 import { getQualityColor } from '../../utils/wow';
 import { useIcon } from '../../services/useImage';
 import { ItemTooltip } from '../../components/ui';
 import { useEntityNavigate } from '../../utils/entityNav';
+import { tooltipQuery } from '../../hooks/useItemTooltip';
+import { queryClient } from '../../queryClient';
 
 // Simple item card for favorites
 const FavoriteItemCard = ({ item, onClick, onRemove, onStatusChange }) => {
@@ -12,19 +15,11 @@ const FavoriteItemCard = ({ item, onClick, onRemove, onStatusChange }) => {
     const cardRef = useRef(null);
     const [alignLeft, setAlignLeft] = useState(false);
     
-    // Tooltip trigger
+    // Tooltip trigger — data comes from the shared tooltip cache, fetched on hover.
     const [showTooltip, setShowTooltip] = useState(false);
-    const [tooltipData, setTooltipData] = useState(null);
+    const { data: tooltipData } = useQuery({ ...tooltipQuery(item.itemEntry), enabled: showTooltip });
 
     const status = item.status || 0; // 0: None, 1: Obtained, 2: Abandoned
-
-    useEffect(() => {
-        if (showTooltip && !tooltipData) {
-            GetTooltipData(item.itemEntry).then(data => {
-                if (data) setTooltipData(data);
-            });
-        }
-    }, [showTooltip, item.itemEntry, tooltipData]);
 
     const handleMouseEnter = () => {
         if (cardRef.current) {
@@ -133,46 +128,34 @@ const FavoriteItemCard = ({ item, onClick, onRemove, onStatusChange }) => {
 
 const FavoritesPage = () => {
     const entityNavigate = useEntityNavigate();
-    const [favorites, setFavorites] = useState([]);
-    const [categories, setCategories] = useState([]);
     const [activeCategory, setActiveCategory] = useState('All');
-    const [loading, setLoading] = useState(true);
 
-    const loadData = async () => {
-        try {
-            setLoading(true);
-            const favs = await GetAllFavorites();
-            setFavorites(favs || []);
+    const favoritesQuery = useQuery({ queryKey: ['favorites'], queryFn: GetAllFavorites });
+    const categoriesQuery = useQuery({ queryKey: ['favoriteCategories'], queryFn: GetFavoriteCategories });
 
-            const cats = await GetFavoriteCategories();
-            setCategories(cats || []);
-        } catch (err) {
-            console.error("Failed to load favorites:", err);
-        } finally {
-            setLoading(false);
-        }
+    const favorites = favoritesQuery.data || [];
+    const categories = categoriesQuery.data || [];
+    const loading = favoritesQuery.isLoading;
+
+    const refresh = () => {
+        favoritesQuery.refetch();
+        categoriesQuery.refetch();
     };
-
-    useEffect(() => {
-        loadData();
-    }, []);
 
     const handleRemove = async (entry) => {
         if (window.confirm("Remove this item from favorites?")) {
             await RemoveFavorite(entry);
-            loadData(); // Reload list
+            queryClient.invalidateQueries({ queryKey: ['favorites'] });
+            queryClient.invalidateQueries({ queryKey: ['favoriteCategories'] });
         }
     };
 
     const handleStatusChange = async (entry, newStatus) => {
-        // Optimistic update
-        setFavorites(prev => prev.map(item => 
-            item.itemEntry === entry ? { ...item, status: newStatus } : item
-        ));
-        
+        // Optimistic update written straight into the cache.
+        queryClient.setQueryData(['favorites'], (prev) =>
+            (prev || []).map(item => (item.itemEntry === entry ? { ...item, status: newStatus } : item))
+        );
         await UpdateFavoriteStatus(entry, newStatus);
-        // We can reload or just trust optimistic update. 
-        // Reloading ensures category counts or sorting if we later sort by status
     };
 
     // Group items if showing 'All'? Or just filter
@@ -201,7 +184,7 @@ const FavoritesPage = () => {
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-bg-dark/50">
                 <h2 className="text-xl font-bold text-wow-gold">My Favorites</h2>
                 <button 
-                    onClick={loadData}
+                    onClick={refresh}
                     className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-sm text-gray-300"
                 >
                     Refresh
