@@ -31,6 +31,17 @@ const cumPointsBelow = (tree, points, row) =>
 const prereqMet = (points, t) => !t.reqTalent || (points[t.reqTalent] || 0) >= t.reqRank + 1
 const tierOpen = (tree, points, t) => cumPointsBelow(tree, points, t.row) >= 5 * t.row
 
+// A build is valid when every talent that has points still meets its tier
+// requirement (5 * row points below it) and its prerequisite. Used to block a
+// removal that would pull support out from under higher-tier points — e.g. you
+// can't drop a row-0 point below 5 while a row-1 talent still has points.
+const buildValid = (trees, points) =>
+    trees.every((tree) =>
+        tree.talents.every(
+            (t) => !(points[t.id] > 0) || (tierOpen(tree, points, t) && prereqMet(points, t))
+        )
+    )
+
 const reqTextFor = (tree, points, t) => {
     const ok = prereqMet(points, t)
     const open = tierOpen(tree, points, t)
@@ -377,6 +388,10 @@ function TalentsPage() {
 
     const [classes, setClasses] = useState([])
     const [data, setData] = useState(null)
+    // Which class `data`'s trees belong to. Until a class's trees finish loading
+    // this lags `selected`, which is exactly how the pending-import decode knows
+    // not to decode against the previous class's stale trees.
+    const [dataClass, setDataClass] = useState(null)
     const [loading, setLoading] = useState(false)
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
@@ -440,25 +455,34 @@ function TalentsPage() {
     }, [classParam, classes, classMap, navigate])
 
     // On class change: remember it, restore its saved build from session memory,
-    // and load its trees.
+    // and load its trees. Clear `data` first so anything keyed off the trees (the
+    // pending-import decode in particular) waits for THIS class's trees rather
+    // than acting on the previous class's stale list.
     useEffect(() => {
         if (!selected) return
         lastClassToken = selected
+        setData(null)
+        setDataClass(null)
         setOrder(buildsByClass.get(selected) || [])
         setLoading(true)
         GetTalentTrees(selected)
-            .then((d) => setData(d))
+            .then((d) => {
+                setData(d)
+                setDataClass(selected)
+            })
             .finally(() => setLoading(false))
     }, [selected])
 
-    // Finish a cross-class import once the target's trees have loaded (turtle
-    // imports need the tree shape to synthesize an order from final ranks).
+    // Finish a cross-class import once the TARGET class's trees have loaded.
+    // Gated on dataClass (not selected): selected flips the instant we navigate,
+    // but data still holds the previous class's trees for a beat — decoding then
+    // would map the build onto the wrong class's talents.
     useEffect(() => {
-        if (pendingImport && data?.trees && selected === pendingImport.classKey) {
+        if (pendingImport && data?.trees && dataClass === pendingImport.classKey) {
             applyOrder(pendingImport.makeOrder(data.trees))
             setPendingImport(null)
         }
-    }, [pendingImport, data, selected, applyOrder])
+    }, [pendingImport, data, dataClass, applyOrder])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -498,17 +522,24 @@ function TalentsPage() {
     }, [order, talentById])
 
     const change = useCallback((talentId, delta) => {
-        let next
-        if (delta > 0) next = [...order, talentId]
-        else {
-            // Remove the most recent point spent on this talent.
-            const i = order.lastIndexOf(talentId)
-            if (i === -1) return
-            next = order.slice()
-            next.splice(i, 1)
+        if (delta > 0) {
+            applyOrder([...order, talentId])
+            return
+        }
+        // Remove the most recent point spent on this talent…
+        const i = order.lastIndexOf(talentId)
+        if (i === -1) return
+        const next = order.slice()
+        next.splice(i, 1)
+        // …but only if the build stays valid. Otherwise a higher tier would lose
+        // the points it depends on (you must remove those first).
+        if (data?.trees) {
+            const pts = {}
+            for (const id of next) pts[id] = (pts[id] || 0) + 1
+            if (!buildValid(data.trees, pts)) return
         }
         applyOrder(next)
-    }, [order, applyOrder])
+    }, [order, applyOrder, data])
 
     // Live shareable build code (class id + ordered allocations).
     const code = useMemo(() => {
@@ -543,8 +574,12 @@ function TalentsPage() {
         const apply = (classKey, makeOrder) => {
             setImportErr('')
             setImportText('')
-            if (classKey === selected && data?.trees) applyOrder(makeOrder(data.trees))
-            else {
+            // Decode immediately only if the target class's trees are already
+            // loaded; otherwise switch class and let the effect decode once they
+            // are (guarded by dataClass so it never uses the wrong class's trees).
+            if (classKey === selected && dataClass === classKey && data?.trees) {
+                applyOrder(makeOrder(data.trees))
+            } else {
                 setPendingImport({ classKey, makeOrder })
                 selectClass(classKey)
             }
@@ -575,7 +610,7 @@ function TalentsPage() {
         }
         apply(classKey, (trees) => decodeBuild(trees, body))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [importText, selected, data, classMap, applyOrder])
+    }, [importText, selected, data, dataClass, classMap, applyOrder])
 
     // Store only the hovered talent + its tree; rank and requirement text are
     // computed from live `points` at render time so the tooltip refreshes as you
@@ -705,7 +740,7 @@ function TalentsPage() {
             )}
 
             {/* leveling order: the sequence points were spent in */}
-            {leveling.length > 0 && (
+            {data?.trees && leveling.length > 0 && (
                 <div className="px-5 pb-12 flex justify-center">
                     <div className="w-full max-w-md">
                         <h3 className="text-wow-gold font-semibold uppercase text-sm mb-2 text-center">
