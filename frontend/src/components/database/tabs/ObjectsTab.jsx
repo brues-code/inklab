@@ -1,48 +1,30 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetObjectTypes, GetObjectsByType, filterItems } from '../../../utils/databaseApi'
 
 const OBJECT_COLOR = '#00B4FF'
 
 function ObjectsTab({ onNavigate }) {
-    const [objectTypes, setObjectTypes] = useState([])
     const [selectedObjectType, setSelectedObjectType] = useState(null)
-    const [objects, setObjects] = useState([])
-    const [loading, setLoading] = useState(false)
 
     const [typeFilter, setTypeFilter] = useState('')
     const [objectFilter, setObjectFilter] = useState('')
 
-    // Load object types on mount
-    useEffect(() => {
-        setLoading(true)
-        GetObjectTypes()
-            .then(types => {
-                setObjectTypes(types || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load object types:", err)
-                setLoading(false)
-            })
-    }, [])
+    const typesQuery = useQuery({ queryKey: ['objectTypes'], queryFn: GetObjectTypes, staleTime: Infinity })
+    const objectsQuery = useQuery({
+        queryKey: ['objectsByType', selectedObjectType?.id],
+        queryFn: () => GetObjectsByType(selectedObjectType.id, ''),
+        enabled: selectedObjectType != null,
+    })
 
-    // Load objects when a type is selected
-    useEffect(() => {
-        if (selectedObjectType !== null) {
-            setLoading(true)
-            setObjects([])
-            GetObjectsByType(selectedObjectType.id, '')
-                .then(res => {
-                    setObjects(res || [])
-                    setLoading(false)
-                })
-                .catch(err => {
-                    console.error("Failed to load objects:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedObjectType])
+    const objectTypes = typesQuery.data || []
+    const objects = objectsQuery.data || []
+
+    const pickType = (type) => {
+        setSelectedObjectType(type)
+        setObjectFilter('')
+    }
 
     const filteredTypes = useMemo(() => filterItems(objectTypes, typeFilter), [objectTypes, typeFilter])
     const filteredObjects = useMemo(() => filterItems(objects, objectFilter), [objects, objectFilter])
@@ -57,17 +39,14 @@ function ObjectsTab({ onNavigate }) {
                     onFilterChange={setTypeFilter}
                 />
                 <ScrollList>
-                    {loading && objectTypes.length === 0 && (
+                    {typesQuery.isLoading && (
                         <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading types...</div>
                     )}
                     {filteredTypes.map(type => (
                         <ListItem
                             key={type.id}
                             active={selectedObjectType?.id === type.id}
-                            onClick={() => {
-                                setSelectedObjectType(type)
-                                setObjectFilter('')
-                            }}
+                            onClick={() => pickType(type)}
                         >
                             <span className="flex justify-between w-full">
                                 <span>{type.name}</span>
@@ -86,13 +65,13 @@ function ObjectsTab({ onNavigate }) {
                     onFilterChange={setObjectFilter}
                 />
                 
-                {loading && selectedObjectType && (
+                {objectsQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading objects...
                     </div>
                 )}
-                
-                {!loading && objects.length > 0 && (
+
+                {!objectsQuery.isLoading && objects.length > 0 && (
                     <ScrollList className="p-2 space-y-1">
                         {filteredObjects.map(obj => (
                             <div 
@@ -126,7 +105,7 @@ function ObjectsTab({ onNavigate }) {
                     </ScrollList>
                 )}
                 
-                {!selectedObjectType && !loading && (
+                {!selectedObjectType && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select an object type to browse
                     </div>

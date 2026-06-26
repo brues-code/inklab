@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetFactions, filterItems } from '../../../utils/databaseApi'
 
@@ -12,26 +13,13 @@ const getSideInfo = (side) => {
 }
 
 function FactionsTab({ onNavigate }) {
-    const [factions, setFactions] = useState([])
     const [selectedGroup, setSelectedGroup] = useState(null)
-    const [loading, setLoading] = useState(false)
 
     const [groupFilter, setGroupFilter] = useState('')
     const [factionFilter, setFactionFilter] = useState('')
 
-    // Load factions on mount
-    useEffect(() => {
-        setLoading(true)
-        GetFactions()
-            .then(res => {
-                setFactions(res || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load factions:", err)
-                setLoading(false)
-            })
-    }, [])
+    // All factions load once (static for a session); groups + filtering derive.
+    const { data: factions = [], isLoading } = useQuery({ queryKey: ['factions'], queryFn: GetFactions, staleTime: Infinity })
 
     // Derive Groups from data
     const groups = useMemo(() => {
@@ -106,13 +94,13 @@ function FactionsTab({ onNavigate }) {
                     titleColor="#FFD100"
                 />
                 
-                {loading && selectedGroup && (
+                {isLoading && selectedGroup && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading factions...
                     </div>
                 )}
 
-                {selectedGroup && !loading && (
+                {selectedGroup && !isLoading && (
                     <ScrollList className="p-2 space-y-1">
                         {filteredFactions.map(faction => {
                             const sideInfo = getSideInfo(faction.side)
@@ -157,7 +145,7 @@ function FactionsTab({ onNavigate }) {
                     </ScrollList>
                 )}
                 
-                {!selectedGroup && !loading && (
+                {!selectedGroup && !isLoading && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select a faction group to view reputations
                     </div>

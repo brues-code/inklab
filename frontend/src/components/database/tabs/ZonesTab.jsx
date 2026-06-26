@@ -1,29 +1,18 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetZones, filterItems } from '../../../utils/databaseApi'
 
 const ZONE_COLOR = '#4ADE80'
 
 function ZonesTab({ onNavigate }) {
-    const [zones, setZones] = useState([])
     const [selectedGroup, setSelectedGroup] = useState(null)
-    const [loading, setLoading] = useState(false)
 
     const [groupFilter, setGroupFilter] = useState('')
     const [zoneFilter, setZoneFilter] = useState('')
 
-    useEffect(() => {
-        setLoading(true)
-        GetZones()
-            .then(res => {
-                setZones(res || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error('Failed to load zones:', err)
-                setLoading(false)
-            })
-    }, [])
+    const zonesQuery = useQuery({ queryKey: ['zones'], queryFn: GetZones, staleTime: Infinity })
+    const zones = zonesQuery.data || []
 
     // Derive the continent/type groups from the flat zone list, preserving the
     // backend's group ordering.
@@ -38,17 +27,13 @@ function ZonesTab({ onNavigate }) {
         return Array.from(byId.values())
     }, [zones])
 
-    // Default to the first group once zones load.
-    useEffect(() => {
-        if (selectedGroup === null && groups.length > 0) {
-            setSelectedGroup(groups[0])
-        }
-    }, [groups, selectedGroup])
+    // Default to the first group until one is explicitly selected (derived, no effect).
+    const effectiveGroup = selectedGroup || groups[0] || null
 
     const filteredGroups = useMemo(() => filterItems(groups, groupFilter), [groups, groupFilter])
     const zonesInGroup = useMemo(
-        () => zones.filter(z => selectedGroup && z.groupId === selectedGroup.id),
-        [zones, selectedGroup]
+        () => zones.filter(z => effectiveGroup && z.groupId === effectiveGroup.id),
+        [zones, effectiveGroup]
     )
     const filteredZones = useMemo(() => filterItems(zonesInGroup, zoneFilter), [zonesInGroup, zoneFilter])
 
@@ -62,13 +47,13 @@ function ZonesTab({ onNavigate }) {
                     onFilterChange={setGroupFilter}
                 />
                 <ScrollList>
-                    {loading && zones.length === 0 && (
+                    {zonesQuery.isLoading && (
                         <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading zones...</div>
                     )}
                     {filteredGroups.map(group => (
                         <ListItem
                             key={group.id}
-                            active={selectedGroup?.id === group.id}
+                            active={effectiveGroup?.id === group.id}
                             onClick={() => {
                                 setSelectedGroup(group)
                                 setZoneFilter('')
@@ -86,12 +71,12 @@ function ZonesTab({ onNavigate }) {
             {/* Zone List */}
             <ContentPanel className="col-span-3">
                 <SectionHeader
-                    title={selectedGroup ? `${selectedGroup.name} (${filteredZones.length})` : 'Select a Region'}
+                    title={effectiveGroup ? `${effectiveGroup.name} (${filteredZones.length})` : 'Select a Region'}
                     placeholder="Filter zones..."
                     onFilterChange={setZoneFilter}
                 />
 
-                {!loading && filteredZones.length > 0 && (
+                {!zonesQuery.isLoading && filteredZones.length > 0 && (
                     <ScrollList className="p-2 space-y-1">
                         {filteredZones.map(zone => (
                             <div
@@ -118,13 +103,13 @@ function ZonesTab({ onNavigate }) {
                     </ScrollList>
                 )}
 
-                {!loading && selectedGroup && filteredZones.length === 0 && (
+                {!zonesQuery.isLoading && effectiveGroup && filteredZones.length === 0 && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         No zones match.
                     </div>
                 )}
 
-                {!selectedGroup && !loading && (
+                {!effectiveGroup && !zonesQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select a region to browse its zones
                     </div>

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetQuestCategoryGroups, GetQuestCategoriesByGroup, GetQuestsByEnhancedCategory, filterItems } from '../../../utils/databaseApi'
 
@@ -14,66 +15,40 @@ const getQuestTypeInfo = (type) => {
 }
 
 function QuestsTab({ onNavigate }) {
-    const [groups, setGroups] = useState([])
-    const [categories, setCategories] = useState([])
-    const [quests, setQuests] = useState([])
     const [selectedGroup, setSelectedGroup] = useState(null)
     const [selectedCategory, setSelectedCategory] = useState(null)
-    const [loading, setLoading] = useState(false)
 
     const [groupFilter, setGroupFilter] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
     const [questFilter, setQuestFilter] = useState('')
 
-    // Load groups on mount
-    useEffect(() => {
-        setLoading(true)
-        GetQuestCategoryGroups()
-            .then(res => {
-                setGroups(res || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load quest groups:", err)
-                setLoading(false)
-            })
-    }, [])
+    // Cascading queries keyed by selection; resets are handler-driven (no effects).
+    const groupsQuery = useQuery({ queryKey: ['questGroups'], queryFn: GetQuestCategoryGroups, staleTime: Infinity })
+    const categoriesQuery = useQuery({
+        queryKey: ['questCategories', selectedGroup?.id],
+        queryFn: () => GetQuestCategoriesByGroup(selectedGroup.id),
+        enabled: !!selectedGroup,
+    })
+    const questsQuery = useQuery({
+        queryKey: ['questsByCategory', selectedCategory?.id],
+        queryFn: () => GetQuestsByEnhancedCategory(selectedCategory.id, ''),
+        enabled: !!selectedCategory,
+    })
 
-    // Load categories when group is selected
-    useEffect(() => {
-        if (selectedGroup) {
-            setLoading(true)
-            setCategories([])
-            setQuests([])
-            setSelectedCategory(null)
-            GetQuestCategoriesByGroup(selectedGroup.id)
-                .then(res => {
-                    setCategories(res || [])
-                    setLoading(false)
-                })
-                .catch(err => {
-                    console.error("Failed to load categories:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedGroup])
+    const groups = groupsQuery.data || []
+    const categories = categoriesQuery.data || []
+    const quests = questsQuery.data || []
 
-    // Load quests when category is selected
-    useEffect(() => {
-        if (selectedCategory) {
-            setLoading(true)
-            setQuests([])
-            GetQuestsByEnhancedCategory(selectedCategory.id, '')
-                .then(res => {
-                    setQuests(res || [])
-                    setLoading(false)
-                })
-                .catch(err => {
-                    console.error("Failed to load quests:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedCategory])
+    const pickGroup = (group) => {
+        setSelectedGroup(group)
+        setSelectedCategory(null)
+        setCategoryFilter('')
+        setQuestFilter('')
+    }
+    const pickCategory = (cat) => {
+        setSelectedCategory(cat)
+        setQuestFilter('')
+    }
 
     const filteredGroups = useMemo(() => filterItems(groups, groupFilter), [groups, groupFilter])
     const filteredCategories = useMemo(() => filterItems(categories, categoryFilter), [categories, categoryFilter])
@@ -93,11 +68,7 @@ function QuestsTab({ onNavigate }) {
                         <ListItem
                             key={group.id}
                             active={selectedGroup?.id === group.id}
-                            onClick={() => {
-                                setSelectedGroup(group)
-                                setCategoryFilter('')
-                                setQuestFilter('')
-                            }}
+                            onClick={() => pickGroup(group)}
                         >
                             {group.name}
                         </ListItem>
@@ -117,10 +88,7 @@ function QuestsTab({ onNavigate }) {
                         <ListItem
                             key={cat.id}
                             active={selectedCategory?.id === cat.id}
-                            onClick={() => {
-                                setSelectedCategory(cat)
-                                setQuestFilter('')
-                            }}
+                            onClick={() => pickCategory(cat)}
                         >
                             <span className="flex justify-between w-full">
                                 <span>{cat.name}</span>
@@ -140,19 +108,19 @@ function QuestsTab({ onNavigate }) {
                     titleColor="#FFD100"
                 />
 
-                {loading && selectedCategory && (
+                {questsQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
                         Loading quests...
                     </div>
                 )}
-                
-                {!selectedCategory && !loading && (
+
+                {!selectedCategory && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select a category to browse quests.
                     </div>
                 )}
 
-                {!loading && quests.length > 0 && (
+                {!questsQuery.isLoading && quests.length > 0 && (
                     <ScrollList className="p-2 space-y-1">
                         {filteredQuests.map(quest => {
                             const typeInfo = getQuestTypeInfo(quest.type)
