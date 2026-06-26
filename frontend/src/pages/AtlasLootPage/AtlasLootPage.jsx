@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useChildMatches } from "@tanstack/react-router";
 import {
   GetCategories,
@@ -30,14 +31,6 @@ const GetLoot = (category, instance, boss) => {
 const THREE_LEVEL_CATEGORIES = ["Dungeons", "Raids", "Collections", "Sets", "Crafting", "PvP", "PvP Rewards"];
 
 function AtlasLootPage() {
-  const [categories, setCategories] = useState([]);
-  const [modules, setModules] = useState([]);
-  const [tables, setTables] = useState([]);
-  const [loot, setLoot] = useState(null);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedModule, setSelectedModule] = useState("");
   const [selectedTable, setSelectedTable] = useState("");
@@ -61,12 +54,67 @@ function AtlasLootPage() {
   const isThreeLevelCategory = THREE_LEVEL_CATEGORIES.includes(selectedCategory);
 
   // Shared app-wide tooltip (single instance lives at the router root).
-  const {
-    setHoveredItem,
-    loadTooltipData,
-    handleMouseMove,
-    handleItemEnter,
-  } = useTooltipCtx();
+  const { setHoveredItem, handleMouseMove, handleItemEnter } = useTooltipCtx();
+
+  // Cascading data via Query, keyed by selection. Categories are static for a
+  // session; modules/tables key by their parent; loot keys by the full path.
+  const categoriesQuery = useQuery({ queryKey: ["atlasCategories"], queryFn: GetCategories, staleTime: Infinity });
+  const modulesQuery = useQuery({
+    queryKey: ["atlasModules", selectedCategory],
+    queryFn: () => GetInstances(selectedCategory),
+    enabled: !!selectedCategory,
+    staleTime: Infinity,
+  });
+  const tablesQuery = useQuery({
+    queryKey: ["atlasTables", selectedCategory, selectedModule],
+    queryFn: () => GetTables(selectedCategory, selectedModule),
+    enabled: !!(selectedCategory && selectedModule),
+    staleTime: Infinity,
+  });
+
+  const categories = categoriesQuery.data || [];
+  const modules = modulesQuery.data || [];
+  const tables = tablesQuery.data || [];
+
+  const tableKeyOf = (t) => (typeof t === "string" ? t : t?.key || t);
+
+  // The loot table to load: a clicked boss in 3-level categories, else the first
+  // table of the selected module in 2-level categories (loaded automatically).
+  const effectiveTable = isThreeLevelCategory
+    ? selectedTable
+    : tables.length
+    ? tableKeyOf(tables[0])
+    : "";
+
+  const lootQuery = useQuery({
+    queryKey: ["atlasLoot", selectedCategory, selectedModule, effectiveTable],
+    queryFn: () => GetLoot(selectedCategory, selectedModule, effectiveTable),
+    enabled: !!(selectedCategory && selectedModule && effectiveTable),
+  });
+  const loot = lootQuery.data || null;
+
+  // Selection handlers reset everything below the chosen level (no effects).
+  const pickCategory = (cat) => {
+    setSelectedCategory(cat);
+    setSelectedModule("");
+    setSelectedTable("");
+    setCategoryFilter("");
+    setModuleFilter("");
+    setTableFilter("");
+    setItemFilter("");
+  };
+  const pickModule = (mod) => {
+    setSelectedModule(mod);
+    setSelectedTable("");
+    setModuleFilter("");
+    setTableFilter("");
+    setItemFilter("");
+  };
+  const pickTable = (tableKey) => {
+    setSelectedTable(tableKey);
+    setTableFilter("");
+    setItemFilter("");
+  };
 
   // Filtered lists
   const filteredCategories = useMemo(
@@ -92,124 +140,13 @@ function AtlasLootPage() {
     return filterItems(loot.items, itemFilter);
   }, [loot, itemFilter]);
 
-  // Load categories on mount
-  useEffect(() => {
-    setLoading(true);
-    GetCategories()
-      .then((cats) => {
-        setCategories(cats || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load categories:", err);
-        setError("Error loading categories");
-        setLoading(false);
-      });
-  }, []);
-
-  // Load modules when category changes
-  useEffect(() => {
-    if (selectedCategory) {
-      setLoading(true);
-      setModules([]);
-      setTables([]);
-      setLoot(null);
-      setSelectedModule("");
-      setSelectedTable("");
-      setModuleFilter("");
-      setTableFilter("");
-      setItemFilter("");
-
-      GetInstances(selectedCategory)
-        .then((mods) => {
-          setModules(mods || []);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Failed to load modules:", err);
-          setLoading(false);
-        });
-    }
-  }, [selectedCategory]);
-
-  // Load tables when module changes (only for 3-level categories)
-  useEffect(() => {
-    if (selectedModule && selectedCategory && isThreeLevelCategory) {
-      setLoading(true);
-      setTables([]);
-      setLoot(null);
-      setSelectedTable("");
-      setTableFilter("");
-      setItemFilter("");
-
-      GetTables(selectedCategory, selectedModule)
-        .then((tbls) => {
-          setTables(tbls || []);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Failed to load tables:", err);
-          setLoading(false);
-        });
-    }
-  }, [selectedModule, isThreeLevelCategory]);
-
-  // Preload tooltips when loot changes (idempotent — cached/deduped)
-  useEffect(() => {
-    if (loot?.items) {
-      loot.items.slice(0, 20).forEach((item) => {
-        if (item.itemId && item.itemId > 0) loadTooltipData(item.itemId);
-      });
-    }
-  }, [loot, loadTooltipData]);
-
-  // Load loot when table is clicked (3-level) or when module is clicked directly (2-level)
-  const loadLoot = (table, moduleOverride = null) => {
-    const mod = moduleOverride || selectedModule;
-    setSelectedTable(table);
-    setLoot(null);
-    setLoading(true);
-
-    GetLoot(selectedCategory, mod, table)
-      .then((result) => {
-        setLoot(result);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load loot:", err);
-        setLoading(false);
-      });
-  };
-
-  // Handle module click - different behavior for 2-level vs 3-level
-  const handleModuleClick = (mod) => {
-    setSelectedModule(mod);
-    setModuleFilter("");
-    
-    if (!isThreeLevelCategory) {
-      // For 2-level categories, load the first table directly
-      setLoading(true);
-      GetTables(selectedCategory, mod)
-        .then((tbls) => {
-          if (tbls && tbls.length > 0) {
-            // Get the first table key
-            const firstTable = typeof tbls[0] === 'string' ? tbls[0] : (tbls[0].key || tbls[0]);
-            loadLoot(firstTable, mod);
-          } else {
-            setLoading(false);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to load tables:", err);
-          setLoading(false);
-        });
-    }
-  };
-
   // Render loot content (shared between 2-level and 3-level views)
-  const renderLootContent = () => (
+  const renderLootContent = () => {
+    const showPrompt = isThreeLevelCategory ? !selectedTable : !selectedModule;
+    const showLoading = !showPrompt && (lootQuery.isLoading || (!isThreeLevelCategory && tablesQuery.isLoading));
+    return (
     <>
-      {loading && !loot && (selectedTable || (!isThreeLevelCategory && selectedModule)) && (
+      {showLoading && (
         <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
           Loading loot...
         </div>
@@ -254,19 +191,20 @@ function AtlasLootPage() {
         </ScrollList>
       )}
 
-      {!loading && filteredItems.length === 0 && (selectedTable || (!isThreeLevelCategory && selectedModule)) && (
+      {!showPrompt && !showLoading && filteredItems.length === 0 && (
         <div className="flex-1 flex items-center justify-center text-gray-600 italic">
           No loot data found
         </div>
       )}
 
-      {!selectedTable && !(!isThreeLevelCategory && selectedModule) && (
+      {showPrompt && (
         <div className="flex-1 flex items-center justify-center text-gray-600 italic">
           {isThreeLevelCategory ? "Select a boss to view loot" : "Select a module to view items"}
         </div>
       )}
     </>
-  );
+    );
+  };
 
   // Dynamic grid layout based on category type
   const gridLayout = isThreeLevelCategory 
@@ -277,10 +215,10 @@ function AtlasLootPage() {
     <PageLayout>
       {/* Main Loot Browser - Hidden when detail active */}
       <div className={`flex flex-col h-full flex-1 overflow-hidden ${detailActive ? 'hidden' : ''}`}>
-        {error && (
+        {categoriesQuery.isError && (
           <div className="mx-3 mt-3 p-3 bg-red-900/30 border border-red-500/30 rounded flex items-center gap-3 text-red-400">
             <span>❌</span>
-            <span>{error}</span>
+            <span>Error loading categories</span>
           </div>
         )}
 
@@ -293,7 +231,7 @@ function AtlasLootPage() {
               onFilterChange={setCategoryFilter}
             />
             <ScrollList>
-              {loading && categories.length === 0 && (
+              {categoriesQuery.isLoading && (
                 <div className="p-4 text-center text-wow-gold italic animate-pulse">
                   Loading...
                 </div>
@@ -302,10 +240,7 @@ function AtlasLootPage() {
                 <ListItem
                   key={cat}
                   active={selectedCategory === cat}
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    setCategoryFilter("");
-                  }}
+                  onClick={() => pickCategory(cat)}
                 >
                   {cat}
                 </ListItem>
@@ -325,7 +260,7 @@ function AtlasLootPage() {
               onFilterChange={setModuleFilter}
             />
             <ScrollList>
-              {loading && modules.length === 0 && selectedCategory && (
+              {modulesQuery.isLoading && (
                 <div className="p-4 text-center text-wow-gold italic animate-pulse">
                   Loading...
                 </div>
@@ -334,7 +269,7 @@ function AtlasLootPage() {
                 <ListItem
                   key={mod}
                   active={selectedModule === mod}
-                  onClick={() => handleModuleClick(mod)}
+                  onClick={() => pickModule(mod)}
                 >
                   {mod}
                 </ListItem>
@@ -355,7 +290,7 @@ function AtlasLootPage() {
                 onFilterChange={setTableFilter}
               />
               <ScrollList>
-                {loading && tables.length === 0 && selectedModule && (
+                {tablesQuery.isLoading && (
                   <div className="p-4 text-center text-wow-gold italic animate-pulse">
                     Loading...
                   </div>
@@ -370,10 +305,7 @@ function AtlasLootPage() {
                     <ListItem
                       key={tableKey || idx}
                       active={selectedTable === tableKey}
-                      onClick={() => {
-                        loadLoot(tableKey);
-                        setTableFilter("");
-                      }}
+                      onClick={() => pickTable(tableKey)}
                     >
                       {tbl.name}
                     </ListItem>
