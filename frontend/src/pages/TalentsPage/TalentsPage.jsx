@@ -112,6 +112,21 @@ function decodeTurtlePoints(points) {
     return points.split('-').slice(0, 3).map((seg) => [...turtleBits(seg.padEnd(14, 'A')), 0])
 }
 
+// Encode our build as a TurtleWoW ?points= URL (inverse of the decoder above):
+// each tree -> a 28-slot rank array (slot = row*4 + col) -> 3-bit-packed bytes
+// -> base64 (drop the final char, trim trailing zero 'A's), trees joined by "-".
+function encodeTurtleURL(classKey, trees, points) {
+    const sorted = [...trees].sort((a, b) => a.order - b.order)
+    const segs = sorted.map((tr) => {
+        const arr = new Array(28).fill(0)
+        tr.talents.forEach((t) => (arr[t.row * 4 + t.col] = points[t.id] || 0))
+        const bits = arr.map((r) => r.toString(2).padStart(3, '0')).join('')
+        const bytes = (bits.match(/.{1,8}/g) ?? []).map((b) => parseInt(b, 2))
+        return btoa(String.fromCharCode(...bytes)).slice(0, -1).replace(/A+$/, '')
+    })
+    return `https://talents.turtlecraft.gg/${classKey.toLowerCase()}?points=${segs.join('-')}`
+}
+
 // Parse a turtle build (full URL or any string with class + ?points=). Returns
 // { classKey, ranks: [tree0[], tree1[], tree2[]] } or null if it isn't one.
 function parseTurtle(raw) {
@@ -372,7 +387,7 @@ function TalentsPage() {
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
     const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder } awaiting trees
-    const [copied, setCopied] = useState(false)
+    const [copied, setCopied] = useState('') // '' | 'mine' | 'turtle'
     // class token <-> WoW class id, sourced from the backend (not hardcoded)
     const [classMap, setClassMap] = useState({ byId: {}, byClass: {} })
 
@@ -478,16 +493,22 @@ function TalentsPage() {
             : ''
     }, [selected, data, order, classMap])
 
-    const copyCode = useCallback(async () => {
-        if (!code) return
+    // Equivalent build as a TurtleWoW link (final ranks; order isn't expressible).
+    const turtleUrl = useMemo(
+        () => (selected && data?.trees ? encodeTurtleURL(selected, data.trees, points) : ''),
+        [selected, data, points]
+    )
+
+    const copy = useCallback(async (text, tag) => {
+        if (!text) return
         try {
-            await navigator.clipboard.writeText(code)
+            await navigator.clipboard.writeText(text)
         } catch {
-            /* clipboard blocked — the field is selectable as a fallback */
+            /* clipboard blocked — the code field is selectable as a fallback */
         }
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1200)
-    }, [code])
+        setCopied(tag)
+        setTimeout(() => setCopied(''), 1200)
+    }, [])
 
     const doImport = useCallback(() => {
         const raw = importText.trim()
@@ -599,10 +620,17 @@ function TalentsPage() {
                         className="font-mono text-xs bg-bg-panel border border-border-dark rounded px-2 py-1 text-zinc-300 w-[240px]"
                     />
                     <button
-                        onClick={copyCode}
+                        onClick={() => copy(code, 'mine')}
                         className="px-2.5 py-1 rounded text-xs bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
                     >
-                        {copied ? 'Copied!' : 'Copy'}
+                        {copied === 'mine' ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button
+                        onClick={() => copy(turtleUrl, 'turtle')}
+                        title="Copy as a TurtleWoW calculator link"
+                        className="px-2.5 py-1 rounded text-xs bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
+                    >
+                        {copied === 'turtle' ? 'Copied!' : 'Turtle link'}
                     </button>
                     <span className="mx-1 text-zinc-700">|</span>
                     <input
