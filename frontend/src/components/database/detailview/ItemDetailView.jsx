@@ -71,11 +71,10 @@ const ItemIconHeader = ({
 };
 
 const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-  const { invalidateTooltip } = tooltipHook;
   // The item's tooltip payload, from the shared Query cache (warmed by hover
-  // elsewhere). Invalidating it (after a sync/icon fix) refetches this view.
+  // elsewhere). The blanket invalidate in reloadData refetches this too.
   const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry });
-  const { data: detail, isLoading: loading, refetch: refetchDetail } = useItemDetail(entry);
+  const { data: detail, isLoading: loading } = useItemDetail(entry);
   const [imgError, setImgError] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -91,10 +90,11 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     setImgError(false);
   }
 
+  // A sync or icon-fix can change this item anywhere it appears (the grid behind
+  // this overlay, search, sets, loot tables, tooltips), so drop the whole cache;
+  // active queries — this detail, its tooltip, the list — refetch immediately.
   const reloadData = async () => {
-    await refetchDetail();
-    // Refresh the tooltip — invalidating refetches the active query above.
-    invalidateTooltip?.(entry);
+    await queryClient.invalidateQueries();
   };
 
   const handleFixIcon = async () => {
@@ -145,10 +145,8 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     try {
       const result = await SyncSingleItem(entry);
       if (result && result.success) {
-        await refetchDetail();
-        // Refresh the tooltip — invalidating refetches the active query above.
-        invalidateTooltip?.(entry);
         setImgError(false);
+        await reloadData();
       } else {
         alert(`Sync failed: ${result?.error || "Unknown error"}`);
       }

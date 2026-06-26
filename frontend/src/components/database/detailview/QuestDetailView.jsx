@@ -1,7 +1,6 @@
 import React from 'react'
 import { queryClient } from '../../../queryClient'
 import { useQuestDetail } from '../../../hooks/queries/quests'
-import { queryKeys } from '../../../hooks/queries/keys'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { SyncQuestData } from '../../../services/api'
 import { 
@@ -19,9 +18,8 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const { data: detail, isLoading: loading, isError, error } = useQuestDetail(entry)
 
     const handleSync = () => {
-        SyncQuestData(entry).then((res) => {
-            if (res) queryClient.setQueryData(queryKeys.questDetail(entry), res);
-        });
+        // Drop the cache so the quest list/search behind this overlay refetch too.
+        SyncQuestData(entry).then(() => queryClient.invalidateQueries());
     };
 
     const renderRewardItem = (item) => {

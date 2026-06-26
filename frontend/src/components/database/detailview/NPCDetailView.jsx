@@ -89,9 +89,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const mapSpawns = zoneSpawns.length > 0 ? zoneSpawns : allSpawns;
 
   const handleSync = () => {
-    SyncNpcData(entry).then((res) => {
-      if (res) queryClient.setQueryData(queryKeys.npcDetail(entry), res);
-    });
+    // A synced NPC can change wherever it appears (the list behind this overlay,
+    // search, "dropped by" sources), so drop the cache; active queries refetch.
+    SyncNpcData(entry).then(() => queryClient.invalidateQueries());
   };
 
   // Re-fetch just the model/map images (does NOT replace creature data).

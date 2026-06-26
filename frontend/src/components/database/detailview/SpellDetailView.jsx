@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { queryClient } from '../../../queryClient'
 import { SyncSingleSpell } from '../../../services/api'
 import { useSpellDetail } from '../../../hooks/queries/spells'
 import { 
@@ -50,14 +51,15 @@ const ItemIcon = ({ iconName }) => {
 const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [syncing, setSyncing] = useState(false)
 
-    const { data: detail, isLoading: loading, isError, error, refetch } = useSpellDetail(entry)
+    const { data: detail, isLoading: loading, isError, error } = useSpellDetail(entry)
 
     const handleSync = async () => {
         setSyncing(true)
         try {
             const result = await SyncSingleSpell(parseInt(entry))
             if (result?.success) {
-                await refetch() // reload spell data after sync
+                // Drop the cache so lists/search/tooltips referencing this spell refetch.
+                await queryClient.invalidateQueries()
             } else {
                 console.error("Sync failed:", result?.error)
             }

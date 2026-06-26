@@ -9,6 +9,7 @@ import {
   StopSync,
 } from "../../../wailsjs/go/main/App";
 import { EventsOn, EventsOff } from "../../../wailsjs/runtime/runtime";
+import { queryClient } from "../../queryClient";
 import { PageLayout } from "../../components/ui";
 
 const SYNC_TYPES = [
@@ -120,6 +121,8 @@ function SyncPage() {
       setSyncing(false);
       setSyncResult({ type, message: msg || "Sync complete!" });
       loadSyncStats();
+      // A full sync rewrites many rows; drop the cache so every view refetches.
+      queryClient.invalidateQueries();
   };
 
   const loadSyncStats = async () => {

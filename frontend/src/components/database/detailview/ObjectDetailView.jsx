@@ -55,8 +55,9 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     if (!fn) return;
     setSyncing(true);
     fn(entry)
-      .then((res) => {
-        if (res) queryClient.setQueryData(queryKeys.objectDetail(entry), res);
+      .then(() => {
+        // Drop the cache so the list/search behind this overlay refetch too.
+        queryClient.invalidateQueries();
         setSelectedZone(null);
       })
       .finally(() => setSyncing(false));
