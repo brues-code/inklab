@@ -318,6 +318,68 @@ func (i *GeneratedImporter) ImportCreatureFamilies(jsonPath string) error {
 	return nil
 }
 
+// lockJSON mirrors an entry in data/locks.json (Lock.dbc, first 5 slots).
+type lockJSON struct {
+	ID    int `json:"id"`
+	Type1 int `json:"type1"`
+	Type2 int `json:"type2"`
+	Type3 int `json:"type3"`
+	Type4 int `json:"type4"`
+	Type5 int `json:"type5"`
+	Prop1 int `json:"prop1"`
+	Prop2 int `json:"prop2"`
+	Prop3 int `json:"prop3"`
+	Prop4 int `json:"prop4"`
+	Prop5 int `json:"prop5"`
+	Req1  int `json:"req1"`
+	Req2  int `json:"req2"`
+	Req3  int `json:"req3"`
+	Req4  int `json:"req4"`
+	Req5  int `json:"req5"`
+}
+
+// ImportLocks loads Lock.dbc (lock id -> required skill/key per slot) into the
+// locks table. Gameobject_template.data0 references a lock id; the Objects page
+// derives Herbalism/Mining/Lockpicking categories by joining type-3 chests to
+// these rows. Existing rows are replaced so a re-import refreshes the data.
+func (i *GeneratedImporter) ImportLocks(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var locks []lockJSON
+	if err := json.Unmarshal(data, &locks); err != nil {
+		fmt.Printf("  ERROR parsing locks.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM locks")
+	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO locks
+		(id, type1, type2, type3, type4, type5, prop1, prop2, prop3, prop4, prop5, req1, req2, req3, req4, req5)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, l := range locks {
+		if _, err := stmt.Exec(l.ID, l.Type1, l.Type2, l.Type3, l.Type4, l.Type5,
+			l.Prop1, l.Prop2, l.Prop3, l.Prop4, l.Prop5,
+			l.Req1, l.Req2, l.Req3, l.Req4, l.Req5); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d locks\n", n)
+	return nil
+}
+
 // taxiJSON mirrors data/taxi.json (datatools.TaxiData).
 type taxiJSON struct {
 	Continents []struct {

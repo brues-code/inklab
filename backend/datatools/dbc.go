@@ -109,6 +109,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"talents", "talents.json"},
 		{"taxi", "taxi.json"},
 		{"creaturefamilies", "creature_families.json"},
+		{"locks", "locks.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -142,6 +143,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genTaxi(cf)
 	case "creaturefamilies":
 		v, err = genCreatureFamilies(cf)
+	case "locks":
+		v, err = genLocks(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -221,6 +224,28 @@ func genCreatureFamilies(cf ClientFiles) (interface{}, error) {
 		out = append(out, map[string]interface{}{
 			"id": d.U32(r, 0), "name_loc0": name,
 		})
+	}
+	return out, nil
+}
+
+// Lock.dbc (33 fields): id(0), Type[8](1-8), Property/Index[8](9-16),
+// RequiredSkill[8](17-24), Action[8](25-32). We keep the first 5 slots, enough
+// for the gathering/lockpicking categories: a skill lock has Type=2 and
+// Property = LockType id (Herbalism=2, Mining=3, Lockpicking=1).
+func genLocks(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "Lock.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		m := map[string]interface{}{"id": d.U32(r, 0)}
+		for i := 1; i <= 5; i++ {
+			m[fmt.Sprintf("type%d", i)] = d.U32(r, i)
+			m[fmt.Sprintf("prop%d", i)] = d.U32(r, 8+i)
+			m[fmt.Sprintf("req%d", i)] = d.U32(r, 16+i)
+		}
+		out = append(out, m)
 	}
 	return out, nil
 }

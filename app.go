@@ -292,6 +292,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportCreatureFamilies(filepath.Join(dataDir, "creature_families.json")); err != nil {
 		fmt.Printf("⚠️ Creature family import failed: %v\n", err)
 	}
+	if err := gen.ImportLocks(filepath.Join(dataDir, "locks.json")); err != nil {
+		fmt.Printf("⚠️ Lock import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }
