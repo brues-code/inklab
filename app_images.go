@@ -114,6 +114,7 @@ func (a *App) RenderNpcModel(entry int, displayID int, baseDir string) bool {
 var mapKeyAliases = map[string]string{
 	"ogrimmar":  "orgrimmar", // file "Ogrimmar.jpg"  -> zone "Orgrimmar"
 	"darnassis": "darnassus", // file "Darnassis.jpg" -> zone "Darnassus"
+	"hilsbrad":  "hillsbrad", // file "Hilsbrad.jpg"  -> zone "Hillsbrad Foothills"
 }
 
 // normKey reduces a name to lowercase alphanumerics for loose matching, so

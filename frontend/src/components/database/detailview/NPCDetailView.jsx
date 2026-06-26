@@ -52,6 +52,17 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const portraitImage = useNpcPortrait(displayId, imgReload, entry);
   const mapImage = useZoneMap(detail?.zoneName, imgReload);
 
+  // The location panel shows ONE zone map (the resolved primary zone). Only plot
+  // markers for spawns in that zone — a spawn from another zone (e.g. an Arathi
+  // point on an NPC mapped to Hillsbrad) carries coordinates relative to ITS own
+  // zone map, so drawing it here would land it in the wrong place. Fall back to
+  // all spawns if none carry a zone name to match against.
+  const allSpawns = detail?.spawns || [];
+  const zoneSpawns = detail?.zoneName
+    ? allSpawns.filter((s) => s.zoneName === detail.zoneName)
+    : allSpawns;
+  const mapSpawns = zoneSpawns.length > 0 ? zoneSpawns : allSpawns;
+
   useEffect(() => {
     setLoading(true);
     GetNpcFullDetails(entry).then((res) => {
@@ -261,8 +272,8 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     </div>
                   )}
 
-                  {/* Spawn Point Markers */}
-                  {mapImage.src && detail.spawns && detail.spawns.map((spawn, idx) => {
+                  {/* Spawn Point Markers (only this zone's spawns) */}
+                  {mapImage.src && mapSpawns.map((spawn, idx) => {
                     // Only show markers for coordinates in valid 0-100 range
                     const hasValidCoords = spawn.x > 0 && spawn.x <= 100 && spawn.y > 0 && spawn.y <= 100;
                     if (!hasValidCoords) return null;
@@ -299,10 +310,10 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     ⤢
                   </div>
 
-                  {/* Spawn Count Badge */}
-                  {detail.spawns && detail.spawns.length > 1 && (
+                  {/* Spawn Count Badge — count markers shown on THIS zone map */}
+                  {mapSpawns.length > 1 && (
                     <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/70 rounded text-xs text-gray-300 border border-white/10">
-                      {detail.spawns.length} spawns
+                      {mapSpawns.length} spawns
                     </div>
                   )}
 
@@ -678,8 +689,8 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
               />
               
-              {/* Spawn Point Markers on Modal Map */}
-              {detail.spawns && detail.spawns.map((spawn, idx) => {
+              {/* Spawn Point Markers on Modal Map (only this zone's spawns) */}
+              {mapSpawns.map((spawn, idx) => {
                 const hasValidCoords = spawn.x > 0 && spawn.x <= 100 && spawn.y > 0 && spawn.y <= 100;
                 if (!hasValidCoords) return null;
                 
@@ -708,9 +719,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 {detail.zoneName || detail.spawns?.[0]?.zoneName || "Unknown Zone"}
                 {detail.x > 0 &&
                   ` (${detail.x.toFixed(1)}, ${detail.y.toFixed(1)})`}
-                {detail.spawns && detail.spawns.length > 1 && (
+                {mapSpawns.length > 1 && (
                   <span className="ml-2 text-gray-400 text-sm">
-                    +{detail.spawns.length - 1} more
+                    +{mapSpawns.length - 1} more
                   </span>
                 )}
               </div>
