@@ -39,6 +39,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [imgReload, setImgReload] = useState(0);
   const [refreshingImages, setRefreshingImages] = useState(false);
+  // When an NPC spawns across multiple zones, this overrides which zone's map is
+  // shown; null = use the resolved primary zone (detail.zoneName).
+  const [selectedZone, setSelectedZone] = useState(null);
 
   // Model renders are produced locally from the client MPQs (per-creature when
   // the NPC has weapons, else the shared display render) — no network fetching.
@@ -50,21 +53,34 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // Portrait (head shot) for the header avatar — rendered from the model's
   // embedded portrait camera; written alongside the full-body model.
   const portraitImage = useNpcPortrait(displayId, imgReload, entry);
-  const mapImage = useZoneMap(detail?.zoneName, imgReload);
-
-  // The location panel shows ONE zone map (the resolved primary zone). Only plot
-  // markers for spawns in that zone — a spawn from another zone (e.g. an Arathi
-  // point on an NPC mapped to Hillsbrad) carries coordinates relative to ITS own
-  // zone map, so drawing it here would land it in the wrong place. Fall back to
-  // all spawns if none carry a zone name to match against.
+  // Distinct zones this NPC spawns in (primary first, by first appearance), each
+  // with its spawn count — drives the zone toggle when there's more than one.
   const allSpawns = detail?.spawns || [];
-  const zoneSpawns = detail?.zoneName
-    ? allSpawns.filter((s) => s.zoneName === detail.zoneName)
+  const zoneList = (() => {
+    const counts = new Map();
+    for (const s of allSpawns) {
+      if (!s.zoneName) continue;
+      counts.set(s.zoneName, (counts.get(s.zoneName) || 0) + 1);
+    }
+    return [...counts.entries()].map(([name, count]) => ({ name, count }));
+  })();
+
+  // The active zone: an explicit toggle selection, else the resolved primary.
+  const activeZone = selectedZone || detail?.zoneName || zoneList[0]?.name || null;
+  const mapImage = useZoneMap(activeZone, imgReload);
+
+  // Only plot markers for spawns in the active zone — a spawn from another zone
+  // carries coordinates relative to ITS own zone map, so drawing it on this map
+  // would land it in the wrong place. Fall back to all spawns if none carry a
+  // zone name to match against.
+  const zoneSpawns = activeZone
+    ? allSpawns.filter((s) => s.zoneName === activeZone)
     : allSpawns;
   const mapSpawns = zoneSpawns.length > 0 ? zoneSpawns : allSpawns;
 
   useEffect(() => {
     setLoading(true);
+    setSelectedZone(null); // reset zone toggle when viewing a different NPC
     GetNpcFullDetails(entry).then((res) => {
       setDetail(res);
       setLoading(false);
@@ -237,17 +253,36 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                   <h3 className="text-wow-gold font-bold uppercase text-sm">
                     Location
                   </h3>
-                  {detail.spawns && detail.spawns.length > 0 && (
+                  {mapSpawns.length > 0 && (
                     <span className="text-xs text-gray-400 font-mono">
-                      {detail.spawns[0].zoneName || `Map ${detail.spawns[0].mapId}`}
-                      {(detail.spawns[0].x > 0 || detail.spawns[0].y > 0) && (
+                      {mapSpawns[0].zoneName || `Map ${mapSpawns[0].mapId}`}
+                      {(mapSpawns[0].x > 0 || mapSpawns[0].y > 0) && (
                         <span className="ml-1">
-                          ({detail.spawns[0].x.toFixed(1)}, {detail.spawns[0].y.toFixed(1)})
+                          ({mapSpawns[0].x.toFixed(1)}, {mapSpawns[0].y.toFixed(1)})
                         </span>
                       )}
                     </span>
                   )}
                 </div>
+
+                {/* Zone toggle — only when the NPC spawns in more than one zone */}
+                {zoneList.length > 1 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {zoneList.map((z) => (
+                      <button
+                        key={z.name}
+                        onClick={() => setSelectedZone(z.name)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-colors border ${
+                          z.name === activeZone
+                            ? "bg-wow-gold/20 border-wow-gold/60 text-wow-gold"
+                            : "bg-bg-panel border-white/10 text-gray-400 hover:bg-bg-hover hover:text-gray-200"
+                        }`}
+                      >
+                        {z.name} <span className="opacity-60">{z.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* User Recommended Map Style with Spawn Markers */}
                 <div
@@ -685,7 +720,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             <div className="relative">
               <img
                 src={mapImage.src}
-                alt={detail.zoneName || "Location Map"}
+                alt={activeZone || "Location Map"}
                 className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
               />
               
@@ -714,11 +749,11 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             </div>
 
             {/* Zone Name Label */}
-            {(detail.zoneName || (detail.spawns && detail.spawns.length > 0)) && (
+            {(activeZone || mapSpawns.length > 0) && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-lg text-white font-bold">
-                {detail.zoneName || detail.spawns?.[0]?.zoneName || "Unknown Zone"}
-                {detail.x > 0 &&
-                  ` (${detail.x.toFixed(1)}, ${detail.y.toFixed(1)})`}
+                {activeZone || mapSpawns[0]?.zoneName || "Unknown Zone"}
+                {mapSpawns[0]?.x > 0 &&
+                  ` (${mapSpawns[0].x.toFixed(1)}, ${mapSpawns[0].y.toFixed(1)})`}
                 {mapSpawns.length > 1 && (
                   <span className="ml-2 text-gray-400 text-sm">
                     +{mapSpawns.length - 1} more
