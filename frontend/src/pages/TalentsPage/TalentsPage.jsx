@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useParams, useNavigate } from '@tanstack/react-router'
 import { useIcon, useImage } from '../../services/useImage'
 
 // Direct Wails bindings (mirrors the codebase convention for app methods).
@@ -361,22 +362,49 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
 
 // ---- page -------------------------------------------------------------------
 
+// Session memory: the working build per class, kept in module scope so it
+// survives navigating away from and back to the Talents page within a session.
+// Cleared on full app reload (a future "save builds" feature can persist these).
+const buildsByClass = new Map() // class token (e.g. "WARRIOR") -> allocation order
+let lastClassToken = null // last class viewed, so /talents returns you to it
+
 function TalentsPage() {
+    const navigate = useNavigate()
+    // Class lives in the URL path (refresh-stable, Back walks between classes).
+    // The working build is NOT in the URL — it's held in session memory (see
+    // buildsByClass) and shared via the copyable build code, not the address bar.
+    const { class: classParam } = useParams({ strict: false })
+
     const [classes, setClasses] = useState([])
-    const [selected, setSelected] = useState(null)
     const [data, setData] = useState(null)
-    // Allocation order is the source of truth (one talentId per point spent, in
-    // the order taken). Ranks are derived from it, and it's what the shareable
-    // build code encodes so a build can be replayed level-by-level.
-    const [order, setOrder] = useState([])
     const [loading, setLoading] = useState(false)
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
-    const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder } awaiting trees
+    // An import targeting a not-yet-loaded class waits here until its trees
+    // arrive (we need the tree shape to decode/synthesize the allocation order).
+    const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder }
     const [copied, setCopied] = useState('') // '' | 'mine' | 'turtle'
     // class token <-> WoW class id, sourced from the backend (not hardcoded)
     const [classMap, setClassMap] = useState({ byId: {}, byClass: {} })
+
+    // Selected class token (uppercase, e.g. "WARRIOR") from the lowercase path.
+    const selected = classParam ? classParam.toUpperCase() : null
+
+    // Allocation order (one talentId per point spent, in order taken) is the
+    // source of truth for the working build. It lives in state and is mirrored
+    // into the per-class session store so it survives leaving and returning.
+    const [order, setOrder] = useState([])
+
+    // Update the working build and write it through to session memory.
+    const applyOrder = useCallback((next) => {
+        setOrder(next)
+        if (selected) buildsByClass.set(selected, next)
+    }, [selected])
+
+    // Switch class via the URL (push, so Back returns to the previous class).
+    const selectClass = (classToken) =>
+        navigate({ to: '/talents/$class', params: { class: classToken.toLowerCase() } })
 
     const points = useMemo(() => {
         const m = {}
@@ -399,28 +427,38 @@ function TalentsPage() {
             // {class, classId, name, color}, sorted alphabetically by name.
             const sorted = [...arr].sort((a, b) => (a.name || a.class).localeCompare(b.name || b.class))
             setClasses(sorted)
-            if (sorted.length && !selected) setSelected(sorted[0].class)
         })
     }, [])
 
+    // No class in the URL → land on the last class viewed this session (so
+    // returning to Talents restores your build), else the first alphabetical.
+    useEffect(() => {
+        if (!classParam && classes.length) {
+            const target = lastClassToken && classMap.byClass[lastClassToken] ? lastClassToken : classes[0].class
+            navigate({ to: '/talents/$class', params: { class: target.toLowerCase() }, replace: true })
+        }
+    }, [classParam, classes, classMap, navigate])
+
+    // On class change: remember it, restore its saved build from session memory,
+    // and load its trees.
     useEffect(() => {
         if (!selected) return
+        lastClassToken = selected
+        setOrder(buildsByClass.get(selected) || [])
         setLoading(true)
         GetTalentTrees(selected)
-            .then((d) => {
-                setData(d)
-                setOrder([])
-            })
+            .then((d) => setData(d))
             .finally(() => setLoading(false))
     }, [selected])
 
-    // Apply a pending imported build once its class's trees have loaded.
+    // Finish a cross-class import once the target's trees have loaded (turtle
+    // imports need the tree shape to synthesize an order from final ranks).
     useEffect(() => {
         if (pendingImport && data?.trees && selected === pendingImport.classKey) {
-            setOrder(pendingImport.makeOrder(data.trees))
+            applyOrder(pendingImport.makeOrder(data.trees))
             setPendingImport(null)
         }
-    }, [pendingImport, data, selected])
+    }, [pendingImport, data, selected, applyOrder])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -460,16 +498,17 @@ function TalentsPage() {
     }, [order, talentById])
 
     const change = useCallback((talentId, delta) => {
-        setOrder((prev) => {
-            if (delta > 0) return [...prev, talentId]
+        let next
+        if (delta > 0) next = [...order, talentId]
+        else {
             // Remove the most recent point spent on this talent.
-            const i = prev.lastIndexOf(talentId)
-            if (i === -1) return prev
-            const next = prev.slice()
+            const i = order.lastIndexOf(talentId)
+            if (i === -1) return
+            next = order.slice()
             next.splice(i, 1)
-            return next
-        })
-    }, [])
+        }
+        applyOrder(next)
+    }, [order, applyOrder])
 
     // Live shareable build code (class id + ordered allocations).
     const code = useMemo(() => {
@@ -499,14 +538,15 @@ function TalentsPage() {
     const doImport = useCallback(() => {
         const raw = importText.trim()
         if (!raw) return
-        // Apply an order builder for a class, loading its trees first if needed.
+        // Apply an order builder for a class, switching to it (and loading its
+        // trees) first if needed; the pending-import effect finishes that case.
         const apply = (classKey, makeOrder) => {
             setImportErr('')
             setImportText('')
-            if (classKey === selected && data?.trees) setOrder(makeOrder(data.trees))
+            if (classKey === selected && data?.trees) applyOrder(makeOrder(data.trees))
             else {
                 setPendingImport({ classKey, makeOrder })
-                setSelected(classKey)
+                selectClass(classKey)
             }
         }
 
@@ -534,7 +574,8 @@ function TalentsPage() {
             return
         }
         apply(classKey, (trees) => decodeBuild(trees, body))
-    }, [importText, selected, data, classMap])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [importText, selected, data, classMap, applyOrder])
 
     // Store only the hovered talent + its tree; rank and requirement text are
     // computed from live `points` at render time so the tooltip refreshes as you
@@ -555,7 +596,7 @@ function TalentsPage() {
                     return (
                         <button
                             key={c.class}
-                            onClick={() => setSelected(c.class)}
+                            onClick={() => selectClass(c.class)}
                             className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
                                 active ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark hover:bg-bg-hover'
                             }`}
@@ -586,7 +627,7 @@ function TalentsPage() {
                         </span>
                     )}
                     <button
-                        onClick={() => setOrder([])}
+                        onClick={() => applyOrder([])}
                         className="px-3 py-1.5 rounded text-sm bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
                     >
                         Reset

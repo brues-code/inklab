@@ -66,7 +66,13 @@ const atlasDetailRoute = createRoute({
 })
 
 const favoritesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/favorites', component: FavoritesPage })
-const talentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/talents', component: TalentsPage })
+
+// Talents: class in the path (refresh-stable, Back walks between classes).
+// "/talents" lands on the last-viewed class. The working build lives in session
+// memory, not the URL — sharing is via the copyable build code.
+const talentsIndexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/talents', component: TalentsPage })
+const talentsClassRoute = createRoute({ getParentRoute: () => rootRoute, path: '/talents/$class', component: TalentsPage })
+
 const mapsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/maps', component: MapsPage })
 const toolsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tools', component: ToolsPage })
 const syncRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sync', component: SyncPage })
@@ -77,7 +83,8 @@ const routeTree = rootRoute.addChildren([
     databaseTabRoute.addChildren([databaseDetailRoute]),
     atlasRoute.addChildren([atlasDetailRoute]),
     favoritesRoute,
-    talentsRoute,
+    talentsIndexRoute,
+    talentsClassRoute,
     mapsRoute,
     toolsRoute,
     syncRoute,
