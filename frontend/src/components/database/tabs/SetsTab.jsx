@@ -17,7 +17,7 @@ function SetsTab({ tooltipHook }) {
     const [classOptions, setClassOptions] = useState([])
     const [classBit, setClassBit] = useState(0)
 
-    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove, tooltipCache } = tooltipHook
+    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove } = tooltipHook
 
     // Load item sets on mount
     useEffect(() => {
@@ -54,12 +54,10 @@ function SetsTab({ tooltipHook }) {
                 .then(detail => {
                     setSetDetail(detail)
                     setLoading(false)
-                    // Preload tooltips for set items
+                    // Preload tooltips for set items (idempotent — cached/deduped)
                     if (detail?.items) {
                         detail.items.forEach(item => {
-                            if (item.entry && !tooltipCache[item.entry]) {
-                                loadTooltipData(item.entry)
-                            }
+                            if (item.entry) loadTooltipData(item.entry)
                         })
                     }
                 })

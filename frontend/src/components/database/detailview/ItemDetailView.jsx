@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { tooltipQuery } from "../../../hooks/useItemTooltip";
 import { GetItemDetail, IsFavorite, ToggleFavorite } from "../../../services/api";
 import {
   FixSingleItemIcon,
@@ -67,7 +69,10 @@ const ItemIconHeader = ({
 };
 
 const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-  const { tooltipCache, loadTooltipData, invalidateTooltip } = tooltipHook;
+  const { invalidateTooltip } = tooltipHook;
+  // The item's tooltip payload, from the shared Query cache (warmed by hover
+  // elsewhere). Invalidating it (after a sync/icon fix) refetches this view.
+  const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry });
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
@@ -85,13 +90,8 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const reloadData = async () => {
     const updatedDetail = await GetItemDetail(entry);
     setDetail(updatedDetail);
-    // Force reload tooltip data (bypass cache)
-    if (invalidateTooltip) {
-      invalidateTooltip(entry);
-    }
-    if (loadTooltipData) {
-      await loadTooltipData(entry, true); // forceReload = true
-    }
+    // Refresh the tooltip — invalidating refetches the active query above.
+    invalidateTooltip?.(entry);
   };
 
   useEffect(() => {
@@ -108,12 +108,6 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         setLoading(false);
       });
   }, [entry]);
-
-  useEffect(() => {
-    if (!tooltipCache[entry]) {
-      loadTooltipData(entry);
-    }
-  }, [entry, tooltipCache, loadTooltipData]);
 
   const handleFixIcon = async () => {
     setFixing(true);
@@ -167,9 +161,8 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         const updatedDetail = await GetItemDetail(entry);
         setDetail(updatedDetail);
 
-        // Force reload tooltip
-        if (invalidateTooltip) invalidateTooltip(entry);
-        if (loadTooltipData) await loadTooltipData(entry, true);
+        // Refresh the tooltip — invalidating refetches the active query above.
+        invalidateTooltip?.(entry);
 
         setImgError(false);
       } else {
@@ -194,7 +187,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
       <div className="inline-block align-top min-w-[300px]">
         <ItemTooltip
           item={dummyItem}
-          tooltip={tooltipCache[entry]}
+          tooltip={tooltip}
           style={{ position: "static" }}
           interactive={true}
         />

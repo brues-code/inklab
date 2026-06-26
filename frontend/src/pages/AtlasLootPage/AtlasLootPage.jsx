@@ -63,7 +63,6 @@ function AtlasLootPage() {
   // Shared app-wide tooltip (single instance lives at the router root).
   const {
     setHoveredItem,
-    tooltipCache,
     loadTooltipData,
     handleMouseMove,
     handleItemEnter,
@@ -155,16 +154,14 @@ function AtlasLootPage() {
     }
   }, [selectedModule, isThreeLevelCategory]);
 
-  // Preload tooltips when loot changes
+  // Preload tooltips when loot changes (idempotent — cached/deduped)
   useEffect(() => {
     if (loot?.items) {
       loot.items.slice(0, 20).forEach((item) => {
-        if (item.itemId && item.itemId > 0 && !tooltipCache[item.itemId]) {
-          loadTooltipData(item.itemId);
-        }
+        if (item.itemId && item.itemId > 0) loadTooltipData(item.itemId);
       });
     }
-  }, [loot, tooltipCache, loadTooltipData]);
+  }, [loot, loadTooltipData]);
 
   // Load loot when table is clicked (3-level) or when module is clicked directly (2-level)
   const loadLoot = (table, moduleOverride = null) => {

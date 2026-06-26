@@ -106,7 +106,7 @@ function ItemsTab({ tooltipHook, onNavigate }) {
         console.groupEnd()
     }, [advancedFilters])
 
-    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove, tooltipCache } = tooltipHook
+    const { setHoveredItem, loadTooltipData, handleItemEnter, handleMouseMove } = tooltipHook
 
     // Load item classes on mount
     useEffect(() => {
@@ -166,16 +166,14 @@ function ItemsTab({ tooltipHook, onNavigate }) {
         }
     }, [selectedSubClass, selectedSlot, needsSlotFilter])
 
-    // Preload tooltips when items change
+    // Preload tooltips when items change (idempotent — cached/deduped)
     useEffect(() => {
         if (items?.length > 0) {
             items.slice(0, 20).forEach(item => {
-                if (item.entry && !tooltipCache[item.entry]) {
-                    loadTooltipData(item.entry)
-                }
+                if (item.entry) loadTooltipData(item.entry)
             })
         }
-    }, [items])
+    }, [items, loadTooltipData])
 
     // Filtered lists
     const filteredClasses = useMemo(() => filterItems(itemClasses, classFilter), [itemClasses, classFilter])
