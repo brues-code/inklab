@@ -8,20 +8,20 @@ const DEFAULT_BASE = DEFAULT_WOW_BASE;
 // Each importer maps to an App binding that takes the client base folder.
 const IMPORTS = [
   {
-    id: "cache",
-    name: "WDB Cache",
-    fn: "RunCacheImport",
-    sub: "WDB\\*.wdb",
-    desc:
-      "Patch item / quest / creature / gameobject data from your client's WDB caches — everything you've queried in-game. Overlays the freshest server values; existing data is never wiped.",
-  },
-  {
     id: "client",
     name: "Client Data (icons, maps, DBC)",
     fn: "RunClientImport",
     sub: "Data\\*.MPQ (or loose DBFilesClient\\ + BlizzardInterfaceArt\\)",
     desc:
       "One pass over your WoW client: decode icons → data/icons, build fully-revealed zone maps → data/maps, and regenerate reference data (zones, skills, quest sorts, factions, item sets, spell text) into the database. Reads straight from the client's MPQ archives in memory when present (nothing is written back).",
+  },
+  {
+    id: "cache",
+    name: "WDB Cache",
+    fn: "RunCacheImport",
+    sub: "WDB\\*.wdb",
+    desc:
+      "Patch item / quest / creature / gameobject data from your client's WDB caches — everything you've queried in-game. Overlays the freshest server values; existing data is never wiped.",
   },
 ];
 
