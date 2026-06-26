@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { GetSpellSkillCategories, GetSpellSkillsByCategory, GetSpellsBySkill, GetSpellClasses, GetSpellSkillsByClass, filterItems } from '../../../utils/databaseApi'
 import { useIcon } from '../../../services/useImage'
@@ -34,14 +35,9 @@ const SpellListItemIcon = ({ iconName, spellColor }) => {
 const SPELL_COLOR = '#772ce8'
 
 function SpellsTab({ onNavigate }) {
-    const [categories, setCategories] = useState([])
-    const [classes, setClasses] = useState([])
-    const [skills, setSkills] = useState([])
-    const [spells, setSpells] = useState([])
     const [selectedCategory, setSelectedCategory] = useState(null)
     const [selectedClass, setSelectedClass] = useState(null)
     const [selectedSkill, setSelectedSkill] = useState(null)
-    const [loading, setLoading] = useState(false)
 
     const [categoryFilter, setCategoryFilter] = useState('')
     const [skillFilter, setSkillFilter] = useState('')
@@ -50,70 +46,55 @@ function SpellsTab({ onNavigate }) {
     // "Class Skills" gets an extra Class tier: Class Skills -> Warlock -> Affliction
     const isClassCategory = selectedCategory?.name === 'Class Skills'
 
-    // Load categories on mount
-    useEffect(() => {
-        setLoading(true)
-        GetSpellSkillCategories()
-            .then(cats => {
-                setCategories(cats || [])
-                setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load spell categories:", err)
-                setLoading(false)
-            })
-    }, [])
+    // Data via TanStack Query, keyed by the current selection. Each cascading
+    // query enables only once its parent is selected; switching selection swaps
+    // the cached entry. Downstream selection is reset in the click handlers.
+    const categoriesQuery = useQuery({ queryKey: ['spellCategories'], queryFn: GetSpellSkillCategories, staleTime: Infinity })
+    const classesQuery = useQuery({ queryKey: ['spellClasses'], queryFn: GetSpellClasses, enabled: isClassCategory, staleTime: Infinity })
+    const categorySkillsQuery = useQuery({
+        queryKey: ['spellSkillsByCategory', selectedCategory?.id],
+        queryFn: () => GetSpellSkillsByCategory(selectedCategory.id),
+        enabled: !!selectedCategory && !isClassCategory,
+    })
+    const classSkillsQuery = useQuery({
+        queryKey: ['spellSkillsByClass', selectedClass?.id],
+        queryFn: () => GetSpellSkillsByClass(selectedClass.id),
+        enabled: !!selectedClass,
+    })
+    const spellsQuery = useQuery({
+        queryKey: ['spellsBySkill', selectedSkill?.id],
+        queryFn: () => GetSpellsBySkill(selectedSkill.id, ''),
+        enabled: !!selectedSkill,
+    })
 
-    // Load skills (or classes, for Class Skills) when a category is selected
-    useEffect(() => {
-        if (!selectedCategory) return
-        setSkills([])
-        setClasses([])
-        setSpells([])
-        setSelectedSkill(null)
+    const categories = categoriesQuery.data || []
+    const classes = classesQuery.data || []
+    const skills = (selectedClass ? classSkillsQuery.data : categorySkillsQuery.data) || []
+    const spells = spellsQuery.data || []
+
+    // Selecting a level resets everything below it (handler-driven, no effects).
+    const pickCategory = (cat) => {
+        setSelectedCategory(cat)
         setSelectedClass(null)
-
-        if (selectedCategory.name === 'Class Skills') {
-            setLoading(true)
-            GetSpellClasses()
-                .then(res => { setClasses(res || []); setLoading(false) })
-                .catch(err => { console.error("Failed to load classes:", err); setLoading(false) })
-        } else {
-            setLoading(true)
-            GetSpellSkillsByCategory(selectedCategory.id)
-                .then(res => { setSkills(res || []); setLoading(false) })
-                .catch(err => { console.error("Failed to load skills:", err); setLoading(false) })
-        }
-    }, [selectedCategory])
-
-    // Load a class's skill lines when a class is selected
-    useEffect(() => {
-        if (!selectedClass) return
-        setLoading(true)
-        setSkills([])
-        setSpells([])
         setSelectedSkill(null)
-        GetSpellSkillsByClass(selectedClass.id)
-            .then(res => { setSkills(res || []); setLoading(false) })
-            .catch(err => { console.error("Failed to load class skills:", err); setLoading(false) })
-    }, [selectedClass])
-
-    // Load spells when skill is selected
-    useEffect(() => {
-        if (selectedSkill) {
-            setLoading(true)
-            setSpells([])
-            GetSpellsBySkill(selectedSkill.id, '')
-                .then(res => {
-                    setSpells(res || [])
-                    setLoading(false)
-                })
-                .catch(err => {
-                    console.error("Failed to load spells:", err)
-                    setLoading(false)
-                })
-        }
-    }, [selectedSkill])
+        setSkillFilter('')
+        setSpellFilter('')
+    }
+    const pickClass = (cls) => {
+        setSelectedClass(cls)
+        setSelectedSkill(null)
+        setSkillFilter('')
+        setSpellFilter('')
+    }
+    const pickSkill = (skill) => {
+        setSelectedSkill(skill)
+        setSpellFilter('')
+    }
+    const backToClasses = () => {
+        setSelectedClass(null)
+        setSelectedSkill(null)
+        setSkillFilter('')
+    }
 
     const filteredCategories = useMemo(() => filterItems(categories, categoryFilter), [categories, categoryFilter])
     const filteredClasses = useMemo(() => filterItems(classes, skillFilter), [classes, skillFilter])
@@ -144,11 +125,7 @@ function SpellsTab({ onNavigate }) {
                         <ListItem
                             key={cat.id}
                             active={selectedCategory?.id === cat.id}
-                            onClick={() => {
-                                setSelectedCategory(cat)
-                                setSkillFilter('')
-                                setSpellFilter('')
-                            }}
+                            onClick={() => pickCategory(cat)}
                         >
                             {cat.name}
                         </ListItem>
@@ -168,11 +145,7 @@ function SpellsTab({ onNavigate }) {
                     {showingClassPicker && filteredClasses.map(cls => (
                         <ListItem
                             key={cls.id}
-                            onClick={() => {
-                                setSelectedClass(cls)
-                                setSkillFilter('')
-                                setSpellFilter('')
-                            }}
+                            onClick={() => pickClass(cls)}
                         >
                             <span className="flex justify-between w-full">
                                 <span style={{ color: cls.color || undefined }}>{cls.name}</span>
@@ -183,14 +156,7 @@ function SpellsTab({ onNavigate }) {
 
                     {/* Back to classes */}
                     {isClassCategory && selectedClass && (
-                        <ListItem
-                            onClick={() => {
-                                setSelectedClass(null)
-                                setSelectedSkill(null)
-                                setSpells([])
-                                setSkillFilter('')
-                            }}
-                        >
+                        <ListItem onClick={backToClasses}>
                             <span className="text-gray-400">← All classes</span>
                         </ListItem>
                     )}
@@ -200,10 +166,7 @@ function SpellsTab({ onNavigate }) {
                         <ListItem
                             key={skill.id}
                             active={selectedSkill?.id === skill.id}
-                            onClick={() => {
-                                setSelectedSkill(skill)
-                                setSpellFilter('')
-                            }}
+                            onClick={() => pickSkill(skill)}
                         >
                             <span className="flex justify-between w-full">
                                 <span>{skill.name}</span>
@@ -223,19 +186,19 @@ function SpellsTab({ onNavigate }) {
                     titleColor={SPELL_COLOR}
                 />
 
-                {loading && selectedSkill && (
+                {spellsQuery.isLoading && (
                     <div className="flex-1 flex items-center justify-center italic animate-pulse" style={{ color: SPELL_COLOR }}>
                         Loading spells...
                     </div>
                 )}
 
-                {!selectedSkill && !loading && (
+                {!selectedSkill && (
                     <div className="flex-1 flex items-center justify-center text-gray-600 italic">
                         Select a skill to browse spells.
                     </div>
                 )}
 
-                {!loading && spells.length > 0 && (
+                {!spellsQuery.isLoading && spells.length > 0 && (
                     <ScrollList className="p-2 space-y-1">
                         {filteredSpells.map(spell => (
                             <div
