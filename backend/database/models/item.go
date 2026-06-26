@@ -232,20 +232,19 @@ type InventorySlot struct {
 // ItemDetail includes extended item information with sources
 type ItemDetail struct {
 	*Item
-	DisplayID      int             `json:"displayId"`
-	Flags          int             `json:"flags"`
-	BuyCount       int             `json:"buyCount"`
-	MaxCount       int             `json:"maxCount"`
-	Stackable      int             `json:"stackable"`
-	ContainerSlots int             `json:"containerSlots"`
-	Material       int             `json:"material"`
-	DmgMin2        float64         `json:"dmgMin2"`
-	DmgMax2        float64         `json:"dmgMax2"`
-	DmgType2       int             `json:"dmgType2"`
-	DroppedBy      []*CreatureDrop `json:"droppedBy"`
-	RewardFrom     []*QuestReward  `json:"rewardFrom"`
-	Contains       []*ItemDrop     `json:"contains"`
-	SoldBy         []*ItemVendor   `json:"soldBy"`
+	// maxCount, containerSlots and dmgMin2/Max2/Type2 are intentionally NOT
+	// re-declared here: they already come from the embedded *Item (populated by
+	// the repository). Re-declaring them as zero-valued outer fields shadowed
+	// the embedded values in JSON, zeroing them out for the frontend.
+	DisplayID  int             `json:"displayId"`
+	Flags      int             `json:"flags"`
+	BuyCount   int             `json:"buyCount"`
+	Stackable  int             `json:"stackable"`
+	Material   int             `json:"material"`
+	DroppedBy  []*CreatureDrop `json:"droppedBy"`
+	RewardFrom []*QuestReward  `json:"rewardFrom"`
+	Contains   []*ItemDrop     `json:"contains"`
+	SoldBy     []*ItemVendor   `json:"soldBy"`
 }
 
 // ItemVendor represents an NPC that sells an item (from the item page's

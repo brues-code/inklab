@@ -1586,13 +1586,8 @@ export namespace models {
 	    displayId: number;
 	    flags: number;
 	    buyCount: number;
-	    maxCount: number;
 	    stackable: number;
-	    containerSlots: number;
 	    material: number;
-	    dmgMin2: number;
-	    dmgMax2: number;
-	    dmgType2: number;
 	    droppedBy: CreatureDrop[];
 	    rewardFrom: QuestReward[];
 	    contains: ItemDrop[];
@@ -1667,13 +1662,8 @@ export namespace models {
 	        this.displayId = source["displayId"];
 	        this.flags = source["flags"];
 	        this.buyCount = source["buyCount"];
-	        this.maxCount = source["maxCount"];
 	        this.stackable = source["stackable"];
-	        this.containerSlots = source["containerSlots"];
 	        this.material = source["material"];
-	        this.dmgMin2 = source["dmgMin2"];
-	        this.dmgMax2 = source["dmgMax2"];
-	        this.dmgType2 = source["dmgType2"];
 	        this.droppedBy = this.convertValues(source["droppedBy"], CreatureDrop);
 	        this.rewardFrom = this.convertValues(source["rewardFrom"], QuestReward);
 	        this.contains = this.convertValues(source["contains"], ItemDrop);
