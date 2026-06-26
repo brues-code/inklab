@@ -94,6 +94,74 @@ function decodeBuild(trees, body) {
     return order
 }
 
+// ---- TurtleWoW build import -------------------------------------------------
+// turtle's calculator stores each tree as a 28-slot rank array (4 cols x 7 rows,
+// slot = row*4 + col), each rank packed as 3 bits, the bytes base64-encoded, and
+// the three trees joined by "-" in a ?points= query. This mirrors their decoder.
+const turtleBits = (b64) => {
+    const bytes = atob(b64)
+    let bits = ''
+    for (let i = 0; i < bytes.length; i++) bits += bytes.charCodeAt(i).toString(2).padStart(8, '0')
+    return (bits.match(/.{1,3}/g) ?? []).map((g) => parseInt(g, 2))
+}
+function decodeTurtlePoints(points) {
+    if (points.endsWith('=')) {
+        const all = turtleBits(points)
+        return [all.slice(0, 28), all.slice(28, 56), all.slice(56, 84)]
+    }
+    return points.split('-').slice(0, 3).map((seg) => [...turtleBits(seg.padEnd(14, 'A')), 0])
+}
+
+// Parse a turtle build (full URL or any string with class + ?points=). Returns
+// { classKey, ranks: [tree0[], tree1[], tree2[]] } or null if it isn't one.
+function parseTurtle(raw) {
+    const pm = raw.match(/points=([^&\s]+)/)
+    if (!pm) return null
+    const cm = raw.match(/\/([a-zA-Z]+)\s*\?/) || raw.match(/turtlecraft\.gg\/([a-zA-Z]+)/i)
+    if (!cm) return null
+    try {
+        return { classKey: cm[1].toUpperCase(), ranks: decodeTurtlePoints(decodeURIComponent(pm[1])) }
+    } catch {
+        return null
+    }
+}
+
+// Synthesize a tier-valid allocation order from a target rank-per-talent map
+// (turtle stores only final ranks, not the order). Fills lowest tree/tier first.
+function orderFromRanks(trees, treeRanks) {
+    const sorted = [...trees].sort((a, b) => a.order - b.order)
+    const target = {}
+    sorted.forEach((tr, ti) => {
+        const arr = treeRanks[ti] || []
+        tr.talents.forEach((t) => {
+            const r = Math.min(arr[t.row * 4 + t.col] || 0, t.maxRank)
+            if (r > 0) target[t.id] = r
+        })
+    })
+    const total = Object.values(target).reduce((s, n) => s + n, 0)
+    const cur = {}
+    const order = []
+    const spent = (tr) => tr.talents.reduce((s, t) => s + (cur[t.id] || 0), 0)
+    let guard = 0
+    while (order.length < total && guard++ < total * 4 + 20) {
+        let pick = null
+        for (const tr of sorted) {
+            const sp = spent(tr)
+            for (const t of [...tr.talents].sort((a, b) => a.row - b.row || a.col - b.col)) {
+                if ((cur[t.id] || 0) >= (target[t.id] || 0)) continue
+                const tierOpen = sp >= 5 * t.row
+                const prereqOk = !t.reqTalent || (cur[t.reqTalent] || 0) >= t.reqRank + 1
+                if (tierOpen && prereqOk) { pick = t; break }
+            }
+            if (pick) break
+        }
+        if (!pick) break // unreachable target (shouldn't happen for a valid build)
+        cur[pick.id] = (cur[pick.id] || 0) + 1
+        order.push(pick.id)
+    }
+    return order
+}
+
 // ---- small image components -------------------------------------------------
 
 function TalentIcon({ icon }) {
@@ -303,7 +371,7 @@ function TalentsPage() {
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
-    const [pendingCode, setPendingCode] = useState(null) // body awaiting its class's trees
+    const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder } awaiting trees
     const [copied, setCopied] = useState(false)
     // class token <-> WoW class id, sourced from the backend (not hardcoded)
     const [classMap, setClassMap] = useState({ byId: {}, byClass: {} })
@@ -347,11 +415,11 @@ function TalentsPage() {
 
     // Apply a pending imported build once its class's trees have loaded.
     useEffect(() => {
-        if (pendingCode != null && data?.trees) {
-            setOrder(decodeBuild(data.trees, pendingCode))
-            setPendingCode(null)
+        if (pendingImport && data?.trees && selected === pendingImport.classKey) {
+            setOrder(pendingImport.makeOrder(data.trees))
+            setPendingImport(null)
         }
-    }, [pendingCode, data])
+    }, [pendingImport, data, selected])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -424,6 +492,29 @@ function TalentsPage() {
     const doImport = useCallback(() => {
         const raw = importText.trim()
         if (!raw) return
+        // Apply an order builder for a class, loading its trees first if needed.
+        const apply = (classKey, makeOrder) => {
+            setImportErr('')
+            setImportText('')
+            if (classKey === selected && data?.trees) setOrder(makeOrder(data.trees))
+            else {
+                setPendingImport({ classKey, makeOrder })
+                setSelected(classKey)
+            }
+        }
+
+        // TurtleWoW build URL/code (?points=…) — final ranks, order synthesized.
+        const turtle = parseTurtle(raw)
+        if (turtle) {
+            if (!classMap.byClass[turtle.classKey]) {
+                setImportErr('Unrecognized build code')
+                return
+            }
+            apply(turtle.classKey, (trees) => orderFromRanks(trees, turtle.ranks))
+            return
+        }
+
+        // Our own "<classId>-<body>" order-preserving code.
         const dash = raw.indexOf('-')
         if (dash === -1) {
             setImportErr('Unrecognized build code')
@@ -435,14 +526,7 @@ function TalentsPage() {
             setImportErr('Unrecognized build code')
             return
         }
-        setImportErr('')
-        setImportText('')
-        if (classKey !== selected) {
-            setPendingCode(body) // applied once the class's trees load
-            setSelected(classKey)
-        } else if (data?.trees) {
-            setOrder(decodeBuild(data.trees, body))
-        }
+        apply(classKey, (trees) => decodeBuild(trees, body))
     }, [importText, selected, data, classMap])
 
     // Store only the hovered talent + its tree; rank and requirement text are
@@ -528,7 +612,7 @@ function TalentsPage() {
                             if (importErr) setImportErr('')
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && doImport()}
-                        placeholder="Paste a build code…"
+                        placeholder="Paste a build code or TurtleWoW link…"
                         className="font-mono text-xs bg-bg-main border border-border-dark rounded px-2 py-1 text-white w-[240px] outline-none focus:border-wow-rare"
                     />
                     <button
