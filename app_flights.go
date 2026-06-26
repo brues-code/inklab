@@ -19,6 +19,7 @@ type FlightNode struct {
 	Name     string  `json:"name"`
 	Alliance bool    `json:"alliance"`
 	Horde    bool    `json:"horde"`
+	Zone     string  `json:"zone"` // zone map key this node sits in (for drill-down)
 	PX       float64 `json:"px"`
 	PY       float64 `json:"py"`
 }
@@ -58,6 +59,7 @@ type WorldNode struct {
 	Alliance bool    `json:"alliance"`
 	Horde    bool    `json:"horde"`
 	MapID    int     `json:"mapId"`
+	Zone     string  `json:"zone"`
 	PX       float64 `json:"px"`
 	PY       float64 `json:"py"`
 }
@@ -114,6 +116,9 @@ func (a *App) GetWorldData() *WorldData {
 			var al, ho int
 			if rows.Scan(&n.ID, &n.Name, &al, &ho, &n.MapID, &n.PX, &n.PY) == nil {
 				n.Alliance, n.Horde = al != 0, ho != 0
+				if a.npcService != nil {
+					n.Zone, _, _, _ = a.npcService.ResolveContinentPoint(n.MapID, n.PX, n.PY)
+				}
 				out.Nodes = append(out.Nodes, n)
 				byKey[transportKey(n.MapID, n.Name)] = pos{n.MapID, n.PX, n.PY}
 			}
@@ -170,6 +175,81 @@ func transportKey(mapID int, name string) string {
 	return strconv.Itoa(mapID) + "|" + name
 }
 
+// --- zone drill-down --------------------------------------------------------
+//
+// Zone resolution reuses the authoritative spawn resolver
+// (NpcService.ResolveContinentPoint: client area grid, then zones.json), so
+// flight masters land in the same zone — and at the same spot — as creature
+// spawns, including custom octo zones (e.g. Thalassian Highlands).
+
+// ZoneNode is a flight master projected onto a zone map, with its destinations.
+type ZoneNode struct {
+	ID       int      `json:"id"`
+	Name     string   `json:"name"`
+	Alliance bool     `json:"alliance"`
+	Horde    bool     `json:"horde"`
+	PX       float64  `json:"px"`
+	PY       float64  `json:"py"`
+	Dests    []string `json:"dests"`
+}
+
+// ZoneData is the detail view for one zone: its map key and the flight masters
+// in it, positioned on the zone map.
+type ZoneData struct {
+	MapKey string     `json:"mapKey"`
+	MapID  int        `json:"mapId"`
+	Zone   string     `json:"zone"`
+	Nodes  []ZoneNode `json:"nodes"`
+}
+
+// GetZoneData returns the flight masters within a zone, projected onto the zone
+// map via the shared spawn resolver, for the drill-down view.
+func (a *App) GetZoneData(mapID int, zone string) *ZoneData {
+	out := &ZoneData{MapKey: zone, MapID: mapID, Zone: zone}
+	if a.db == nil || a.npcService == nil || zone == "" {
+		return out
+	}
+
+	destsFor := func(id int) []string {
+		r, err := a.db.DB().Query(
+			"SELECT DISTINCT t.name FROM taxi_path p JOIN taxi_node t ON p.to_node = t.id WHERE p.from_node = ? ORDER BY t.name", id)
+		if err != nil {
+			return nil
+		}
+		defer r.Close()
+		var ds []string
+		for r.Next() {
+			var n string
+			if r.Scan(&n) == nil {
+				ds = append(ds, n)
+			}
+		}
+		return ds
+	}
+
+	rows, err := a.db.DB().Query("SELECT id, name, alliance, horde, px, py FROM taxi_node WHERE map_id = ?", mapID)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, al, ho int
+		var name string
+		var px, py float64
+		if rows.Scan(&id, &name, &al, &ho, &px, &py) != nil {
+			continue
+		}
+		zName, zx, zy, ok := a.npcService.ResolveContinentPoint(mapID, px, py)
+		if !ok || zName != zone {
+			continue
+		}
+		out.Nodes = append(out.Nodes, ZoneNode{
+			ID: id, Name: name, Alliance: al != 0, Horde: ho != 0, PX: zx, PY: zy, Dests: destsFor(id),
+		})
+	}
+	return out
+}
+
 // GetFlightContinents lists the continents that have flight nodes, ordered by
 // map id (Azeroth=0, Kalimdor=1, then any custom).
 func (a *App) GetFlightContinents() []FlightContinent {
@@ -213,6 +293,9 @@ func (a *App) GetFlightData(mapID int) *FlightData {
 		if nodeRows.Scan(&n.ID, &n.Name, &al, &ho, &n.PX, &n.PY) == nil {
 			n.Alliance = al != 0
 			n.Horde = ho != 0
+			if a.npcService != nil {
+				n.Zone, _, _, _ = a.npcService.ResolveContinentPoint(mapID, n.PX, n.PY)
+			}
 			out.Nodes = append(out.Nodes, n)
 			onMap[n.ID] = true
 		}

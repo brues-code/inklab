@@ -246,6 +246,10 @@ export function GetWorldData() {
   return window['go']['main']['App']['GetWorldData']();
 }
 
+export function GetZoneData(arg1, arg2) {
+  return window['go']['main']['App']['GetZoneData'](arg1, arg2);
+}
+
 export function GetZoneDetail(arg1) {
   return window['go']['main']['App']['GetZoneDetail'](arg1);
 }

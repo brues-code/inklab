@@ -126,6 +126,8 @@ export function GetTooltipData(arg1:number):Promise<models.TooltipData>;
 
 export function GetWorldData():Promise<main.WorldData>;
 
+export function GetZoneData(arg1:number,arg2:string):Promise<main.ZoneData>;
+
 export function GetZoneDetail(arg1:number):Promise<models.ZoneDetail>;
 
 export function GetZones():Promise<Array<models.ZoneListEntry>>;

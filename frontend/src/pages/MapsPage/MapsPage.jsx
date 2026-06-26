@@ -8,6 +8,8 @@ const GetFlightData = (mapId) =>
     window?.go?.main?.App?.GetFlightData ? window.go.main.App.GetFlightData(mapId) : Promise.resolve(null)
 const GetWorldData = () =>
     window?.go?.main?.App?.GetWorldData ? window.go.main.App.GetWorldData() : Promise.resolve(null)
+const GetZoneData = (mapId, zone) =>
+    window?.go?.main?.App?.GetZoneData ? window.go.main.App.GetZoneData(mapId, zone) : Promise.resolve(null)
 
 // Faction colors.
 const C_ALLIANCE = '#3b82f6'
@@ -21,6 +23,10 @@ const C_ZEP = '#c084fc'
 const PANEL_W = 1002
 const PANEL_H = 668
 const WORLD_ORDER = { Kalimdor: 0, Azeroth: 1 }
+// The map-0 WorldMapArea name is "Azeroth", but the continent is Eastern
+// Kingdoms. Relabel for display only — "Azeroth" stays the map-image key.
+const CONTINENT_LABEL = { Azeroth: 'Eastern Kingdoms' }
+const continentLabel = (name) => CONTINENT_LABEL[name] || name
 
 const nodeColor = (n) => (n.alliance && n.horde ? C_NEUTRAL : n.alliance ? C_ALLIANCE : n.horde ? C_HORDE : C_NEUTRAL)
 const visibleForFaction = (n, f) => (f === 'alliance' ? n.alliance : f === 'horde' ? n.horde : true)
@@ -108,6 +114,7 @@ function TransportMarker({ t, cx, cy, onEnter, onMove, onLeave }) {
             onMouseEnter={(e) => onEnter(t, e)}
             onMouseMove={(e) => onMove(t, e)}
             onMouseLeave={onLeave}
+            onMouseDown={(e) => e.stopPropagation()}
         >
             {src && <img src={src} alt="" className="w-full h-full object-cover" draggable={false} />}
         </div>
@@ -126,6 +133,7 @@ function MapsPage() {
     const [layers, setLayers] = useState({ flights: true, transports: true })
     const [hover, setHover] = useState(null) // flight node hover
     const [tHover, setTHover] = useState(null) // transport hover
+    const [zone, setZone] = useState(null) // {mapId, key} drill-down, or null
 
     useEffect(() => {
         GetFlightContinents().then((list) => setContinents(list || []))
@@ -256,7 +264,7 @@ function MapsPage() {
     const tabBtn = (id, label, active, color) => (
         <button
             key={id}
-            onClick={() => setView(id)}
+            onClick={() => { setZone(null); setView(id) }}
             className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
                 active ? 'bg-bg-active border-border-highlight text-wow-gold' : 'bg-bg-panel border-border-dark hover:bg-bg-hover text-zinc-300'
             }`}
@@ -285,7 +293,7 @@ function MapsPage() {
             <div className="flex flex-wrap items-center gap-4 px-5 py-3 border-b border-border-dark bg-bg-main">
                 <div className="flex gap-2">
                     {tabBtn('world', 'World', isWorld)}
-                    {continents.map((c) => tabBtn(c.mapId, c.name, view === c.mapId))}
+                    {continents.map((c) => tabBtn(c.mapId, continentLabel(c.name), view === c.mapId))}
                 </div>
                 <div className="flex gap-2">
                     {factionBtn('all', 'All', '#e5e7eb')}
@@ -301,7 +309,14 @@ function MapsPage() {
 
             {/* map */}
             <div className="flex-1 p-3">
-                {loading ? (
+                {zone ? (
+                    <ZoneView
+                        mapId={zone.mapId}
+                        zoneKey={zone.key}
+                        backLabel={continentLabel(continents.find((c) => c.mapId === zone.mapId)?.name) || 'map'}
+                        onBack={() => setZone(null)}
+                    />
+                ) : loading ? (
                     <div className="py-10 text-zinc-500 text-center">Loading map…</div>
                 ) : continents.length === 0 ? (
                     <div className="py-10 text-zinc-500 text-center">
@@ -366,6 +381,8 @@ function MapsPage() {
                                         onMouseEnter={(e) => onEnter(n, e)}
                                         onMouseMove={(e) => onMove(n, e)}
                                         onMouseLeave={onLeave}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => { e.stopPropagation(); if (n.zone) { setHover(null); setZone({ mapId: isWorld ? (n.mapId || 0) : view, key: n.zone }) } }}
                                     />
                                 )
                             })}
@@ -383,6 +400,55 @@ function MapsPage() {
 
             {hover && <FlightTooltip node={hover.node} dests={[...hoverDests].map((id) => model.nodesById[id]?.name).filter(Boolean)} x={hover.x} y={hover.y} />}
             {tHover && <TransportTooltip t={tHover} x={tHover.x} y={tHover.y} />}
+        </div>
+    )
+}
+
+// ---- zone drill-down view --------------------------------------------------
+
+function ZoneView({ mapId, zoneKey, backLabel, onBack }) {
+    const [data, setData] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [hover, setHover] = useState(null)
+    const { src } = useImage('zone_map', zoneKey)
+
+    useEffect(() => {
+        setLoading(true)
+        GetZoneData(mapId, zoneKey).then(setData).finally(() => setLoading(false))
+    }, [mapId, zoneKey])
+
+    const nodes = data?.nodes || []
+    return (
+        <div className="h-full flex flex-col">
+            <div className="flex items-center gap-2 mb-2 text-sm">
+                <button onClick={onBack} className="px-2.5 py-1 rounded bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300">
+                    ← {backLabel}
+                </button>
+                <span className="text-wow-gold font-semibold">{zoneKey}</span>
+            </div>
+            {loading ? (
+                <div className="py-10 text-zinc-500 text-center">Loading zone…</div>
+            ) : !src ? (
+                <div className="py-10 text-zinc-500 text-center">No map image for “{zoneKey}”.</div>
+            ) : (
+                <div className="flex-1">
+                    <PanZoom canvasW={PANEL_W} canvasH={PANEL_H} fitKey={zoneKey}>
+                        <img src={src} alt={zoneKey} draggable={false} className="absolute top-0 left-0" style={{ width: PANEL_W, height: PANEL_H, objectFit: 'fill' }} />
+                        {nodes.map((n) => (
+                            <div
+                                key={n.id}
+                                className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-black/80"
+                                style={{ left: (n.px / 100) * PANEL_W, top: (n.py / 100) * PANEL_H, width: 14, height: 14, background: nodeColor(n), boxShadow: `0 0 8px ${nodeColor(n)}` }}
+                                onMouseEnter={(e) => setHover({ node: n, x: e.clientX, y: e.clientY })}
+                                onMouseMove={(e) => setHover((h) => ({ ...(h || {}), node: n, x: e.clientX, y: e.clientY }))}
+                                onMouseLeave={() => setHover(null)}
+                                onMouseDown={(e) => e.stopPropagation()}
+                            />
+                        ))}
+                    </PanZoom>
+                </div>
+            )}
+            {hover && <FlightTooltip node={hover.node} dests={hover.node.dests || []} x={hover.x} y={hover.y} />}
         </div>
     )
 }

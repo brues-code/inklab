@@ -702,6 +702,30 @@ func clampPct(v float64) float64 {
 	return v
 }
 
+// ResolveContinentPoint converts a continent-map percentage (cx,cy) on the given
+// map into the specific subzone and that zone's local 0-100 coordinates, using
+// the same authoritative resolution path as spawns: the client area grid first
+// (handles overlapping zone boxes and custom octo zones), then zones.json. It
+// returns ok=false when no subzone other than the continent itself contains the
+// point. Used by the flight-map zone drill-down so it matches spawn placement.
+func (s *NpcService) ResolveContinentPoint(mapID int, cx, cy float64) (zoneName string, x, y float64, ok bool) {
+	s.loadZoneBounds()
+	c := s.continentBound(mapID)
+	if c == nil {
+		return "", 0, 0, false
+	}
+	// Invert the continent projection (WoW swaps map X<-worldY, map Y<-worldX).
+	worldY := c.YMax - (cx/100)*(c.YMax-c.YMin)
+	worldX := c.XMax - (cy/100)*(c.XMax-c.XMin)
+	if name, gx, gy, gok := s.zoneFromAreaGrid(mapID, worldX, worldY); gok && name != c.Name {
+		return name, gx, gy, true
+	}
+	if name, mx, my, _, jok := s.zoneFromJSON(mapID, worldX, worldY); jok && name != c.Name {
+		return name, mx, my, true
+	}
+	return "", 0, 0, false
+}
+
 // convertWorldToMapCoords converts world coordinates to map percentage coordinates (0-100)
 // Using the aowow_zones table boundaries similar to the PHP coord_db2wow function
 func (s *NpcService) convertWorldToMapCoords(mapId, zoneId int, worldX, worldY float64) (zoneName string, mapX, mapY float64) {
