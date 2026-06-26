@@ -406,6 +406,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class TalentClassInfo {
+	    class: string;
+	    classId: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TalentClassInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.classId = source["classId"];
+	    }
+	}
 	
 	
 	

@@ -56,6 +56,44 @@ const reqTextFor = (tree, points, t) => {
     return parts.join('\n')
 }
 
+// ---- shareable build codes --------------------------------------------------
+// Format: "<classId>-<body>", where classId is the WoW class id (Warrior=1 …)
+// and body is ONE base62 char per point spent, IN THE ORDER TAKEN. Each char is
+// a global talent index into the class's flat talent list (trees by display
+// order, talents by row then col). The largest class has 56 talents, which fits
+// a single base62 digit (0-61), so one char = one point. Encoding the order —
+// not just final ranks like Wowhead — lets a build be replayed level-by-level.
+// Example: "11-001a" (Druid; talents 0,0,1,10).
+const B62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
+// Flat talent list in a stable order: trees by display order, talents by row,col.
+const flatTalents = (trees) =>
+    [...trees]
+        .sort((a, b) => a.order - b.order)
+        .flatMap((tr) => [...tr.talents].sort((a, b) => a.row - b.row || a.col - b.col))
+
+function encodeBuild(classId, trees, order) {
+    const flat = flatTalents(trees)
+    const indexById = {}
+    flat.forEach((t, i) => (indexById[t.id] = i))
+    let body = ''
+    for (const id of order) {
+        const i = indexById[id]
+        if (i != null && i < B62.length) body += B62[i]
+    }
+    return `${classId}-${body}`
+}
+
+function decodeBuild(trees, body) {
+    const flat = flatTalents(trees)
+    const order = []
+    for (const ch of body) {
+        const i = B62.indexOf(ch)
+        if (i >= 0 && i < flat.length) order.push(flat[i].id)
+    }
+    return order
+}
+
 // ---- small image components -------------------------------------------------
 
 function TalentIcon({ icon }) {
@@ -240,15 +278,40 @@ function TalentsPage() {
     const [classes, setClasses] = useState([])
     const [selected, setSelected] = useState(null)
     const [data, setData] = useState(null)
-    const [points, setPoints] = useState({})
+    // Allocation order is the source of truth (one talentId per point spent, in
+    // the order taken). Ranks are derived from it, and it's what the shareable
+    // build code encodes so a build can be replayed level-by-level.
+    const [order, setOrder] = useState([])
     const [loading, setLoading] = useState(false)
     const [tip, setTip] = useState(null)
+    const [importText, setImportText] = useState('')
+    const [importErr, setImportErr] = useState('')
+    const [pendingCode, setPendingCode] = useState(null) // body awaiting its class's trees
+    const [copied, setCopied] = useState(false)
+    // class token <-> WoW class id, sourced from the backend (not hardcoded)
+    const [classMap, setClassMap] = useState({ byId: {}, byClass: {} })
+
+    const points = useMemo(() => {
+        const m = {}
+        for (const id of order) m[id] = (m[id] || 0) + 1
+        return m
+    }, [order])
 
     useEffect(() => {
         GetTalentClasses().then((list) => {
-            const ordered = (list || []).slice().sort(
-                (a, b) => Object.keys(CLASS_INFO).indexOf(a) - Object.keys(CLASS_INFO).indexOf(b)
-            )
+            const arr = list || []
+            const byId = {}
+            const byClass = {}
+            arr.forEach((x) => {
+                if (x && x.class) {
+                    byId[x.classId] = x.class
+                    byClass[x.class] = x.classId
+                }
+            })
+            setClassMap({ byId, byClass })
+            const ordered = arr
+                .map((x) => x.class)
+                .sort((a, b) => Object.keys(CLASS_INFO).indexOf(a) - Object.keys(CLASS_INFO).indexOf(b))
             setClasses(ordered)
             if (ordered.length && !selected) setSelected(ordered[0])
         })
@@ -260,10 +323,18 @@ function TalentsPage() {
         GetTalentTrees(selected)
             .then((d) => {
                 setData(d)
-                setPoints({})
+                setOrder([])
             })
             .finally(() => setLoading(false))
     }, [selected])
+
+    // Apply a pending imported build once its class's trees have loaded.
+    useEffect(() => {
+        if (pendingCode != null && data?.trees) {
+            setOrder(decodeBuild(data.trees, pendingCode))
+            setPendingCode(null)
+        }
+    }, [pendingCode, data])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -281,12 +352,59 @@ function TalentsPage() {
     )
 
     const change = useCallback((talentId, delta) => {
-        setPoints((prev) => {
-            const next = { ...prev, [talentId]: Math.max(0, (prev[talentId] || 0) + delta) }
-            if (next[talentId] === 0) delete next[talentId]
+        setOrder((prev) => {
+            if (delta > 0) return [...prev, talentId]
+            // Remove the most recent point spent on this talent.
+            const i = prev.lastIndexOf(talentId)
+            if (i === -1) return prev
+            const next = prev.slice()
+            next.splice(i, 1)
             return next
         })
     }, [])
+
+    // Live shareable build code (class id + ordered allocations).
+    const code = useMemo(() => {
+        const classId = classMap.byClass[selected]
+        return selected && data?.trees && classId != null
+            ? encodeBuild(classId, data.trees, order)
+            : ''
+    }, [selected, data, order, classMap])
+
+    const copyCode = useCallback(async () => {
+        if (!code) return
+        try {
+            await navigator.clipboard.writeText(code)
+        } catch {
+            /* clipboard blocked — the field is selectable as a fallback */
+        }
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+    }, [code])
+
+    const doImport = useCallback(() => {
+        const raw = importText.trim()
+        if (!raw) return
+        const dash = raw.indexOf('-')
+        if (dash === -1) {
+            setImportErr('Unrecognized build code')
+            return
+        }
+        const classKey = classMap.byId[parseInt(raw.slice(0, dash).trim(), 10)]
+        const body = raw.slice(dash + 1).trim()
+        if (!classKey) {
+            setImportErr('Unrecognized build code')
+            return
+        }
+        setImportErr('')
+        setImportText('')
+        if (classKey !== selected) {
+            setPendingCode(body) // applied once the class's trees load
+            setSelected(classKey)
+        } else if (data?.trees) {
+            setOrder(decodeBuild(data.trees, body))
+        }
+    }, [importText, selected, data, classMap])
 
     // Store only the hovered talent + its tree; rank and requirement text are
     // computed from live `points` at render time so the tooltip refreshes as you
@@ -339,13 +457,50 @@ function TalentsPage() {
                         </span>
                     )}
                     <button
-                        onClick={() => setPoints({})}
+                        onClick={() => setOrder([])}
                         className="px-3 py-1.5 rounded text-sm bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
                     >
                         Reset
                     </button>
                 </div>
             </div>
+
+            {/* share / import build code */}
+            {data?.trees && (
+                <div className="flex items-center gap-2 px-5 pb-3 flex-wrap">
+                    <span className="text-xs text-zinc-500">Build:</span>
+                    <input
+                        readOnly
+                        value={code}
+                        onFocus={(e) => e.target.select()}
+                        className="font-mono text-xs bg-bg-panel border border-border-dark rounded px-2 py-1 text-zinc-300 w-[240px]"
+                    />
+                    <button
+                        onClick={copyCode}
+                        className="px-2.5 py-1 rounded text-xs bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
+                    >
+                        {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <span className="mx-1 text-zinc-700">|</span>
+                    <input
+                        value={importText}
+                        onChange={(e) => {
+                            setImportText(e.target.value)
+                            if (importErr) setImportErr('')
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && doImport()}
+                        placeholder="Paste a build code…"
+                        className="font-mono text-xs bg-bg-main border border-border-dark rounded px-2 py-1 text-white w-[240px] outline-none focus:border-wow-rare"
+                    />
+                    <button
+                        onClick={doImport}
+                        className="px-2.5 py-1 rounded text-xs bg-wow-rare/80 hover:bg-wow-rare text-white font-semibold"
+                    >
+                        Import
+                    </button>
+                    {importErr && <span className="text-xs text-red-400">{importErr}</span>}
+                </div>
+            )}
 
             {/* trees */}
             {loading ? (

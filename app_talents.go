@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math/bits"
 	"strings"
 )
 
@@ -44,23 +45,35 @@ type TalentClassData struct {
 	Trees []TalentTree `json:"trees"`
 }
 
-// GetTalentClasses returns the class tokens that have talent trees, ordered by
-// the conventional class order (the order trees were exported in).
-func (a *App) GetTalentClasses() []string {
+// TalentClassInfo pairs a class token with its WoW class id. The id is derived
+// from the TalentTab class_mask (a single class bit) — classId = bit index + 1
+// — so it comes from the client DBC, not a hardcoded table.
+type TalentClassInfo struct {
+	Class   string `json:"class"`
+	ClassID int    `json:"classId"`
+}
+
+// GetTalentClasses returns the classes that have talent trees with their class
+// ids, ordered by the conventional class order (the order trees were exported in).
+func (a *App) GetTalentClasses() []TalentClassInfo {
 	if a.db == nil {
 		return nil
 	}
-	rows, err := a.db.DB().Query("SELECT DISTINCT class, MIN(id) AS o FROM talent_tab GROUP BY class ORDER BY o")
+	rows, err := a.db.DB().Query("SELECT class, MAX(class_mask) AS mask, MIN(id) AS o FROM talent_tab GROUP BY class ORDER BY o")
 	if err != nil {
 		return nil
 	}
 	defer rows.Close()
-	var out []string
+	var out []TalentClassInfo
 	for rows.Next() {
 		var class string
-		var o int
-		if rows.Scan(&class, &o) == nil && class != "" {
-			out = append(out, class)
+		var mask, o int
+		if rows.Scan(&class, &mask, &o) == nil && class != "" {
+			id := 0
+			if mask > 0 {
+				id = bits.TrailingZeros32(uint32(mask)) + 1
+			}
+			out = append(out, TalentClassInfo{Class: class, ClassID: id})
 		}
 	}
 	return out
