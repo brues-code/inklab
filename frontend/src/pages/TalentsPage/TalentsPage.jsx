@@ -484,7 +484,7 @@ function TalentsPage() {
 
             {/* share / import build code */}
             {data?.trees && (
-                <div className="flex items-center gap-2 px-5 pb-3 flex-wrap">
+                <div className="flex items-center justify-center gap-2 px-5 pb-3 flex-wrap">
                     <span className="text-xs text-zinc-500">Build:</span>
                     <input
                         readOnly
