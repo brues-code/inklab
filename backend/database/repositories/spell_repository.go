@@ -44,7 +44,8 @@ func (r *SpellRepository) SearchSpells(query string) ([]*models.Spell, error) {
 	if id, parseErr := strconv.Atoi(query); parseErr == nil && id > 0 {
 		rows, err = r.db.Query(`
 			SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
-			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
+			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
+			       COALESCE(sp.nameSubtext, '')
 			FROM spell_template sp
 			LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 			WHERE sp.entry = ?
@@ -53,7 +54,8 @@ func (r *SpellRepository) SearchSpells(query string) ([]*models.Spell, error) {
 		// Text search by name
 		rows, err = r.db.Query(`
 			SELECT sp.entry, sp.name, sp.description, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
-			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3
+			       sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
+			       COALESCE(sp.nameSubtext, '')
 			FROM spell_template sp
 			LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 			WHERE sp.name LIKE ?
