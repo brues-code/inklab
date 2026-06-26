@@ -112,9 +112,10 @@ func (a *App) RenderNpcModel(entry int, displayID int, baseDir string) bool {
 // correct form makes them collide. Keys/values are normKey output (lowercase
 // alphanumerics). The octo client ships these capital-city maps misspelled.
 var mapKeyAliases = map[string]string{
-	"ogrimmar":  "orgrimmar", // file "Ogrimmar.jpg"  -> zone "Orgrimmar"
-	"darnassis": "darnassus", // file "Darnassis.jpg" -> zone "Darnassus"
-	"hilsbrad":  "hillsbrad", // file "Hilsbrad.jpg"  -> zone "Hillsbrad Foothills"
+	"ogrimmar":        "orgrimmar", // file "Ogrimmar.jpg"  -> zone "Orgrimmar"
+	"darnassis":       "darnassus", // file "Darnassis.jpg" -> zone "Darnassus"
+	"hilsbrad":        "hillsbrad", // file "Hilsbrad.jpg"  -> zone "Hillsbrad Foothills"
+	"towerofkarazhan": "upperkarazhan", // zone "Tower of Karazhan" -> file "UpperKarazhan.jpg"
 }
 
 // normKey reduces a name to lowercase alphanumerics for loose matching, so
