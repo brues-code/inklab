@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useParams, useNavigate } from '@tanstack/react-router'
+import { useState, useMemo, useCallback } from 'react'
+import { useParams, useNavigate, Navigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { queryClient } from '../../queryClient'
+import { useTalentBuild, getLastTalentClass } from './useTalentBuild'
 import { useIcon, useImage } from '../../services/useImage'
 
 // Direct Wails bindings (mirrors the codebase convention for app methods).
@@ -374,25 +376,16 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
 
 // ---- page -------------------------------------------------------------------
 
-// Session memory: the working build per class, kept in module scope so it
-// survives navigating away from and back to the Talents page within a session.
-// Cleared on full app reload (a future "save builds" feature can persist these).
-const buildsByClass = new Map() // class token (e.g. "WARRIOR") -> allocation order
-let lastClassToken = null // last class viewed, so /talents returns you to it
-
 function TalentsPage() {
     const navigate = useNavigate()
     // Class lives in the URL path (refresh-stable, Back walks between classes).
     // The working build is NOT in the URL — it's held in session memory (see
-    // buildsByClass) and shared via the copyable build code, not the address bar.
+    // useTalentBuild) and shared via the copyable build code, not the address bar.
     const { class: classParam } = useParams({ strict: false })
 
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
-    // An import targeting a not-yet-loaded class waits here until its trees
-    // arrive (we need the tree shape to decode/synthesize the allocation order).
-    const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder }
     const [copied, setCopied] = useState('') // '' | 'mine' | 'turtle'
 
     // Selected class token (uppercase, e.g. "WARRIOR") from the lowercase path.
@@ -431,16 +424,7 @@ function TalentsPage() {
         return { byId, byClass }
     }, [classesQuery.data])
 
-    // Allocation order (one talentId per point spent, in order taken) is the
-    // source of truth for the working build. It lives in state and is mirrored
-    // into the per-class session store so it survives leaving and returning.
-    const [order, setOrder] = useState([])
-
-    // Update the working build and write it through to session memory.
-    const applyOrder = useCallback((next) => {
-        setOrder(next)
-        if (selected) buildsByClass.set(selected, next)
-    }, [selected])
+    const { order, applyOrder, setBuildFor } = useTalentBuild(selected)
 
     // Switch class via the URL (push, so Back returns to the previous class).
     const selectClass = (classToken) =>
@@ -451,33 +435,6 @@ function TalentsPage() {
         for (const id of order) m[id] = (m[id] || 0) + 1
         return m
     }, [order])
-
-    // No class in the URL → land on the last class viewed this session (so
-    // returning to Talents restores your build), else the first alphabetical.
-    useEffect(() => {
-        if (!classParam && classes.length) {
-            const target = lastClassToken && classMap.byClass[lastClassToken] ? lastClassToken : classes[0].class
-            navigate({ to: '/talents/$class', params: { class: target.toLowerCase() }, replace: true })
-        }
-    }, [classParam, classes, classMap, navigate])
-
-    // On class change: remember it and restore its saved build from session
-    // memory. (Trees load via the query above, keyed by class.)
-    useEffect(() => {
-        if (!selected) return
-        lastClassToken = selected
-        setOrder(buildsByClass.get(selected) || [])
-    }, [selected])
-
-    // Finish a cross-class import once the target class's trees have loaded.
-    // `data` is the query result keyed by `selected`, so `selected === classKey`
-    // guarantees we're decoding against the right class's trees.
-    useEffect(() => {
-        if (pendingImport && data?.trees && selected === pendingImport.classKey) {
-            applyOrder(pendingImport.makeOrder(data.trees))
-            setPendingImport(null)
-        }
-    }, [pendingImport, data, selected, applyOrder])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -561,23 +518,32 @@ function TalentsPage() {
         setTimeout(() => setCopied(''), 1200)
     }, [])
 
-    const doImport = useCallback(() => {
+    const doImport = useCallback(async () => {
         const raw = importText.trim()
         if (!raw) return
-        // Apply an order builder for a class, switching to it (and loading its
-        // trees) first if needed; the pending-import effect finishes that case.
-        const apply = (classKey, makeOrder) => {
+        // Fetch the target class's trees (cache hit if already loaded), decode
+        // the build against them, store it, and switch to that class. No pending
+        // state — ensureQueryData awaits the right class's trees directly.
+        const apply = async (classKey, makeOrder) => {
+            let d
+            try {
+                d = await queryClient.ensureQueryData({
+                    queryKey: ['talentTrees', classKey],
+                    queryFn: () => GetTalentTrees(classKey),
+                    staleTime: Infinity,
+                })
+            } catch {
+                d = null
+            }
+            if (!d?.trees) {
+                setImportErr('Unrecognized build code')
+                return
+            }
+            const next = makeOrder(d.trees)
+            setBuildFor(classKey, next)
             setImportErr('')
             setImportText('')
-            // Decode immediately if the target class's trees are already loaded
-            // (data is keyed to selected, so this is the right class's trees);
-            // otherwise switch class and let the effect decode once they load.
-            if (classKey === selected && data?.trees) {
-                applyOrder(makeOrder(data.trees))
-            } else {
-                setPendingImport({ classKey, makeOrder })
-                selectClass(classKey)
-            }
+            if (classKey !== selected) selectClass(classKey) // class change restores the stored build
         }
 
         // TurtleWoW build URL/code (?points=…) — final ranks, order synthesized.
@@ -587,7 +553,7 @@ function TalentsPage() {
                 setImportErr('Unrecognized build code')
                 return
             }
-            apply(turtle.classKey, (trees) => orderFromRanks(trees, turtle.ranks))
+            await apply(turtle.classKey, (trees) => orderFromRanks(trees, turtle.ranks))
             return
         }
 
@@ -603,9 +569,9 @@ function TalentsPage() {
             setImportErr('Unrecognized build code')
             return
         }
-        apply(classKey, (trees) => decodeBuild(trees, body))
+        await apply(classKey, (trees) => decodeBuild(trees, body))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [importText, selected, data, classMap, applyOrder])
+    }, [importText, selected, classMap, setBuildFor])
 
     // Store only the hovered talent + its tree; rank and requirement text are
     // computed from live `points` at render time so the tooltip refreshes as you
@@ -615,7 +581,16 @@ function TalentsPage() {
     }, [])
     const onLeave = useCallback(() => setTip(null), [])
 
-    const info = selected ? classes.find((c) => c.class === selected) : null
+    // No class in the URL → redirect to the last class viewed this session (so
+    // returning to Talents restores your build), else the first alphabetical.
+    if (!selected) {
+        if (!classes.length) return <div className="px-5 py-10 text-zinc-500">Loading…</div>
+        const last = getLastTalentClass()
+        const target = last && classMap.byClass[last] ? last : classes[0].class
+        return <Navigate to="/talents/$class" params={{ class: target.toLowerCase() }} replace />
+    }
+
+    const info = classes.find((c) => c.class === selected)
 
     return (
         <div className="h-full overflow-auto bg-bg-dark">
