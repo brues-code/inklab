@@ -102,6 +102,30 @@ export namespace main {
 	        this.name = source["name"];
 	    }
 	}
+	export class TransportRoute {
+	    id: number;
+	    type: string;
+	    here: string;
+	    dest: string;
+	    destContinent: string;
+	    sameContinent: boolean;
+	    waypoints: number[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new TransportRoute(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.here = source["here"];
+	        this.dest = source["dest"];
+	        this.destContinent = source["destContinent"];
+	        this.sameContinent = source["sameContinent"];
+	        this.waypoints = source["waypoints"];
+	    }
+	}
 	export class FlightNode {
 	    id: number;
 	    name: string;
@@ -127,6 +151,7 @@ export namespace main {
 	export class FlightData {
 	    nodes: FlightNode[];
 	    connections: FlightConnection[];
+	    transports: TransportRoute[];
 	
 	    static createFrom(source: any = {}) {
 	        return new FlightData(source);
@@ -136,6 +161,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.nodes = this.convertValues(source["nodes"], FlightNode);
 	        this.connections = this.convertValues(source["connections"], FlightConnection);
+	        this.transports = this.convertValues(source["transports"], TransportRoute);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -378,6 +404,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class UpdateInfo {

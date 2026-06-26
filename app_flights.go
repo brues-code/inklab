@@ -29,10 +29,24 @@ type FlightConnection struct {
 	Waypoints [][2]float64 `json:"waypoints"` // [px,py] route, empty if none
 }
 
+// TransportRoute is a boat/zeppelin leg as seen from one continent: its
+// on-continent track, the destination hub, and whether the destination is on a
+// different continent.
+type TransportRoute struct {
+	ID            int          `json:"id"`
+	Type          string       `json:"type"` // boat | zeppelin
+	Here          string       `json:"here"` // hub on this continent
+	Dest          string       `json:"dest"` // hub at the other end
+	DestContinent string       `json:"destContinent"`
+	SameContinent bool         `json:"sameContinent"`
+	Waypoints     [][2]float64 `json:"waypoints"` // this continent's leg
+}
+
 // FlightData is everything the map needs for one continent.
 type FlightData struct {
 	Nodes       []FlightNode       `json:"nodes"`
 	Connections []FlightConnection `json:"connections"`
+	Transports  []TransportRoute   `json:"transports"`
 }
 
 // GetFlightContinents lists the continents that have flight nodes, ordered by
@@ -129,7 +143,82 @@ func (a *App) GetFlightData(mapID int) *FlightData {
 			wpRows.Close()
 		}
 	}
+
+	out.Transports = a.loadTransports(mapID)
 	return out
+}
+
+// loadTransports returns the boat/zeppelin legs that touch a continent: each
+// route's on-continent waypoint track plus where it goes.
+func (a *App) loadTransports(mapID int) []TransportRoute {
+	// Continent map_id -> name (for the destination continent label).
+	contName := map[int]string{}
+	if cr, err := a.db.DB().Query("SELECT map_id, continent FROM taxi_node WHERE continent != '' GROUP BY map_id"); err == nil {
+		for cr.Next() {
+			var m int
+			var n string
+			if cr.Scan(&m, &n) == nil {
+				contName[m] = n
+			}
+		}
+		cr.Close()
+	}
+
+	rows, err := a.db.DB().Query(
+		"SELECT id, type, name_a, map_a, name_b, map_b FROM transport_route WHERE map_a = ? OR map_b = ?", mapID, mapID)
+	if err != nil {
+		return nil
+	}
+	var routes []TransportRoute
+	byID := map[int]*TransportRoute{}
+	for rows.Next() {
+		var id, mapA, mapB int
+		var typ, nameA, nameB string
+		if rows.Scan(&id, &typ, &nameA, &mapA, &nameB, &mapB) != nil {
+			continue
+		}
+		tr := TransportRoute{ID: id, Type: typ, SameContinent: mapA == mapB}
+		if mapA == mapID {
+			tr.Here, tr.Dest = nameA, nameB
+			if mapB != mapID {
+				tr.DestContinent = contName[mapB]
+			}
+		} else {
+			tr.Here, tr.Dest = nameB, nameA
+			if mapA != mapID {
+				tr.DestContinent = contName[mapA]
+			}
+		}
+		routes = append(routes, tr)
+	}
+	rows.Close()
+	if len(routes) == 0 {
+		return nil
+	}
+	for i := range routes {
+		byID[routes[i].ID] = &routes[i]
+	}
+
+	ids := make([]int, 0, len(routes))
+	for _, r := range routes {
+		ids = append(ids, r.ID)
+	}
+	wpRows, err := a.db.DB().Query(
+		"SELECT route_id, px, py FROM transport_waypoint WHERE map_id = ? AND route_id IN ("+placeholders(len(ids))+") ORDER BY route_id, idx",
+		append([]interface{}{mapID}, toArgs(ids)...)...)
+	if err == nil {
+		for wpRows.Next() {
+			var rid int
+			var px, py float64
+			if wpRows.Scan(&rid, &px, &py) == nil {
+				if r := byID[rid]; r != nil {
+					r.Waypoints = append(r.Waypoints, [2]float64{px, py})
+				}
+			}
+		}
+		wpRows.Close()
+	}
+	return routes
 }
 
 func placeholders(n int) string {

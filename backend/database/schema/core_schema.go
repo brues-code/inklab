@@ -283,6 +283,24 @@ func CoreSchema() string {
 	CREATE INDEX IF NOT EXISTS idx_taxi_node_map ON taxi_node(map_id);
 	CREATE INDEX IF NOT EXISTS idx_taxi_path_from ON taxi_path(from_node);
 
+	-- Boat/zeppelin transport routes (a->b hubs, possibly on different maps) and
+	-- their projected track waypoints (per-map continent %).
+	CREATE TABLE IF NOT EXISTS transport_route (
+		id INTEGER PRIMARY KEY,
+		type TEXT DEFAULT 'boat',  -- boat | zeppelin
+		name_a TEXT, map_a INTEGER,
+		name_b TEXT, map_b INTEGER
+	);
+	CREATE TABLE IF NOT EXISTS transport_waypoint (
+		route_id INTEGER NOT NULL,
+		idx INTEGER NOT NULL,
+		map_id INTEGER DEFAULT 0,
+		px REAL DEFAULT 0,
+		py REAL DEFAULT 0,
+		PRIMARY KEY (route_id, idx)
+	);
+	CREATE INDEX IF NOT EXISTS idx_transport_wp_route ON transport_waypoint(route_id);
+
 	-- Indexes for 1:1 tables (created after GeneratedSchema)
 	CREATE INDEX IF NOT EXISTS idx_item_template_name ON item_template(name);
 	CREATE INDEX IF NOT EXISTS idx_item_template_class ON item_template(class);

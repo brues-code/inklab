@@ -301,6 +301,21 @@ type taxiJSON struct {
 		PX     float64 `json:"px"`
 		PY     float64 `json:"py"`
 	} `json:"waypoints"`
+	Transports []struct {
+		ID    int    `json:"id"`
+		Type  string `json:"type"`
+		NameA string `json:"nameA"`
+		MapA  int    `json:"mapA"`
+		NameB string `json:"nameB"`
+		MapB  int    `json:"mapB"`
+	} `json:"transports"`
+	TransportWps []struct {
+		RouteID int     `json:"routeId"`
+		Idx     int     `json:"idx"`
+		MapID   int     `json:"mapId"`
+		PX      float64 `json:"px"`
+		PY      float64 `json:"py"`
+	} `json:"transportWps"`
 }
 
 // ImportTaxi loads the DBC-derived flight network from taxi.json into the
@@ -330,6 +345,8 @@ func (i *GeneratedImporter) ImportTaxi(jsonPath string) error {
 	tx.Exec("DELETE FROM taxi_node")
 	tx.Exec("DELETE FROM taxi_path")
 	tx.Exec("DELETE FROM taxi_path_node")
+	tx.Exec("DELETE FROM transport_route")
+	tx.Exec("DELETE FROM transport_waypoint")
 
 	nodeStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_node
 		(id, map_id, continent, name, alliance, horde, px, py) VALUES (?,?,?,?,?,?,?,?)`)
@@ -354,10 +371,25 @@ func (i *GeneratedImporter) ImportTaxi(jsonPath string) error {
 	for _, w := range t.Waypoints {
 		wpStmt.Exec(w.PathID, w.Idx, w.PX, w.PY)
 	}
+
+	trStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO transport_route
+		(id, type, name_a, map_a, name_b, map_b) VALUES (?,?,?,?,?,?)`)
+	defer trStmt.Close()
+	twStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO transport_waypoint
+		(route_id, idx, map_id, px, py) VALUES (?,?,?,?,?)`)
+	defer twStmt.Close()
+	for _, tr := range t.Transports {
+		trStmt.Exec(tr.ID, tr.Type, tr.NameA, tr.MapA, tr.NameB, tr.MapB)
+	}
+	for _, w := range t.TransportWps {
+		twStmt.Exec(w.RouteID, w.Idx, w.MapID, w.PX, w.PY)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓ Imported %d flight nodes, %d paths, %d waypoints\n", len(t.Nodes), len(t.Paths), len(t.Waypoints))
+	fmt.Printf("  ✓ Imported %d flight nodes, %d paths, %d waypoints; %d transports\n",
+		len(t.Nodes), len(t.Paths), len(t.Waypoints), len(t.Transports))
 	return nil
 }
 
