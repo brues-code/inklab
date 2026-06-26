@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { useIcon, useImage } from '../../services/useImage'
 
 // Direct Wails bindings (mirrors the codebase convention for app methods).
@@ -386,13 +387,6 @@ function TalentsPage() {
     // buildsByClass) and shared via the copyable build code, not the address bar.
     const { class: classParam } = useParams({ strict: false })
 
-    const [classes, setClasses] = useState([])
-    const [data, setData] = useState(null)
-    // Which class `data`'s trees belong to. Until a class's trees finish loading
-    // this lags `selected`, which is exactly how the pending-import decode knows
-    // not to decode against the previous class's stale trees.
-    const [dataClass, setDataClass] = useState(null)
-    const [loading, setLoading] = useState(false)
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
@@ -400,11 +394,42 @@ function TalentsPage() {
     // arrive (we need the tree shape to decode/synthesize the allocation order).
     const [pendingImport, setPendingImport] = useState(null) // { classKey, makeOrder }
     const [copied, setCopied] = useState('') // '' | 'mine' | 'turtle'
-    // class token <-> WoW class id, sourced from the backend (not hardcoded)
-    const [classMap, setClassMap] = useState({ byId: {}, byClass: {} })
 
     // Selected class token (uppercase, e.g. "WARRIOR") from the lowercase path.
     const selected = classParam ? classParam.toUpperCase() : null
+
+    // --- server data via TanStack Query --------------------------------------
+    // Class list is static for a session; trees are cached per class. Because the
+    // tree query is keyed by class, `data` always corresponds to `selected` —
+    // there's no stale-other-class window (which previously needed a dataClass
+    // guard), and switching back to a visited class is instant from cache.
+    const classesQuery = useQuery({ queryKey: ['talentClasses'], queryFn: GetTalentClasses, staleTime: Infinity })
+    const treesQuery = useQuery({
+        queryKey: ['talentTrees', selected],
+        queryFn: () => GetTalentTrees(selected),
+        enabled: !!selected,
+        staleTime: Infinity,
+    })
+    const data = treesQuery.data || null
+    const loading = treesQuery.isLoading
+
+    // {class, classId, name, color}, sorted alphabetically by name.
+    const classes = useMemo(
+        () => [...(classesQuery.data || [])].sort((a, b) => (a.name || a.class).localeCompare(b.name || b.class)),
+        [classesQuery.data]
+    )
+    // class token <-> WoW class id, sourced from the backend (not hardcoded)
+    const classMap = useMemo(() => {
+        const byId = {}
+        const byClass = {}
+        ;(classesQuery.data || []).forEach((x) => {
+            if (x && x.class) {
+                byId[x.classId] = x.class
+                byClass[x.class] = x.classId
+            }
+        })
+        return { byId, byClass }
+    }, [classesQuery.data])
 
     // Allocation order (one talentId per point spent, in order taken) is the
     // source of truth for the working build. It lives in state and is mirrored
@@ -427,24 +452,6 @@ function TalentsPage() {
         return m
     }, [order])
 
-    useEffect(() => {
-        GetTalentClasses().then((list) => {
-            const arr = list || []
-            const byId = {}
-            const byClass = {}
-            arr.forEach((x) => {
-                if (x && x.class) {
-                    byId[x.classId] = x.class
-                    byClass[x.class] = x.classId
-                }
-            })
-            setClassMap({ byId, byClass })
-            // {class, classId, name, color}, sorted alphabetically by name.
-            const sorted = [...arr].sort((a, b) => (a.name || a.class).localeCompare(b.name || b.class))
-            setClasses(sorted)
-        })
-    }, [])
-
     // No class in the URL → land on the last class viewed this session (so
     // returning to Talents restores your build), else the first alphabetical.
     useEffect(() => {
@@ -454,35 +461,23 @@ function TalentsPage() {
         }
     }, [classParam, classes, classMap, navigate])
 
-    // On class change: remember it, restore its saved build from session memory,
-    // and load its trees. Clear `data` first so anything keyed off the trees (the
-    // pending-import decode in particular) waits for THIS class's trees rather
-    // than acting on the previous class's stale list.
+    // On class change: remember it and restore its saved build from session
+    // memory. (Trees load via the query above, keyed by class.)
     useEffect(() => {
         if (!selected) return
         lastClassToken = selected
-        setData(null)
-        setDataClass(null)
         setOrder(buildsByClass.get(selected) || [])
-        setLoading(true)
-        GetTalentTrees(selected)
-            .then((d) => {
-                setData(d)
-                setDataClass(selected)
-            })
-            .finally(() => setLoading(false))
     }, [selected])
 
-    // Finish a cross-class import once the TARGET class's trees have loaded.
-    // Gated on dataClass (not selected): selected flips the instant we navigate,
-    // but data still holds the previous class's trees for a beat — decoding then
-    // would map the build onto the wrong class's talents.
+    // Finish a cross-class import once the target class's trees have loaded.
+    // `data` is the query result keyed by `selected`, so `selected === classKey`
+    // guarantees we're decoding against the right class's trees.
     useEffect(() => {
-        if (pendingImport && data?.trees && dataClass === pendingImport.classKey) {
+        if (pendingImport && data?.trees && selected === pendingImport.classKey) {
             applyOrder(pendingImport.makeOrder(data.trees))
             setPendingImport(null)
         }
-    }, [pendingImport, data, dataClass, applyOrder])
+    }, [pendingImport, data, selected, applyOrder])
 
     // Per-tree and total point counts.
     const treeSpent = useMemo(() => {
@@ -574,10 +569,10 @@ function TalentsPage() {
         const apply = (classKey, makeOrder) => {
             setImportErr('')
             setImportText('')
-            // Decode immediately only if the target class's trees are already
-            // loaded; otherwise switch class and let the effect decode once they
-            // are (guarded by dataClass so it never uses the wrong class's trees).
-            if (classKey === selected && dataClass === classKey && data?.trees) {
+            // Decode immediately if the target class's trees are already loaded
+            // (data is keyed to selected, so this is the right class's trees);
+            // otherwise switch class and let the effect decode once they load.
+            if (classKey === selected && data?.trees) {
                 applyOrder(makeOrder(data.trees))
             } else {
                 setPendingImport({ classKey, makeOrder })
@@ -610,7 +605,7 @@ function TalentsPage() {
         }
         apply(classKey, (trees) => decodeBuild(trees, body))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [importText, selected, data, dataClass, classMap, applyOrder])
+    }, [importText, selected, data, classMap, applyOrder])
 
     // Store only the hovered talent + its tree; rank and requirement text are
     // computed from live `points` at render time so the tooltip refreshes as you
