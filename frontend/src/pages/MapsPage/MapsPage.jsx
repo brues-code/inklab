@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useImage, useIcon } from '../../services/useImage'
 
 // Direct Wails bindings (codebase convention for app methods).
@@ -124,29 +125,28 @@ function TransportMarker({ t, cx, cy, onEnter, onMove, onLeave }) {
 // ---- page ------------------------------------------------------------------
 
 function MapsPage() {
-    const [continents, setContinents] = useState([])
     const [view, setView] = useState('world') // 'world' | mapId
-    const [worldData, setWorldData] = useState(null)
-    const [contData, setContData] = useState(null)
-    const [loading, setLoading] = useState(false)
     const [faction, setFaction] = useState('all')
     const [layers, setLayers] = useState({ flights: true, transports: true })
     const [hover, setHover] = useState(null) // flight node hover
     const [tHover, setTHover] = useState(null) // transport hover
     const [zone, setZone] = useState(null) // {mapId, key} drill-down, or null
 
-    useEffect(() => {
-        GetFlightContinents().then((list) => setContinents(list || []))
-    }, [])
+    const isWorld = view === 'world'
 
-    useEffect(() => {
-        setLoading(true)
-        if (view === 'world') {
-            GetWorldData().then(setWorldData).finally(() => setLoading(false))
-        } else {
-            GetFlightData(view).then(setContData).finally(() => setLoading(false))
-        }
-    }, [view])
+    const continentsQuery = useQuery({ queryKey: ['flightContinents'], queryFn: GetFlightContinents, staleTime: Infinity })
+    const continents = continentsQuery.data || []
+
+    // One query per view (world overview or a continent's flight data), keyed by
+    // view so switching tabs swaps the cache entry and revisiting is instant.
+    const mapDataQuery = useQuery({
+        queryKey: ['flightMap', view],
+        queryFn: () => (isWorld ? GetWorldData() : GetFlightData(view)),
+        staleTime: Infinity,
+    })
+    const worldData = isWorld ? mapDataQuery.data : null
+    const contData = isWorld ? null : mapDataQuery.data
+    const loading = mapDataQuery.isLoading
 
     // World order + per-map x offset for the combined canvas.
     const worldPanels = useMemo(() => {
@@ -160,7 +160,6 @@ function MapsPage() {
         return m
     }, [worldPanels])
 
-    const isWorld = view === 'world'
     const canvasW = isWorld ? Math.max(PANEL_W, worldPanels.length * PANEL_W) : PANEL_W
     const canvasH = PANEL_H
 
@@ -407,15 +406,13 @@ function MapsPage() {
 // ---- zone drill-down view --------------------------------------------------
 
 function ZoneView({ mapId, zoneKey, backLabel, onBack }) {
-    const [data, setData] = useState(null)
-    const [loading, setLoading] = useState(true)
     const [hover, setHover] = useState(null)
     const { src } = useImage('zone_map', zoneKey)
 
-    useEffect(() => {
-        setLoading(true)
-        GetZoneData(mapId, zoneKey).then(setData).finally(() => setLoading(false))
-    }, [mapId, zoneKey])
+    const { data, isLoading: loading } = useQuery({
+        queryKey: ['zoneData', mapId, zoneKey],
+        queryFn: () => GetZoneData(mapId, zoneKey),
+    })
 
     const nodes = data?.nodes || []
     return (
