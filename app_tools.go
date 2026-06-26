@@ -17,23 +17,80 @@ type ImportReport struct {
 	Lines   []string `json:"lines"`
 }
 
-// DataStatus reports how much locally-built image data InkLab currently has, so
-// the UI can tell the user when a category is empty and needs importing.
-type DataStatus struct {
-	Icons        int `json:"icons"`
-	Maps         int `json:"maps"`
-	NpcImages    int `json:"npcImages"`
-	TalentBgs    int `json:"talentBgs"`
+// DataItem is one client-derived dataset's current state, so the Import tab can
+// show exactly what's present or missing — and, for a missing one, which client
+// file (DBC / interface art) feeds it.
+type DataItem struct {
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Source string `json:"source"` // client file(s) this comes from
+	Kind   string `json:"kind"`   // "image" (file count) | "table" (DB rows)
+	Count  int    `json:"count"`
 }
 
-// GetDataStatus counts the local icon / map / npc-image files under the data dir.
+// DataStatus reports how much locally-built data InkLab currently has, so the UI
+// can tell the user when a category is empty and needs importing. The flat image
+// counts are kept for the summary badges; Datasets is the full per-dataset
+// inventory (images + DBC-derived reference tables) for the "what's missing" view.
+type DataStatus struct {
+	Icons     int        `json:"icons"`
+	Maps      int        `json:"maps"`
+	NpcImages int        `json:"npcImages"`
+	TalentBgs int        `json:"talentBgs"`
+	Datasets  []DataItem `json:"datasets"`
+}
+
+// GetDataStatus reports the local image counts plus a full inventory of every
+// client-derived dataset (image dirs and DBC-fed reference tables) with the
+// source file each comes from, so a user can see precisely what's missing.
 func (a *App) GetDataStatus() DataStatus {
-	return DataStatus{
-		Icons:     countFiles(filepath.Join(a.DataDir, "icons"), ".jpg", ".png", ".jpeg"),
-		Maps:      countFiles(filepath.Join(a.DataDir, "maps"), ".jpg", ".png"),
-		NpcImages: countFiles(filepath.Join(a.DataDir, "npc_images"), ".jpg", ".png", ".jpeg"),
-		TalentBgs: countFiles(filepath.Join(a.DataDir, "talent_bg"), ".png", ".jpg"),
+	icons := countFiles(filepath.Join(a.DataDir, "icons"), ".jpg", ".png", ".jpeg")
+	maps := countFiles(filepath.Join(a.DataDir, "maps"), ".jpg", ".png")
+	npcImages := countFiles(filepath.Join(a.DataDir, "npc_images"), ".jpg", ".png", ".jpeg")
+	talentBgs := countFiles(filepath.Join(a.DataDir, "talent_bg"), ".png", ".jpg")
+
+	datasets := []DataItem{
+		// Image data (file counts under data/).
+		{"icons", "Item / spell icons", `Interface\Icons\*.blp`, "image", icons},
+		{"maps", "Zone maps", `Interface\WorldMap + WorldMapArea.dbc`, "image", maps},
+		{"npcImages", "NPC model renders", `Creature\*.m2 (client MPQs)`, "image", npcImages},
+		{"talentBgs", "Talent backgrounds", `Interface\TalentFrame art`, "image", talentBgs},
+		// DBC-derived reference tables (row counts).
+		{"itemIcons", "Item icon mappings", "ItemDisplayInfo.dbc", "table", a.countRows("item_display_info")},
+		{"spellIcons", "Spell icon mappings", "Spell.dbc + SpellIcon.dbc", "table", a.countRows("spell_icons")},
+		{"skills", "Skills", "SkillLine.dbc", "table", a.countRows("spell_skills")},
+		{"talents", "Talents", "Talent.dbc + TalentTab.dbc", "table", a.countRows("talent")},
+		{"itemSets", "Item sets", "ItemSet.dbc", "table", a.countRows("itemsets")},
+		{"factions", "Factions", "Faction.dbc", "table", a.countRows("factions")},
+		{"taxi", "Flight (taxi) nodes", "TaxiNodes.dbc", "table", a.countRows("taxi_node")},
+		{"creatureFamilies", "Creature families", "CreatureFamily.dbc", "table", a.countRows("creature_family")},
+		{"locks", "Locks", "Lock.dbc", "table", a.countRows("locks")},
+		{"classes", "Classes", "ChrClasses.dbc", "table", a.countRows("class_info")},
+		{"spellSchools", "Spell school names", "GlobalStrings.lua", "table", a.countRows("spell_schools")},
+		{"statTypes", "Item stat names", "GlobalStrings.lua", "table", a.countRows("stat_types")},
 	}
+
+	return DataStatus{
+		Icons:     icons,
+		Maps:      maps,
+		NpcImages: npcImages,
+		TalentBgs: talentBgs,
+		Datasets:  datasets,
+	}
+}
+
+// countRows returns the row count of a reference table, or 0 if the table is
+// missing or unreadable.
+func (a *App) countRows(table string) int {
+	if a.db == nil {
+		return 0
+	}
+	var n int
+	// table is a fixed literal from GetDataStatus, never user input.
+	if err := a.db.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil {
+		return 0
+	}
+	return n
 }
 
 // countFiles returns the number of files in dir with one of the given

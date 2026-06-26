@@ -27,6 +27,54 @@ const IMPORTS = [
   },
 ];
 
+// DatasetInventory lists every client-derived dataset and whether it's present,
+// so the user can see exactly what's missing — and which client file feeds it.
+// Missing datasets (count 0) sort first and name their source DBC / art folder.
+function DatasetInventory({ datasets }) {
+  const sorted = [...datasets].sort(
+    (a, b) => (a.count > 0) - (b.count > 0) || a.label.localeCompare(b.label)
+  );
+  const missing = datasets.filter((d) => d.count === 0).length;
+  return (
+    <div className="mt-3 border-t border-gray-700/50 pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] uppercase font-bold text-gray-500">Data inventory</span>
+        <span className={`text-[11px] font-mono ${missing > 0 ? "text-red-400" : "text-green-400"}`}>
+          {missing > 0 ? `${missing} missing` : "all present"}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {sorted.map((d) => {
+          const ok = d.count > 0;
+          return (
+            <div
+              key={d.key}
+              className={`flex items-center gap-2 rounded px-2 py-1 border ${
+                ok ? "border-gray-700/40 bg-black/20" : "border-red-500/40 bg-red-500/10"
+              }`}
+            >
+              <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${ok ? "bg-green-500" : "bg-red-500"}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-xs truncate ${ok ? "text-gray-200" : "text-red-300 font-semibold"}`}>
+                    {d.label}
+                  </span>
+                  <span className={`text-[11px] font-mono shrink-0 ${ok ? "text-gray-400" : "text-red-400"}`}>
+                    {ok ? d.count.toLocaleString() : "missing"}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-600 font-mono truncate" title={d.source}>
+                  {d.source}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ToolsPage() {
   const entityNavigate = useEntityNavigate();
   const queryClient = useQueryClient();
@@ -178,27 +226,6 @@ function ToolsPage() {
           </div>
         )}
 
-        {status && (
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            {[
-              ["Icons", status.icons],
-              ["Zone maps", status.maps],
-              ["NPC images", status.npcImages],
-            ].map(([label, n]) => (
-              <span
-                key={label}
-                className={`px-2 py-1 rounded border font-mono ${
-                  n > 0
-                    ? "border-green-600/40 bg-green-600/10 text-green-300"
-                    : "border-gray-600/40 bg-gray-600/10 text-gray-400"
-                }`}
-              >
-                {label}: {n.toLocaleString()}
-              </span>
-            ))}
-          </div>
-        )}
-
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
           <label className="block text-[11px] uppercase font-bold text-gray-500 mb-1">
             WoW client folder
@@ -238,6 +265,9 @@ function ToolsPage() {
                   {busy ? "Running…" : "Run"}
                 </button>
               </div>
+              {imp.id === "client" && status?.datasets?.length > 0 && (
+                <DatasetInventory datasets={status.datasets} />
+              )}
               {rep && (
                 <div
                   className={`mt-3 rounded border p-3 ${
