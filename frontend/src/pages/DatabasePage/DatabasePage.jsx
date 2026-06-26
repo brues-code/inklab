@@ -43,7 +43,15 @@ function DatabasePage({ pendingNavigation, onNavigationHandled }) {
         console.log(`[DatabasePage] Navigating to ${type} with entry: ${entry}`);
         // Clear tooltip before navigation to prevent it from persisting
         tooltipHook.setHoveredItem(null)
-        setDetailStack(prev => [...prev, { type, entry }])
+        // Ignore a push that just repeats the current top of the stack. This
+        // keeps StrictMode's double-fired mount effect (and stray double-clicks)
+        // from stacking the same detail twice, which would otherwise need two
+        // Back presses to leave.
+        setDetailStack(prev => {
+            const top = prev[prev.length - 1]
+            if (top && top.type === type && top.entry === entry) return prev
+            return [...prev, { type, entry }]
+        })
     }
     const goBack = () => {
         console.log(`[DatabasePage] Going back. Previous stack size: ${detailStack.length}`);
