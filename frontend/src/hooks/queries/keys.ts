@@ -71,4 +71,14 @@ export const queryKeys = {
     // App chrome
     updateCheck: ['updateCheck'] as const,
     dataStatus: ['dataStatus'] as const,
+
+    // Images (data URLs from the local image service). reloadKey lets a forced
+    // refresh produce a fresh key after the underlying file is regenerated.
+    image: (type: unknown, name: unknown) => ['image', type, name] as const,
+    icon: (name: unknown) => ['icon', name] as const,
+    npcModel: (displayId: unknown, creatureEntry: unknown, reloadKey: unknown) =>
+        ['npcModel', displayId, creatureEntry, reloadKey] as const,
+    npcPortrait: (displayId: unknown, creatureEntry: unknown, generate: unknown, reloadKey: unknown) =>
+        ['npcPortrait', displayId, creatureEntry, generate, reloadKey] as const,
+    zoneMap: (zoneName: unknown, reloadKey: unknown) => ['zoneMap', zoneName, reloadKey] as const,
 }

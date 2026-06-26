@@ -1,187 +1,85 @@
 /**
- * React Hook for loading images with the unified image service
+ * React hooks for loading images via the unified image service, backed by
+ * TanStack Query. Images are data URLs produced locally (icons, NPC model/
+ * portrait renders, zone maps); caching them in Query dedupes identical loads
+ * across the UI (e.g. the same icon in many list rows fetches once) and removes
+ * the per-hook fetch effect.
  */
-import { useState, useEffect } from 'react';
-import { loadImage, loadIcon, loadNpcModel, loadNpcPortrait, loadZoneMap, type ImageType } from './imageService';
+import { useQuery } from '@tanstack/react-query'
+import { loadImage, loadIcon, loadNpcModel, loadNpcPortrait, loadZoneMap, type ImageType } from './imageService'
+import { queryKeys } from '../hooks/queries/keys'
 
 /** Async-image hook state shared by every hook in this module. */
 export interface ImageState {
-    src: string | null;
-    loading: boolean;
-    error: boolean;
+    src: string | null
+    loading: boolean
+    error: boolean
 }
 
-export type { ImageType };
+export type { ImageType }
 
-/**
- * Hook for loading a single image.
- */
+// The loaders resolve to a data URL or null (they catch and never throw), so
+// "error" means the query settled with no src.
+const imageState = (q: { data?: string | null; isLoading: boolean }): ImageState => {
+    const src = q.data ?? null
+    return { src, loading: q.isLoading, error: !q.isLoading && !src }
+}
+
+/** Load a single image of the given type by name. */
 export const useImage = (imageType: ImageType, name?: string | null, remoteUrl: string | null = null): ImageState => {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
+    const q = useQuery({
+        queryKey: queryKeys.image(imageType, name),
+        queryFn: () => loadImage(imageType, name),
+        enabled: !!(name || remoteUrl),
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
 
-    useEffect(() => {
-        if (!name && !remoteUrl) {
-            setLoading(false);
-            setError(true);
-            return;
-        }
-
-        setLoading(true);
-        setError(false);
-
-        loadImage(imageType, name)
-            .then(result => {
-                if (result) {
-                    setSrc(result);
-                } else {
-                    setError(true);
-                }
-            })
-            .catch(() => {
-                setError(true);
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [imageType, name, remoteUrl]);
-
-    return { src, loading, error };
-};
-
-/**
- * Hook for loading an icon (e.g., 'inv_sword_01').
- */
+/** Load an icon (e.g. 'inv_sword_01'). */
 export const useIcon = (iconName?: string | null): ImageState => {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
-
-    useEffect(() => {
-        if (!iconName) {
-            setLoading(false);
-            setError(true);
-            return;
-        }
-
-        setLoading(true);
-        setError(false);
-
-        loadIcon(iconName)
-            .then(result => {
-                if (result) {
-                    setSrc(result);
-                } else {
-                    setError(true);
-                }
-            })
-            .catch(() => {
-                setError(true);
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [iconName]);
-
-    return { src, loading, error };
-};
+    const q = useQuery({
+        queryKey: queryKeys.icon(iconName),
+        queryFn: () => loadIcon(iconName),
+        enabled: !!iconName,
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
 
 /**
- * Hook for loading an NPC model render (fully local: rendered from the client
- * MPQs, no network). Prefers a per-creature render (with weapons) when given an
- * entry. Sets error=true when nothing local can be produced (UI shows a fallback).
+ * Load an NPC model render (fully local: rendered from the client MPQs, no
+ * network). Prefers a per-creature render (with weapons) when given an entry.
+ * Bumping reloadKey produces a fresh key after a forced image refresh.
  */
 export const useNpcModel = (displayId: number, reloadKey = 0, creatureEntry = 0): ImageState => {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
+    const q = useQuery({
+        queryKey: queryKeys.npcModel(displayId, creatureEntry, reloadKey),
+        queryFn: () => loadNpcModel(displayId, creatureEntry),
+        enabled: !!displayId,
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
 
-    useEffect(() => {
-        if (!displayId) {
-            setLoading(false);
-            setError(true);
-            return;
-        }
-
-        setLoading(true);
-        setError(false);
-
-        loadNpcModel(displayId, creatureEntry)
-            .then(result => {
-                if (result) {
-                    setSrc(result);
-                } else {
-                    setError(true);
-                }
-            })
-            .catch(() => {
-                setError(true);
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [displayId, reloadKey, creatureEntry]);
-
-    return { src, loading, error };
-};
-
-/**
- * Hook for loading an NPC portrait (head shot) render, fully local. Mirrors
- * useNpcModel but loads the display-keyed portrait image. Sets error=true when
- * nothing renderable exists (callers fall back to the full-body model or a
- * placeholder).
- */
+/** Load an NPC portrait (head shot) render, fully local. Mirrors useNpcModel. */
 export const useNpcPortrait = (displayId: number, reloadKey = 0, creatureEntry = 0, generate = true): ImageState => {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
+    const q = useQuery({
+        queryKey: queryKeys.npcPortrait(displayId, creatureEntry, generate, reloadKey),
+        queryFn: () => loadNpcPortrait(displayId, creatureEntry, generate),
+        enabled: !!displayId,
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
 
-    useEffect(() => {
-        if (!displayId) {
-            setLoading(false);
-            setError(true);
-            return;
-        }
-        setLoading(true);
-        setError(false);
-        loadNpcPortrait(displayId, creatureEntry, generate)
-            .then(result => {
-                if (result) setSrc(result);
-                else setError(true);
-            })
-            .catch(() => setError(true))
-            .finally(() => setLoading(false));
-    }, [displayId, reloadKey, creatureEntry, generate]);
-
-    return { src, loading, error };
-};
-
-/**
- * Hook for loading a locally-generated zone map by zone name (e.g. "Elwynn").
- */
+/** Load a locally-generated zone map by zone name (e.g. "Elwynn"). */
 export const useZoneMap = (zoneName?: string | null, reloadKey = 0): ImageState => {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
-
-    useEffect(() => {
-        if (!zoneName) {
-            setSrc(null);
-            setLoading(false);
-            setError(true);
-            return;
-        }
-        setLoading(true);
-        setError(false);
-        loadZoneMap(zoneName)
-            .then(result => {
-                if (result) setSrc(result);
-                else { setSrc(null); setError(true); }
-            })
-            .catch(() => { setSrc(null); setError(true); })
-            .finally(() => setLoading(false));
-    }, [zoneName, reloadKey]);
-
-    return { src, loading, error };
-};
+    const q = useQuery({
+        queryKey: queryKeys.zoneMap(zoneName, reloadKey),
+        queryFn: () => loadZoneMap(zoneName),
+        enabled: !!zoneName,
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
