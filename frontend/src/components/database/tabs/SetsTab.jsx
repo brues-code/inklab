@@ -40,7 +40,7 @@ function SetsTab({ tooltipHook }) {
         GetTalentClasses().then(list => {
             setClassOptions(
                 (list || [])
-                    .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1) }))
+                    .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1), color: c.color }))
                     .sort((a, b) => a.name.localeCompare(b.name))
             )
         })
@@ -121,7 +121,7 @@ function SetsTab({ tooltipHook }) {
                     {filteredClasses.map(c => (
                         <ListItem key={c.bit} active={classBit === c.bit} onClick={() => selectClass(c.bit)}>
                             <span className="flex justify-between w-full">
-                                <span>{c.name}</span>
+                                <span style={{ color: c.color || undefined }}>{c.name}</span>
                                 <span className="text-gray-600 text-xs">({countForBit(c.bit)})</span>
                             </span>
                         </ListItem>
