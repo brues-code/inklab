@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { CheckForUpdate } from '../../services/api'
 
 const SNOOZE_KEY = 'inklab_update_snooze'
@@ -18,19 +19,11 @@ function isSnoozed(latest) {
 }
 
 export function UpdateBanner() {
-    const [info, setInfo] = useState(null)
+    const [dismissed, setDismissed] = useState(false)
+    // One-shot remote version check, cached for the session.
+    const { data: info } = useQuery({ queryKey: ['updateCheck'], queryFn: CheckForUpdate, staleTime: Infinity })
 
-    useEffect(() => {
-        let cancelled = false
-        CheckForUpdate().then(res => {
-            if (cancelled || !res || !res.updateAvailable) return
-            if (isSnoozed(res.latest)) return
-            setInfo(res)
-        })
-        return () => { cancelled = true }
-    }, [])
-
-    if (!info) return null
+    if (dismissed || !info?.updateAvailable || isSnoozed(info.latest)) return null
 
     const dismiss = () => {
         try {
@@ -38,7 +31,7 @@ export function UpdateBanner() {
         } catch {
             // ignore storage failures; just hide for this session
         }
-        setInfo(null)
+        setDismissed(true)
     }
 
     return (
