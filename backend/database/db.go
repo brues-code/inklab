@@ -79,6 +79,7 @@ func (s *SQLiteDB) InitSchema() error {
 	schema.MigratePerformance(s.db)
 	schema.MigrateTextBlobs(s.db)
 	s.db.Exec("ALTER TABLE spell_skills ADD COLUMN class_id INTEGER DEFAULT 0") // ignore error if exists
+	s.db.Exec("ALTER TABLE class_info ADD COLUMN color TEXT DEFAULT ''")        // ignore error if exists
 
 	return nil
 }

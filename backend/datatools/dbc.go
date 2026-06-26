@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -253,17 +254,45 @@ func genLocks(cf ClientFiles) (interface{}, error) {
 	return out, nil
 }
 
+// classColorRe matches a RAID_CLASS_COLORS entry in the client FrameXML, e.g.
+// ["WARRIOR"] = { r = 0.78, g = 0.61, b = 0.43, hex = "|cffc79c6e" }.
+var classColorRe = regexp.MustCompile(`\["(\w+)"\][^}]*?hex\s*=\s*"\|c[fF][fF]([0-9a-fA-F]{6})"`)
+
+// readClassColors pulls the RAID_CLASS_COLORS table (token -> "#rrggbb") from the
+// client's FrameXML/Fonts.xml. Class colors aren't in a DBC in 1.12 — they live
+// in the UI code — so this is best-effort: returns nil if the file isn't found.
+func readClassColors(cf ClientFiles) map[string]string {
+	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\Fonts.xml`, `Interface\FrameXML\Fonts.xml`} {
+		b, err := cf.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		out := map[string]string{}
+		for _, m := range classColorRe.FindAllStringSubmatch(string(b), -1) {
+			out[strings.ToUpper(m[1])] = "#" + strings.ToLower(m[2])
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return nil
+}
+
 // ChrClasses.dbc (17 fields): id(0), name_loc[8](5-12, enUS at 5), token(14).
-// Provides the player class display names ("Warrior", …) from game data.
+// Provides player class display names ("Warrior", …); class colors come from the
+// FrameXML RAID_CLASS_COLORS table (also client data, just not a DBC).
 func genClasses(cf ClientFiles) (interface{}, error) {
 	d, err := openDBCFrom(cf, "ChrClasses.dbc")
 	if err != nil {
 		return nil, err
 	}
+	colors := readClassColors(cf)
 	out := make([]map[string]interface{}, 0, d.RecordCount)
 	for r := 0; r < d.RecordCount; r++ {
+		token := d.Str(r, 14)
 		out = append(out, map[string]interface{}{
-			"id": d.U32(r, 0), "name_loc0": d.Str(r, 5), "token": d.Str(r, 14),
+			"id": d.U32(r, 0), "name_loc0": d.Str(r, 5), "token": token,
+			"color": colors[strings.ToUpper(token)],
 		})
 	}
 	return out, nil

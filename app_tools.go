@@ -153,7 +153,9 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 	}
 
 	// 1. DBC reference data: regenerate data/*.json, then re-apply to the DB.
-	dbcSrc := pick(datatools.NewDirSourceDBC(filepath.Join(baseDir, "DBFilesClient")))
+	// Client-rooted so the DBC gen can also read loose interface files (e.g.
+	// FrameXML/Fonts.xml for RAID_CLASS_COLORS), not just DBFilesClient.
+	dbcSrc := pick(datatools.NewDirSourceClient(baseDir))
 	if err := datatools.GenerateDBCJSONFrom(dbcSrc, a.DataDir); err != nil {
 		fail("DBC reference data: " + err.Error())
 	} else {

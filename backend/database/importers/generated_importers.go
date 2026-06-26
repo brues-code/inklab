@@ -323,6 +323,7 @@ type classJSON struct {
 	ID    int    `json:"id"`
 	Name  string `json:"name_loc0"`
 	Token string `json:"token"`
+	Color string `json:"color"`
 }
 
 // ImportClasses loads ChrClasses.dbc (id -> display name + token) into
@@ -344,7 +345,7 @@ func (i *GeneratedImporter) ImportClasses(jsonPath string) error {
 	}
 	defer tx.Rollback()
 	tx.Exec("DELETE FROM class_info")
-	stmt, err := tx.Prepare("INSERT OR REPLACE INTO class_info (id, name, token) VALUES (?,?,?)")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO class_info (id, name, token, color) VALUES (?,?,?,?)")
 	if err != nil {
 		return err
 	}
@@ -354,7 +355,7 @@ func (i *GeneratedImporter) ImportClasses(jsonPath string) error {
 		if c.Name == "" {
 			continue
 		}
-		if _, err := stmt.Exec(c.ID, c.Name, c.Token); err == nil {
+		if _, err := stmt.Exec(c.ID, c.Name, c.Token, c.Color); err == nil {
 			n++
 		}
 	}

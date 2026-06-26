@@ -7,19 +7,6 @@ const GetTalentClasses = () =>
 const GetTalentTrees = (cls) =>
     window?.go?.main?.App?.GetTalentTrees ? window.go.main.App.GetTalentTrees(cls) : Promise.resolve(null)
 
-// Class display names + WoW class colors, in the conventional order.
-const CLASS_INFO = {
-    WARRIOR: { name: 'Warrior', color: '#C79C6E' },
-    PALADIN: { name: 'Paladin', color: '#F58CBA' },
-    HUNTER: { name: 'Hunter', color: '#ABD473' },
-    ROGUE: { name: 'Rogue', color: '#FFF569' },
-    PRIEST: { name: 'Priest', color: '#FFFFFF' },
-    SHAMAN: { name: 'Shaman', color: '#0070DE' },
-    MAGE: { name: 'Mage', color: '#69CCF0' },
-    WARLOCK: { name: 'Warlock', color: '#9482C9' },
-    DRUID: { name: 'Druid', color: '#FF7D0A' },
-}
-
 // Talent tree geometry (a 4-column × up-to-7-row grid drawn over the parchment).
 const CELL = 40
 const COL_GAP = 16
@@ -409,11 +396,8 @@ function TalentsPage() {
                 }
             })
             setClassMap({ byId, byClass })
-            const ordered = arr
-                .map((x) => x.class)
-                .sort((a, b) => Object.keys(CLASS_INFO).indexOf(a) - Object.keys(CLASS_INFO).indexOf(b))
-            setClasses(ordered)
-            if (ordered.length && !selected) setSelected(ordered[0])
+            setClasses(arr) // {class, classId, name, color}, in client order
+            if (arr.length && !selected) setSelected(arr[0].class)
         })
     }, [])
 
@@ -558,25 +542,24 @@ function TalentsPage() {
     }, [])
     const onLeave = useCallback(() => setTip(null), [])
 
-    const info = selected ? CLASS_INFO[selected] : null
+    const info = selected ? classes.find((c) => c.class === selected) : null
 
     return (
         <div className="h-full overflow-auto bg-bg-dark">
             {/* class selector */}
             <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-border-dark bg-bg-main sticky top-0 z-20">
                 {classes.map((c) => {
-                    const ci = CLASS_INFO[c] || { name: c, color: '#ccc' }
-                    const active = c === selected
+                    const active = c.class === selected
                     return (
                         <button
-                            key={c}
-                            onClick={() => setSelected(c)}
+                            key={c.class}
+                            onClick={() => setSelected(c.class)}
                             className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
                                 active ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark hover:bg-bg-hover'
                             }`}
-                            style={{ color: ci.color }}
+                            style={{ color: c.color || '#ccc' }}
                         >
-                            {ci.name}
+                            {c.name || c.class}
                         </button>
                     )
                 })}

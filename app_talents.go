@@ -49,9 +49,10 @@ type TalentClassData struct {
 // from the TalentTab class_mask (a single class bit) — classId = bit index + 1
 // — so it comes from the client DBC, not a hardcoded table.
 type TalentClassInfo struct {
-	Class   string `json:"class"`            // token, e.g. "WARRIOR"
-	ClassID int    `json:"classId"`          // WoW class id
-	Name    string `json:"name,omitempty"`   // display name from ChrClasses.dbc
+	Class   string `json:"class"`           // token, e.g. "WARRIOR"
+	ClassID int    `json:"classId"`         // WoW class id
+	Name    string `json:"name,omitempty"`  // display name from ChrClasses.dbc
+	Color   string `json:"color,omitempty"` // UI color (#rrggbb) from RAID_CLASS_COLORS
 }
 
 // GetTalentClasses returns the classes that have talent trees with their class
@@ -62,14 +63,16 @@ func (a *App) GetTalentClasses() []TalentClassInfo {
 	if a.db == nil {
 		return nil
 	}
-	// id -> display name from the client DBC.
+	// id -> display name + color from the client (ChrClasses.dbc + FrameXML).
 	nameByID := map[int]string{}
-	if cr, err := a.db.DB().Query("SELECT id, name FROM class_info"); err == nil {
+	colorByID := map[int]string{}
+	if cr, err := a.db.DB().Query("SELECT id, name, COALESCE(color,'') FROM class_info"); err == nil {
 		for cr.Next() {
 			var id int
-			var name string
-			if cr.Scan(&id, &name) == nil {
+			var name, color string
+			if cr.Scan(&id, &name, &color) == nil {
 				nameByID[id] = name
+				colorByID[id] = color
 			}
 		}
 		cr.Close()
@@ -89,7 +92,7 @@ func (a *App) GetTalentClasses() []TalentClassInfo {
 			if mask > 0 {
 				id = bits.TrailingZeros32(uint32(mask)) + 1
 			}
-			out = append(out, TalentClassInfo{Class: class, ClassID: id, Name: nameByID[id]})
+			out = append(out, TalentClassInfo{Class: class, ClassID: id, Name: nameByID[id], Color: colorByID[id]})
 		}
 	}
 	return out

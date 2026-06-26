@@ -410,6 +410,7 @@ export namespace main {
 	    class: string;
 	    classId: number;
 	    name?: string;
+	    color?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TalentClassInfo(source);
@@ -420,6 +421,7 @@ export namespace main {
 	        this.class = source["class"];
 	        this.classId = source["classId"];
 	        this.name = source["name"];
+	        this.color = source["color"];
 	    }
 	}
 	

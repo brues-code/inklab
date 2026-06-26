@@ -262,11 +262,13 @@ func CoreSchema() string {
 		name TEXT NOT NULL
 	);
 
-	-- Player classes (ChrClasses.dbc): id -> display name + token.
+	-- Player classes (ChrClasses.dbc + FrameXML RAID_CLASS_COLORS):
+	-- id -> display name, token, and UI color (#rrggbb).
 	CREATE TABLE IF NOT EXISTS class_info (
 		id INTEGER PRIMARY KEY,
 		name TEXT NOT NULL,
-		token TEXT DEFAULT ''
+		token TEXT DEFAULT '',
+		color TEXT DEFAULT ''
 	);
 
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
