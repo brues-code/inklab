@@ -16,9 +16,13 @@ export const useCreatureTypes = () =>
 export const useBeastFamilies = (enabled: boolean) =>
     useQuery({ queryKey: queryKeys.beastFamilies, queryFn: GetBeastFamilies, enabled, staleTime: Infinity })
 
+type CreatureType = { type: number }
+type BeastFamily = { family: number }
+
 // Paginated creature browse for the active selection (a beast family when one is
-// picked, else the type), keyed by that selection.
-export const useCreatures = (selectedType: any, selectedFamily: any, isBeast: boolean) =>
+// picked, else the type), keyed by that selection. selectedType is non-null
+// whenever the query is enabled.
+export const useCreatures = (selectedType: CreatureType | null, selectedFamily: BeastFamily | null, isBeast: boolean) =>
     useInfiniteQuery({
         queryKey: queryKeys.creatures(
             isBeast && selectedFamily ? `family:${selectedFamily.family}` : `type:${selectedType?.type}`
@@ -26,10 +30,10 @@ export const useCreatures = (selectedType: any, selectedFamily: any, isBeast: bo
         queryFn: ({ pageParam }) =>
             isBeast && selectedFamily
                 ? BrowseCreaturesByFamilyPaged(selectedFamily.family, '', NPC_PAGE_SIZE, pageParam)
-                : BrowseCreaturesByTypePaged(selectedType.type, '', NPC_PAGE_SIZE, pageParam),
+                : BrowseCreaturesByTypePaged(selectedType!.type, '', NPC_PAGE_SIZE, pageParam),
         enabled: selectedType != null,
         initialPageParam: 0,
-        getNextPageParam: (lastPage: any, allPages: any[]) =>
+        getNextPageParam: (lastPage: { hasMore?: boolean }, allPages: unknown[]) =>
             lastPage?.hasMore ? allPages.length * NPC_PAGE_SIZE : undefined,
     })
 

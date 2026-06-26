@@ -7,17 +7,27 @@ import { GetItemDetail, IsFavorite } from '../../services/api'
 export const useItemClasses = () =>
     useQuery({ queryKey: queryKeys.itemClasses, queryFn: GetItemClasses, staleTime: Infinity })
 
+type ItemClass = { class: number }
+type ItemSubClass = { subClass: number }
+type ItemSlot = { inventoryType: number }
+
 // Browse items for the current class/subclass/(slot). A specific slot uses the
 // slot-aware query; "All Slots" (inventoryType -1) or non-slot classes use the
-// class+subclass query.
-export const useItems = (selectedClass: any, selectedSubClass: any, selectedSlot: any, enabled: boolean) => {
-    const useSlot = selectedSlot !== null && selectedSlot?.inventoryType !== -1
+// class+subclass query. Non-null assertions are safe: `enabled` gates the fetch
+// until the needed selections exist.
+export const useItems = (
+    selectedClass: ItemClass | null,
+    selectedSubClass: ItemSubClass | null,
+    selectedSlot: ItemSlot | null,
+    enabled: boolean
+) => {
+    const useSlot = selectedSlot !== null && selectedSlot.inventoryType !== -1
     return useQuery({
-        queryKey: queryKeys.items(selectedClass?.class, selectedSubClass?.subClass, useSlot ? selectedSlot.inventoryType : 'all'),
+        queryKey: queryKeys.items(selectedClass?.class, selectedSubClass?.subClass, useSlot ? selectedSlot!.inventoryType : 'all'),
         queryFn: () =>
             useSlot
-                ? BrowseItemsByClassAndSlot(selectedClass.class, selectedSubClass.subClass, selectedSlot.inventoryType, '')
-                : BrowseItemsByClass(selectedClass.class, selectedSubClass.subClass, ''),
+                ? BrowseItemsByClassAndSlot(selectedClass!.class, selectedSubClass!.subClass, selectedSlot!.inventoryType, '')
+                : BrowseItemsByClass(selectedClass!.class, selectedSubClass!.subClass, ''),
         enabled,
     })
 }
