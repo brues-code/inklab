@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tooltipQuery } from "../../../hooks/useItemTooltip";
+import { queryClient } from "../../../queryClient";
 import { GetItemDetail, IsFavorite, ToggleFavorite } from "../../../services/api";
 import {
   FixSingleItemIcon,
@@ -81,15 +82,21 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   const [imgError, setImgError] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
 
-  // Check favorite status (and reset the icon-error flag) when the item changes.
-  useEffect(() => {
-    if (entry) {
-      setImgError(false);
-      IsFavorite(entry).then(setIsFavorite);
-    }
-  }, [entry]);
+  // Favorite status, cached per item and derived from the query (not state);
+  // toggled optimistically in handleFavoriteToggle.
+  const { data: isFavorite = false } = useQuery({
+    queryKey: ["itemFavorite", entry],
+    queryFn: () => IsFavorite(entry),
+    enabled: !!entry,
+  });
+
+  // Reset the icon-error flag when the item changes (render-time, no effect).
+  const [imgErrKey, setImgErrKey] = useState(entry);
+  if (entry !== imgErrKey) {
+    setImgErrKey(entry);
+    setImgError(false);
+  }
 
   const reloadData = async () => {
     await refetchDetail();
@@ -130,7 +137,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     try {
         const result = await ToggleFavorite(entry, category);
         if (result.success) {
-            setIsFavorite(!isFavorite);
+            queryClient.setQueryData(["itemFavorite", entry], !isFavorite);
         } else {
             alert("Failed to toggle favorite: " + result.message);
         }
