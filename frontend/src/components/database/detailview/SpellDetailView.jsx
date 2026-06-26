@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { GetSpellDetail, SyncSingleSpell } from '../../../services/api'
+import { SyncSingleSpell } from '../../../services/api'
+import { useSpellDetail } from '../../../hooks/queries/spells'
 import { 
     DetailPageLayout, 
     DetailHeader, 
@@ -50,11 +50,7 @@ const ItemIcon = ({ iconName }) => {
 const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [syncing, setSyncing] = useState(false)
 
-    const { data: detail, isLoading: loading, isError, error, refetch } = useQuery({
-        queryKey: ["spellDetail", entry],
-        queryFn: () => GetSpellDetail(parseInt(entry)),
-        enabled: entry != null,
-    })
+    const { data: detail, isLoading: loading, isError, error, refetch } = useSpellDetail(entry)
 
     const handleSync = async () => {
         setSyncing(true)

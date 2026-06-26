@@ -1,7 +1,13 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
-import { GetSpellSkillCategories, GetSpellSkillsByCategory, GetSpellsBySkill, GetSpellClasses, GetSpellSkillsByClass, filterItems } from '../../../utils/databaseApi'
+import { filterItems } from '../../../utils/databaseApi'
+import {
+    useSpellCategories,
+    useSpellClasses,
+    useSpellSkillsByCategory,
+    useSpellSkillsByClass,
+    useSpellsBySkill,
+} from '../../../hooks/queries/spells'
 import { useIcon } from '../../../services/useImage'
 
 const SpellListItemIcon = ({ iconName, spellColor }) => {
@@ -46,26 +52,14 @@ function SpellsTab({ onNavigate }) {
     // "Class Skills" gets an extra Class tier: Class Skills -> Warlock -> Affliction
     const isClassCategory = selectedCategory?.name === 'Class Skills'
 
-    // Data via TanStack Query, keyed by the current selection. Each cascading
+    // Data via domain query hooks, keyed by the current selection. Each cascading
     // query enables only once its parent is selected; switching selection swaps
     // the cached entry. Downstream selection is reset in the click handlers.
-    const categoriesQuery = useQuery({ queryKey: ['spellCategories'], queryFn: GetSpellSkillCategories, staleTime: Infinity })
-    const classesQuery = useQuery({ queryKey: ['spellClasses'], queryFn: GetSpellClasses, enabled: isClassCategory, staleTime: Infinity })
-    const categorySkillsQuery = useQuery({
-        queryKey: ['spellSkillsByCategory', selectedCategory?.id],
-        queryFn: () => GetSpellSkillsByCategory(selectedCategory.id),
-        enabled: !!selectedCategory && !isClassCategory,
-    })
-    const classSkillsQuery = useQuery({
-        queryKey: ['spellSkillsByClass', selectedClass?.id],
-        queryFn: () => GetSpellSkillsByClass(selectedClass.id),
-        enabled: !!selectedClass,
-    })
-    const spellsQuery = useQuery({
-        queryKey: ['spellsBySkill', selectedSkill?.id],
-        queryFn: () => GetSpellsBySkill(selectedSkill.id, ''),
-        enabled: !!selectedSkill,
-    })
+    const categoriesQuery = useSpellCategories()
+    const classesQuery = useSpellClasses(isClassCategory)
+    const categorySkillsQuery = useSpellSkillsByCategory(selectedCategory?.id, !!selectedCategory && !isClassCategory)
+    const classSkillsQuery = useSpellSkillsByClass(selectedClass?.id, !!selectedClass)
+    const spellsQuery = useSpellsBySkill(selectedSkill?.id, !!selectedSkill)
 
     const categories = categoriesQuery.data || []
     const classes = classesQuery.data || []
