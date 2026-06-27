@@ -1505,11 +1505,15 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 
 // gatheringLockTypes maps a LockType id that marks a gathering node to its
 // profession label. A type-3 gameobject whose Lock requires one of these skills
-// is a herb/ore/fishing node ("Gathered From"), not a regular chest.
+// is a gathering node ("Gathered From"), not a regular chest. This is a curated
+// set, not every skill lock — Pick Lock, Disarm Trap, Open* etc. are skill locks
+// too but aren't gathering professions. Survival is Turtle WoW's wood-harvesting
+// skill (Simple/Bright/Dead Wood Tree nodes).
 var gatheringLockTypes = map[int]string{
 	2:  "Herbalism",
 	3:  "Mining",
 	19: "Fishing",
+	20: "Survival",
 }
 
 // getContainedIn returns the gameobjects and container items whose loot includes
