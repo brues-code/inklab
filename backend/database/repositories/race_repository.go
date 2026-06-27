@@ -63,7 +63,7 @@ func (r *RaceRepository) abilities(raceID int) []string {
 
 func (r *RaceRepository) classes(raceID int) []models.RaceClass {
 	rows, err := r.db.Query(`
-		SELECT rc.class_id, COALESCE(ci.name, '')
+		SELECT rc.class_id, COALESCE(ci.name, ''), COALESCE(ci.color, '')
 		FROM race_classes rc
 		LEFT JOIN class_info ci ON ci.id = rc.class_id
 		WHERE rc.race_id = ?
@@ -75,7 +75,7 @@ func (r *RaceRepository) classes(raceID int) []models.RaceClass {
 	var out []models.RaceClass
 	for rows.Next() {
 		var c models.RaceClass
-		if rows.Scan(&c.ID, &c.Name) == nil {
+		if rows.Scan(&c.ID, &c.Name, &c.Color) == nil {
 			out = append(out, c)
 		}
 	}

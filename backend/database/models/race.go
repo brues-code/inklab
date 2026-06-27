@@ -1,9 +1,11 @@
 package models
 
-// RaceClass is a class available to a race (id + display name from class_info).
+// RaceClass is a class available to a race (id + display name + class color from
+// class_info).
 type RaceClass struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 // RacialSpell is a race's racial trait resolved to a real spell entry, so the UI

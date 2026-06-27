@@ -2121,6 +2121,7 @@ export namespace models {
 	export class RaceClass {
 	    id: number;
 	    name: string;
+	    color: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RaceClass(source);
@@ -2130,6 +2131,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.color = source["color"];
 	    }
 	}
 	export class Race {
