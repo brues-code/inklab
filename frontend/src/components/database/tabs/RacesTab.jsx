@@ -139,6 +139,7 @@ function RacesTab({ onNavigate, tooltipHook }) {
                                     No racial spells are linked for this race — the Turtle devs never wired
                                     its racial skill line to any spells in the client data, so there's
                                     nothing to point to. The traits above are the character-create blurbs.
+                                    If the Octo/Capy devs ever fix it, a new client import will repopulate them here.
                                 </p>
                             )}
                         </div>
