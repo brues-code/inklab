@@ -1063,14 +1063,14 @@ func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) i
 	for _, p := range points {
 		zoneName := s.zoneNameByID(p.ZoneID)
 		x, y := p.X, p.Y
-		// octowow buckets spawns it can't map to a subzone under zone 0 (the
-		// continent) with continent-level coords. Zone 0 is always "Azeroth"
-		// (Eastern Kingdoms / map 0) — Kalimdor spawns always carry a real zone id
-		// — so recover the real subzone on that continent. Resolving only map 0
-		// (not guessing both continents) stops EK points being claimed by a small
-		// Kalimdor zone like Durotar/Orgrimmar.
+		// octowow buckets spawns it can't map to a subzone under zone 0, with
+		// continent-level coords, labelling the block by continent ("Azeroth" or
+		// "Kalimdor"). Resolve the real subzone on THAT continent — the label is
+		// authoritative, so a custom Kalimdor zone (e.g. Blackstone Island) isn't
+		// mis-pinned to Eastern Kingdoms (and vice-versa). Defaults to map 0.
 		if p.ZoneID == 0 {
-			if zn, zx, zy, ok := s.ResolveContinentPoint(0, p.X, p.Y); ok {
+			mapID, _ := continentMapID(p.ZoneName)
+			if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, p.X, p.Y); ok {
 				zoneName, x, y = zn, zx, zy
 			}
 		}
