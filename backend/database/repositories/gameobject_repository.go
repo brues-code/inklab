@@ -213,31 +213,11 @@ func (r *GameObjectRepository) GetObjectDetail(entry int) (*models.GameObjectDet
 		obj.TypeName = name
 	}
 
-	// Gathering node? A type-3 object whose Lock (data0) has a skill slot for a
-	// gathering profession (Herbalism/Mining/Fishing) — surface the skill + the
-	// required level so the page reads e.g. "Herbalism 160".
+	// Skill-locked object (type-3 chest/node)? Surface the required skill (name
+	// from lock_types) and level so the page reads e.g. "Herbalism (160)" or
+	// "Pick Lock (225)". Resolved dynamically — any skill, not a fixed list.
 	if obj.Type == 3 && obj.Data0 > 0 {
-		var typ, prop, req [5]int
-		err := r.db.QueryRow(`
-			SELECT type1, type2, type3, type4, type5,
-			       prop1, prop2, prop3, prop4, prop5,
-			       req1, req2, req3, req4, req5
-			FROM locks WHERE id = ?
-		`, obj.Data0).Scan(
-			&typ[0], &typ[1], &typ[2], &typ[3], &typ[4],
-			&prop[0], &prop[1], &prop[2], &prop[3], &prop[4],
-			&req[0], &req[1], &req[2], &req[3], &req[4])
-		if err == nil {
-			for i := 0; i < 5; i++ {
-				if typ[i] == 2 {
-					if skill, ok := gatheringLockTypes[prop[i]]; ok {
-						obj.GatherSkill = skill
-						obj.GatherSkillReq = req[i]
-						break
-					}
-				}
-			}
-		}
+		obj.ReqSkill, obj.ReqSkillLevel = lockSkillRequirement(r.db, obj.Data0, loadLockTypeNames(r.db))
 	}
 
 	// Get quests started by this object

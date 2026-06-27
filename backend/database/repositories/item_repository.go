@@ -1503,17 +1503,68 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	return detail, nil
 }
 
-// gatheringLockTypes maps a LockType id that marks a gathering node to its
-// profession label. A type-3 gameobject whose Lock requires one of these skills
-// is a gathering node ("Gathered From"), not a regular chest. This is a curated
-// set, not every skill lock — Pick Lock, Disarm Trap, Open* etc. are skill locks
-// too but aren't gathering professions. Survival is Turtle WoW's wood-harvesting
-// skill (Simple/Bright/Dead Wood Tree nodes).
-var gatheringLockTypes = map[int]string{
-	2:  "Herbalism",
-	3:  "Mining",
-	19: "Fishing",
-	20: "Survival",
+// gatheringSkills decides which required skill puts an object under "Gathered
+// From" (a node you harvest) vs "Contained In" (a chest you open). This is the
+// only fixed bit of domain knowledge — nothing in the data distinguishes a
+// gathering profession from Lockpicking/Disarm Trap. The skill NAME and required
+// level themselves are resolved dynamically from lock_types for every lock, so
+// any skill (Lockpicking, Disarm Trap, …) shows its requirement.
+var gatheringSkills = map[string]bool{
+	"Herbalism": true,
+	"Mining":    true,
+	"Survival":  true,
+	"Fishing":   true,
+}
+
+// lockSkillRequirement resolves a lock's required skill to (name, level) from
+// lock_types, picking the first skill slot (type 2) that actually requires a
+// level (req > 0) — which excludes the req-0 "Open"/"Treasure" auto-open
+// mechanics but includes Lockpicking, Herbalism, Mining, Survival, Disarm Trap,
+// etc. Returns ("", 0) when the lock has no skill requirement.
+func lockSkillRequirement(db interface {
+	QueryRow(string, ...interface{}) *sql.Row
+}, lockID int, lockNames map[int]string) (skill string, level int) {
+	if lockID <= 0 {
+		return "", 0
+	}
+	var typ, prop, req [5]int
+	err := db.QueryRow(`
+		SELECT type1, type2, type3, type4, type5,
+		       prop1, prop2, prop3, prop4, prop5,
+		       req1, req2, req3, req4, req5
+		FROM locks WHERE id = ?`, lockID).Scan(
+		&typ[0], &typ[1], &typ[2], &typ[3], &typ[4],
+		&prop[0], &prop[1], &prop[2], &prop[3], &prop[4],
+		&req[0], &req[1], &req[2], &req[3], &req[4])
+	if err != nil {
+		return "", 0
+	}
+	for i := 0; i < 5; i++ {
+		if typ[i] == 2 && req[i] > 0 {
+			return lockNames[prop[i]], req[i]
+		}
+	}
+	return "", 0
+}
+
+// loadLockTypeNames returns LockType id -> name from lock_types (small table).
+func loadLockTypeNames(db interface {
+	Query(string, ...interface{}) (*sql.Rows, error)
+}) map[int]string {
+	out := map[int]string{}
+	rows, err := db.Query("SELECT id, name FROM lock_types")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		var name string
+		if rows.Scan(&id, &name) == nil {
+			out[id] = name
+		}
+	}
+	return out
 }
 
 // getContainedIn returns the gameobjects and container items whose loot includes
@@ -1521,9 +1572,12 @@ var gatheringLockTypes = map[int]string{
 // (herb/ore/fishing objects, by their Lock skill) and everything else (chests +
 // container items).
 func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*models.ItemContainer) {
+	lockNames := loadLockTypeNames(r.db)
+
 	// Gameobject chests/nodes (type 3): data1 is the loot template entry, data0
-	// the Lock id. A lock slot of type 2 (skill) whose property is a gathering
-	// LockType marks the object as a gathering node.
+	// the Lock id. The lock's required skill (name from lock_types, level from req)
+	// is shown on every entry; a gathering skill routes the object to "Gathered
+	// From", anything else (Lockpicking, Disarm Trap, no lock) stays "Contained In".
 	goRows, err := r.db.Query(`
 		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance,
 		       l.type1, l.type2, l.type3, l.type4, l.type5,
@@ -1546,17 +1600,17 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 				&req[0], &req[1], &req[2], &req[3], &req[4]) != nil {
 				continue
 			}
-			// Type 2 == skill lock; prop is the LockType id, req the skill level.
+			// First skill slot (type 2) that requires a level (req > 0): its
+			// LockType name + level. Excludes req-0 auto-open mechanics; includes
+			// Lockpicking, Herbalism, Mining, Survival, Disarm Trap, etc.
 			for i := 0; i < 5; i++ {
-				if typ[i] == 2 {
-					if skill, ok := gatheringLockTypes[prop[i]]; ok {
-						c.Skill = skill
-						c.SkillReq = req[i]
-						break
-					}
+				if typ[i] == 2 && req[i] > 0 {
+					c.Skill = lockNames[prop[i]]
+					c.SkillReq = req[i]
+					break
 				}
 			}
-			if c.Skill != "" {
+			if gatheringSkills[c.Skill] {
 				gathered = append(gathered, c)
 			} else {
 				contained = append(contained, c)

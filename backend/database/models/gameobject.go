@@ -50,8 +50,8 @@ type GameObjectDetail struct {
 	Size         float64          `json:"size"`
 	Data0        int              `json:"data0"` // Often loot_id or quest_id
 	Data1        int              `json:"data1"`
-	GatherSkill    string         `json:"gatherSkill,omitempty"`    // herb/ore/fishing node skill
-	GatherSkillReq int            `json:"gatherSkillReq,omitempty"` // required skill level
+	ReqSkill      string          `json:"reqSkill,omitempty"`      // skill to open/gather (Herbalism, Pick Lock, …)
+	ReqSkillLevel int             `json:"reqSkillLevel,omitempty"` // required skill level
 	StartsQuests []*QuestRelation `json:"startsQuests,omitempty"`
 	EndsQuests   []*QuestRelation `json:"endsQuests,omitempty"`
 	Contains     []*LootItem      `json:"contains,omitempty"`

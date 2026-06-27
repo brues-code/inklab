@@ -1289,8 +1289,8 @@ export namespace models {
 	    size: number;
 	    data0: number;
 	    data1: number;
-	    gatherSkill?: string;
-	    gatherSkillReq?: number;
+	    reqSkill?: string;
+	    reqSkillLevel?: number;
 	    startsQuests?: QuestRelation[];
 	    endsQuests?: QuestRelation[];
 	    contains?: LootItem[];
@@ -1312,8 +1312,8 @@ export namespace models {
 	        this.size = source["size"];
 	        this.data0 = source["data0"];
 	        this.data1 = source["data1"];
-	        this.gatherSkill = source["gatherSkill"];
-	        this.gatherSkillReq = source["gatherSkillReq"];
+	        this.reqSkill = source["reqSkill"];
+	        this.reqSkillLevel = source["reqSkillLevel"];
 	        this.startsQuests = this.convertValues(source["startsQuests"], QuestRelation);
 	        this.endsQuests = this.convertValues(source["endsQuests"], QuestRelation);
 	        this.contains = this.convertValues(source["contains"], LootItem);

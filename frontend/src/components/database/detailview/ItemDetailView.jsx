@@ -372,6 +372,12 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 >
                                     {c.name}
                                 </span>
+                                {c.skill && (
+                                    <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
+                                        {c.skill}
+                                        {c.skillReq > 0 ? ` ${c.skillReq}` : ''}
+                                    </span>
+                                )}
                             </div>
                             {c.chance > 0 && (
                                 <div className="shrink-0 font-mono text-sm text-wow-gold">
