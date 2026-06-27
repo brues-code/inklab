@@ -722,19 +722,39 @@ func genSpells(cf ClientFiles) (interface{}, error) {
 		if name == "" {
 			name = "temp"
 		}
-		out = append(out, map[string]interface{}{
-			"entry": d.U32(r, 0), "name": d.Str(r, 120), "description": d.Str(r, 138),
-			"effectBasePoints1": d.I32(r, 76), "effectBasePoints2": d.I32(r, 77), "effectBasePoints3": d.I32(r, 78),
-			"effectDieSides1": d.I32(r, 64), "effectDieSides2": d.I32(r, 65), "effectDieSides3": d.I32(r, 66),
-			"effectAmplitude1": d.I32(r, 94), "effectAmplitude2": d.I32(r, 95), "effectAmplitude3": d.I32(r, 96),
-			"effectChainTarget1": d.I32(r, 100), "effectChainTarget2": d.I32(r, 101), "effectChainTarget3": d.I32(r, 102),
-			"effectRadiusIndex1": d.I32(r, 88), "effectRadiusIndex2": d.I32(r, 89), "effectRadiusIndex3": d.I32(r, 90),
+		m := map[string]interface{}{
+			"entry": d.U32(r, 0), "name": d.Str(r, 120), "nameSubtext": d.Str(r, 129),
+			"description": d.Str(r, 138),
+			// Header / mechanics.
+			"school": d.I32(r, 1), "category": d.I32(r, 2), "dispel": d.I32(r, 4), "mechanic": d.I32(r, 5),
+			"castingTimeIndex": d.U32(r, 18), "recoveryTime": d.I32(r, 19), "categoryRecoveryTime": d.I32(r, 20),
+			"startRecoveryTime": d.I32(r, 158), "powerType": d.I32(r, 31), "manaCost": d.I32(r, 32),
 			"durationIndex": d.U32(r, 30), "rangeIndex": d.U32(r, 36),
 			"procChance": d.I32(r, 25), "procCharges": d.I32(r, 26),
 			"maxLevel": d.I32(r, 27), "baseLevel": d.I32(r, 28), "spellLevel": d.I32(r, 29),
 			"maxTargetLevel": d.I32(r, 159), "maxAffectedTargets": d.I32(r, 163),
 			"spellIconId": iconID, "iconName": name,
-		})
+		}
+		// Per-effect arrays [3], keyed by their base field offset (verified against
+		// the 1.12 SpellEntry layout).
+		effOff := map[string]int{
+			"effect": 61, "effectDieSides": 64, "effectBaseDice": 67, "effectBasePoints": 76,
+			"effectMechanic": 79, "effectImplicitTargetA": 82, "effectImplicitTargetB": 85,
+			"effectRadiusIndex": 88, "effectApplyAuraName": 91, "effectAmplitude": 94,
+			"effectMultipleValue": 97, "effectChainTarget": 100, "effectItemType": 103,
+			"effectMiscValue": 106, "effectTriggerSpell": 109,
+		}
+		for field, off := range effOff {
+			for i := 0; i < 3; i++ {
+				m[fmt.Sprintf("%s%d", field, i+1)] = d.I32(r, off+i)
+			}
+		}
+		// Reagents [8] (reagent ids 42-49, counts 50-57).
+		for i := 0; i < 8; i++ {
+			m[fmt.Sprintf("reagent%d", i+1)] = d.I32(r, 42+i)
+			m[fmt.Sprintf("reagentCount%d", i+1)] = d.I32(r, 50+i)
+		}
+		out = append(out, m)
 	}
 	return out, nil
 }

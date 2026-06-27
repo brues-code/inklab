@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"inklab/backend/database/helpers"
 )
@@ -117,11 +118,38 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 	if err != nil {
 		return nil // optional — only present after a client import
 	}
-	var spells []SpellEnhanced
+	// Parse into raw maps keyed by spell_template column name (genSpells emits the
+	// column names directly), so the whole row stays data-driven — adding a DBC
+	// field is a one-line change in genSpells + spellNumCols here, with no risk of
+	// the UPDATE/INSERT positional args drifting.
+	var spells []map[string]interface{}
 	if err := json.Unmarshal(data, &spells); err != nil {
 		fmt.Printf("  ERROR parsing spells_enhanced.json: %v\n", err)
 		return nil
 	}
+
+	// Plain (overwrite) numeric columns the client DBC is authoritative for.
+	numCols := []string{
+		"spellIconId", "school", "category", "dispel", "mechanic",
+		"castingTimeIndex", "recoveryTime", "categoryRecoveryTime", "startRecoveryTime",
+		"powerType", "manaCost", "durationIndex", "rangeIndex", "procChance", "procCharges",
+		"maxLevel", "baseLevel", "spellLevel", "maxTargetLevel", "maxAffectedTargets",
+	}
+	for _, p := range []string{
+		"effect", "effectBasePoints", "effectDieSides", "effectBaseDice", "effectMechanic",
+		"effectImplicitTargetA", "effectImplicitTargetB", "effectRadiusIndex",
+		"effectApplyAuraName", "effectAmplitude", "effectMultipleValue", "effectChainTarget",
+		"effectItemType", "effectMiscValue", "effectTriggerSpell",
+	} {
+		for n := 1; n <= 3; n++ {
+			numCols = append(numCols, fmt.Sprintf("%s%d", p, n))
+		}
+	}
+	for n := 1; n <= 8; n++ {
+		numCols = append(numCols, fmt.Sprintf("reagent%d", n), fmt.Sprintf("reagentCount%d", n))
+	}
+	// Text columns: keep the prior value when the DBC has none (COALESCE/NULLIF).
+	textCols := []string{"name", "description", "nameSubtext", "iconName"}
 
 	tx, err := i.db.Begin()
 	if err != nil {
@@ -129,58 +157,53 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 	}
 	defer tx.Rollback()
 
-	// DBC wins for existing rows; NULLIF('') keeps prior text/icon when the DBC
-	// has none.
-	upd, err := tx.Prepare(`UPDATE spell_template SET
-		name = COALESCE(NULLIF(?,''), name),
-		description = COALESCE(NULLIF(?,''), description),
-		effectBasePoints1=?, effectBasePoints2=?, effectBasePoints3=?,
-		effectDieSides1=?, effectDieSides2=?, effectDieSides3=?,
-		effectAmplitude1=?, effectAmplitude2=?, effectAmplitude3=?,
-		effectChainTarget1=?, effectChainTarget2=?, effectChainTarget3=?,
-		effectRadiusIndex1=?, effectRadiusIndex2=?, effectRadiusIndex3=?,
-		durationIndex=?, rangeIndex=?, procChance=?, procCharges=?,
-		maxLevel=?, baseLevel=?, spellLevel=?,
-		maxTargetLevel=?, maxAffectedTargets=?,
-		spellIconId=?, iconName=COALESCE(NULLIF(?,''), iconName)
-		WHERE entry=?`)
+	// Build the UPDATE / INSERT once from the column lists so they stay in lockstep.
+	setParts := make([]string, 0, len(textCols)+len(numCols))
+	for _, c := range textCols {
+		setParts = append(setParts, fmt.Sprintf("%s=COALESCE(NULLIF(?,''), %s)", c, c))
+	}
+	for _, c := range numCols {
+		setParts = append(setParts, c+"=?")
+	}
+	upd, err := tx.Prepare("UPDATE spell_template SET " + strings.Join(setParts, ", ") + " WHERE entry=?")
 	if err != nil {
 		return err
 	}
 	defer upd.Close()
-	ins, err := tx.Prepare(`INSERT OR IGNORE INTO spell_template
-		(entry, name, description, effectBasePoints1, effectBasePoints2, effectBasePoints3,
-		 effectDieSides1, effectDieSides2, effectDieSides3,
-		 effectAmplitude1, effectAmplitude2, effectAmplitude3,
-		 effectChainTarget1, effectChainTarget2, effectChainTarget3,
-		 effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
-		 durationIndex, rangeIndex, procChance, procCharges,
-		 maxLevel, baseLevel, spellLevel,
-		 maxTargetLevel, maxAffectedTargets, spellIconId, iconName)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+
+	insCols := append([]string{"entry"}, append(append([]string{}, textCols...), numCols...)...)
+	ph := make([]string, len(insCols))
+	for i := range ph {
+		ph[i] = "?"
+	}
+	ins, err := tx.Prepare("INSERT OR IGNORE INTO spell_template (" + strings.Join(insCols, ",") + ") VALUES (" + strings.Join(ph, ",") + ")")
 	if err != nil {
 		return err
 	}
 	defer ins.Close()
 
 	updated, inserted := 0, 0
-	for _, s := range spells {
-		if s.Entry <= 0 {
+	for _, m := range spells {
+		entry := jsonInt(m["entry"])
+		if entry <= 0 {
 			continue
 		}
-		icon := s.IconName
-		if icon == "temp" {
-			icon = ""
+		// Shared text + numeric args, in textCols then numCols order.
+		text := make([]interface{}, len(textCols))
+		for j, c := range textCols {
+			s := jsonStr(m[c])
+			if c == "iconName" && s == "temp" {
+				s = ""
+			}
+			text[j] = s
 		}
-		res, err := upd.Exec(s.Name, s.Description,
-			s.BasePoints1, s.BasePoints2, s.BasePoints3,
-			s.DieSides1, s.DieSides2, s.DieSides3,
-			s.Amplitude1, s.Amplitude2, s.Amplitude3,
-			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
-			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
-			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
-			s.MaxLevel, s.BaseLevel, s.SpellLevel,
-			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon, s.Entry)
+		nums := make([]interface{}, len(numCols))
+		for j, c := range numCols {
+			nums[j] = jsonInt(m[c])
+		}
+
+		updArgs := append(append(append([]interface{}{}, text...), nums...), entry)
+		res, err := upd.Exec(updArgs...)
 		if err != nil {
 			continue
 		}
@@ -188,16 +211,8 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 			updated++
 			continue
 		}
-		// No existing row — insert the DBC spell.
-		if _, err := ins.Exec(s.Entry, s.Name, s.Description,
-			s.BasePoints1, s.BasePoints2, s.BasePoints3,
-			s.DieSides1, s.DieSides2, s.DieSides3,
-			s.Amplitude1, s.Amplitude2, s.Amplitude3,
-			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
-			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
-			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
-			s.MaxLevel, s.BaseLevel, s.SpellLevel,
-			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon); err == nil {
+		insArgs := append(append(append([]interface{}{entry}, text...), nums...))
+		if _, err := ins.Exec(insArgs...); err == nil {
 			inserted++
 		}
 	}
@@ -206,6 +221,26 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 	}
 	fmt.Printf("  ✓ Spell DBC import: %d updated, %d inserted (client DBC wins)\n", updated, inserted)
 	return nil
+}
+
+// jsonInt coerces a decoded JSON value (float64 from encoding/json) to an int for
+// SQL binding; missing/non-numeric yields 0.
+func jsonInt(v interface{}) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	}
+	return 0
+}
+
+// jsonStr coerces a decoded JSON value to a string; missing/non-string yields "".
+func jsonStr(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }
 
 // talentTabJSON mirrors a record in data/talents.json (datatools.TalentTabOut).
