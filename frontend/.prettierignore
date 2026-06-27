@@ -1,0 +1,11 @@
+# Build output
+dist
+
+# Generated Wails bindings (do not hand-format)
+wailsjs
+
+# Dependencies
+node_modules
+
+# Lockfiles
+package-lock.json
