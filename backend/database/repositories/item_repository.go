@@ -1470,7 +1470,7 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 
 	// Get containers (gameobject chests + container items) whose loot holds this
 	// item — the reverse of Contains.
-	detail.ContainedIn, detail.GatheredFrom = r.getContainedIn(entry)
+	detail.ContainedIn, detail.ContainedInItem, detail.GatheredFrom = r.getContainedIn(entry)
 
 	// Quests this item is an objective of (a required turn-in item).
 	objRows, err := r.db.Query(`
@@ -1583,7 +1583,7 @@ func loadLockTypeNames(db interface {
 // this item (the reverse of Contains), split into two lists: gathering nodes
 // (herb/ore/fishing objects, by their Lock skill) and everything else (chests +
 // container items).
-func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*models.ItemContainer) {
+func (r *ItemRepository) getContainedIn(entry int) (objects, items, gathered []*models.ItemContainer) {
 	lockNames := loadLockTypeNames(r.db)
 	gatherSkill := loadGatheringSkillNames(r.db)
 
@@ -1627,7 +1627,7 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 			if c.Skill != "" && gatherSkill[strings.ToLower(c.Skill)] {
 				gathered = append(gathered, c)
 			} else {
-				contained = append(contained, c)
+				objects = append(objects, c)
 			}
 		}
 		goRows.Close()
@@ -1647,13 +1647,13 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 		for itRows.Next() {
 			c := &models.ItemContainer{Kind: "item"}
 			if itRows.Scan(&c.Entry, &c.Name, &c.Quality, &c.IconPath, &c.Chance) == nil {
-				contained = append(contained, c)
+				items = append(items, c)
 			}
 		}
 		itRows.Close()
 	}
 
-	return contained, gathered
+	return objects, items, gathered
 }
 
 // getCreatedBy returns the tradeskill spells whose Create Item effect (effect

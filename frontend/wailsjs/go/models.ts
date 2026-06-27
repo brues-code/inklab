@@ -1760,6 +1760,7 @@ export namespace models {
 	    soldBy: ItemVendor[];
 	    createdBy: ItemCraftSource[];
 	    containedIn: ItemContainer[];
+	    containedInItem: ItemContainer[];
 	    gatheredFrom: ItemContainer[];
 	    objectiveOf: QuestReward[];
 	    startsQuest?: QuestReward;
@@ -1841,6 +1842,7 @@ export namespace models {
 	        this.soldBy = this.convertValues(source["soldBy"], ItemVendor);
 	        this.createdBy = this.convertValues(source["createdBy"], ItemCraftSource);
 	        this.containedIn = this.convertValues(source["containedIn"], ItemContainer);
+	        this.containedInItem = this.convertValues(source["containedInItem"], ItemContainer);
 	        this.gatheredFrom = this.convertValues(source["gatheredFrom"], ItemContainer);
 	        this.objectiveOf = this.convertValues(source["objectiveOf"], QuestReward);
 	        this.startsQuest = this.convertValues(source["startsQuest"], QuestReward);

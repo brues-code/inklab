@@ -346,30 +346,15 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 <div className="space-y-1">
                     {detail.containedIn.map((c) => (
                         <div
-                            key={`${c.kind}-${c.entry}`}
+                            key={c.entry}
                             className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate(c.kind, c.entry)}
+                            onClick={() => onNavigate('object', c.entry)}
                         >
                             <div className="flex min-w-0 items-center gap-2">
-                                {c.kind === 'item' ? (
-                                    <IconImg
-                                        name={c.iconPath}
-                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
-                                    />
-                                ) : (
-                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
-                                        OBJ
-                                    </span>
-                                )}
-                                <span
-                                    className="truncate font-bold hover:text-wow-gold"
-                                    style={{
-                                        color:
-                                            c.kind === 'item'
-                                                ? getQualityColor(c.quality)
-                                                : '#00B4FF',
-                                    }}
-                                >
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
+                                    OBJ
+                                </span>
+                                <span className="truncate font-bold text-[#00B4FF] hover:text-wow-gold">
                                     {c.name}
                                 </span>
                                 {c.skill && (
@@ -378,6 +363,40 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                         {c.skillReq > 0 ? ` ${c.skillReq}` : ''}
                                     </span>
                                 )}
+                            </div>
+                            {c.chance > 0 && (
+                                <div className="shrink-0 font-mono text-sm text-wow-gold">
+                                    {c.chance.toFixed(1)}%
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
+        detail.containedInItem?.length && {
+            id: 'containedInItem',
+            label: 'Contained In Item',
+            count: detail.containedInItem.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.containedInItem.map((c) => (
+                        <div
+                            key={c.entry}
+                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate('item', c.entry)}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <IconImg
+                                    name={c.iconPath}
+                                    className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                />
+                                <span
+                                    className="truncate font-bold hover:text-wow-gold"
+                                    style={{ color: getQualityColor(c.quality) }}
+                                >
+                                    {c.name}
+                                </span>
                             </div>
                             {c.chance > 0 && (
                                 <div className="shrink-0 font-mono text-sm text-wow-gold">

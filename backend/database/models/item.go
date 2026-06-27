@@ -260,7 +260,8 @@ type ItemDetail struct {
 	Contains    []*ItemDrop        `json:"contains"`
 	SoldBy      []*ItemVendor      `json:"soldBy"`
 	CreatedBy   []*ItemCraftSource `json:"createdBy"`
-	ContainedIn []*ItemContainer   `json:"containedIn"`
+	ContainedIn     []*ItemContainer `json:"containedIn"`     // gameobject chests
+	ContainedInItem []*ItemContainer `json:"containedInItem"` // container items
 	GatheredFrom []*ItemContainer  `json:"gatheredFrom"`
 	ObjectiveOf []*QuestReward     `json:"objectiveOf"`
 	StartsQuest *QuestReward       `json:"startsQuest,omitempty"`
