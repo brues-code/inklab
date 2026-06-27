@@ -1467,6 +1467,7 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 
 	// Get crafting recipes that create this item ("Created By").
 	detail.CreatedBy = r.getCreatedBy(entry)
+	detail.ReagentFor = r.getReagentFor(entry)
 
 	// Get containers (gameobject chests + container items) whose loot holds this
 	// item — the reverse of Contains.
@@ -1765,6 +1766,76 @@ func (r *ItemRepository) craftSkillRequirement(spellID int) (string, int) {
 		LIMIT 1
 	`, spellID).Scan(&name, &req)
 	return name, req
+}
+
+// getReagentFor returns the crafting spells that consume this item as a reagent
+// (the reverse of getCreatedBy's reagents), with the item each produces, the
+// profession requirement, and how many of this reagent the recipe needs.
+func (r *ItemRepository) getReagentFor(entry int) []*models.ItemReagentUse {
+	const createItemEffect = 24 // SPELL_EFFECT_CREATE_ITEM
+	rows, err := r.db.Query(`
+		SELECT st.entry, st.name, COALESCE(NULLIF(si.icon_name, ''), st.iconName, ''),
+		       st.effect1, st.effect2, st.effect3,
+		       st.effectItemType1, st.effectItemType2, st.effectItemType3,
+		       st.effectBasePoints1, st.effectBasePoints2, st.effectBasePoints3,
+		       st.reagent1, st.reagent2, st.reagent3, st.reagent4,
+		       st.reagent5, st.reagent6, st.reagent7, st.reagent8,
+		       st.reagentCount1, st.reagentCount2, st.reagentCount3, st.reagentCount4,
+		       st.reagentCount5, st.reagentCount6, st.reagentCount7, st.reagentCount8
+		FROM spell_template st
+		LEFT JOIN spell_icons si ON st.spellIconId = si.id
+		WHERE st.reagent1 = ? OR st.reagent2 = ? OR st.reagent3 = ? OR st.reagent4 = ?
+		   OR st.reagent5 = ? OR st.reagent6 = ? OR st.reagent7 = ? OR st.reagent8 = ?
+	`, entry, entry, entry, entry, entry, entry, entry, entry)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var uses []*models.ItemReagentUse
+	for rows.Next() {
+		var spellID int
+		var name, icon string
+		var eff, effItem, effBase [3]int
+		var reagent, reagentCount [8]int
+		if rows.Scan(&spellID, &name, &icon,
+			&eff[0], &eff[1], &eff[2],
+			&effItem[0], &effItem[1], &effItem[2],
+			&effBase[0], &effBase[1], &effBase[2],
+			&reagent[0], &reagent[1], &reagent[2], &reagent[3],
+			&reagent[4], &reagent[5], &reagent[6], &reagent[7],
+			&reagentCount[0], &reagentCount[1], &reagentCount[2], &reagentCount[3],
+			&reagentCount[4], &reagentCount[5], &reagentCount[6], &reagentCount[7]) != nil {
+			continue
+		}
+
+		use := &models.ItemReagentUse{SpellID: spellID, SpellName: name, SpellIcon: icon}
+		for i := 0; i < 8; i++ {
+			if reagent[i] == entry {
+				use.ReagentCount = reagentCount[i]
+				break
+			}
+		}
+		// The item this recipe produces (first Create Item effect), with count.
+		for i := 0; i < 3; i++ {
+			if eff[i] == createItemEffect && effItem[i] > 0 {
+				use.ProducedItem = effItem[i]
+				use.ProducedCount = effBase[i] + 1
+				break
+			}
+		}
+		if use.ProducedItem > 0 {
+			r.db.QueryRow(`
+				SELECT i.name, i.quality, COALESCE(idi.icon, '')
+				FROM item_template i
+				LEFT JOIN item_display_info idi ON i.display_id = idi.ID
+				WHERE i.entry = ?
+			`, use.ProducedItem).Scan(&use.ProducedName, &use.ProducedQuality, &use.ProducedIcon)
+		}
+		use.SkillName, use.ReqSkill = r.craftSkillRequirement(spellID)
+		uses = append(uses, use)
+	}
+	return uses
 }
 
 // fillReagentInfo resolves each reagent's name/quality/icon from item_template.

@@ -302,6 +302,63 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 </div>
             ),
         },
+        detail.reagentFor?.length && {
+            id: 'reagentFor',
+            label: 'Reagent For',
+            count: detail.reagentFor.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.reagentFor.map((use) => {
+                        // Prefer the produced item as the row (clickable to it);
+                        // fall back to the spell when the recipe makes no item.
+                        const toItem = use.producedItem > 0
+                        return (
+                            <div
+                                key={use.spellId}
+                                className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                                onClick={() =>
+                                    toItem
+                                        ? onNavigate('item', use.producedItem)
+                                        : onNavigate('spell', use.spellId)
+                                }
+                                {...(toItem
+                                    ? {}
+                                    : tooltipHook?.getSpellHandlers?.(use.spellId) || {})}
+                            >
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <IconImg
+                                        name={toItem ? use.producedIcon : use.spellIcon}
+                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                    />
+                                    <span
+                                        className="truncate font-bold hover:text-wow-gold"
+                                        style={{
+                                            color: toItem
+                                                ? getQualityColor(use.producedQuality)
+                                                : '#a335ee',
+                                        }}
+                                    >
+                                        {toItem ? use.producedName : use.spellName}
+                                        {use.producedCount > 1 ? ` ×${use.producedCount}` : ''}
+                                    </span>
+                                    {use.skillName && (
+                                        <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
+                                            {use.skillName}
+                                            {use.reqSkill > 0 ? ` ${use.reqSkill}` : ''}
+                                        </span>
+                                    )}
+                                </div>
+                                {use.reagentCount > 1 && (
+                                    <div className="shrink-0 font-mono text-xs text-gray-500">
+                                        ×{use.reagentCount}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            ),
+        },
         detail.gatheredFrom?.length && {
             id: 'gatheredFrom',
             label: 'Gathered From',

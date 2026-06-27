@@ -260,6 +260,7 @@ type ItemDetail struct {
 	Contains    []*ItemDrop        `json:"contains"`
 	SoldBy      []*ItemVendor      `json:"soldBy"`
 	CreatedBy   []*ItemCraftSource `json:"createdBy"`
+	ReagentFor  []*ItemReagentUse  `json:"reagentFor"`
 	ContainedIn     []*ItemContainer `json:"containedIn"`     // gameobject chests
 	ContainedInItem []*ItemContainer `json:"containedInItem"` // container items
 	GatheredFrom []*ItemContainer  `json:"gatheredFrom"`
@@ -290,6 +291,23 @@ type ItemCraftSource struct {
 	ReqSkill      int             `json:"reqSkill,omitempty"`
 	ProducedCount int             `json:"producedCount,omitempty"`
 	Reagents      []*CraftReagent `json:"reagents,omitempty"`
+}
+
+// ItemReagentUse is a recipe that consumes this item as a reagent: the craft
+// spell, the item it produces (if any), the profession requirement, and how many
+// of this reagent the recipe needs. The reverse of ItemCraftSource.Reagents.
+type ItemReagentUse struct {
+	SpellID         int    `json:"spellId"`
+	SpellName       string `json:"spellName"`
+	SpellIcon       string `json:"spellIcon"`
+	SkillName       string `json:"skillName,omitempty"`
+	ReqSkill        int    `json:"reqSkill,omitempty"`
+	ReagentCount    int    `json:"reagentCount,omitempty"` // how many of this item the recipe uses
+	ProducedItem    int    `json:"producedItem,omitempty"`
+	ProducedName    string `json:"producedName,omitempty"`
+	ProducedIcon    string `json:"producedIcon,omitempty"`
+	ProducedQuality int    `json:"producedQuality,omitempty"`
+	ProducedCount   int    `json:"producedCount,omitempty"`
 }
 
 // CraftReagent is one material consumed by a crafting spell.

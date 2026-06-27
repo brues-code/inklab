@@ -1624,6 +1624,38 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class ItemReagentUse {
+	    spellId: number;
+	    spellName: string;
+	    spellIcon: string;
+	    skillName?: string;
+	    reqSkill?: number;
+	    reagentCount?: number;
+	    producedItem?: number;
+	    producedName?: string;
+	    producedIcon?: string;
+	    producedQuality?: number;
+	    producedCount?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemReagentUse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.spellName = source["spellName"];
+	        this.spellIcon = source["spellIcon"];
+	        this.skillName = source["skillName"];
+	        this.reqSkill = source["reqSkill"];
+	        this.reagentCount = source["reagentCount"];
+	        this.producedItem = source["producedItem"];
+	        this.producedName = source["producedName"];
+	        this.producedIcon = source["producedIcon"];
+	        this.producedQuality = source["producedQuality"];
+	        this.producedCount = source["producedCount"];
+	    }
+	}
 	export class ItemVendor {
 	    entry: number;
 	    name: string;
@@ -1759,6 +1791,7 @@ export namespace models {
 	    contains: ItemDrop[];
 	    soldBy: ItemVendor[];
 	    createdBy: ItemCraftSource[];
+	    reagentFor: ItemReagentUse[];
 	    containedIn: ItemContainer[];
 	    containedInItem: ItemContainer[];
 	    gatheredFrom: ItemContainer[];
@@ -1841,6 +1874,7 @@ export namespace models {
 	        this.contains = this.convertValues(source["contains"], ItemDrop);
 	        this.soldBy = this.convertValues(source["soldBy"], ItemVendor);
 	        this.createdBy = this.convertValues(source["createdBy"], ItemCraftSource);
+	        this.reagentFor = this.convertValues(source["reagentFor"], ItemReagentUse);
 	        this.containedIn = this.convertValues(source["containedIn"], ItemContainer);
 	        this.containedInItem = this.convertValues(source["containedInItem"], ItemContainer);
 	        this.gatheredFrom = this.convertValues(source["gatheredFrom"], ItemContainer);
@@ -1866,6 +1900,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	export class ItemSetBrowse {
 	    itemsetId: number;
