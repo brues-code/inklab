@@ -290,10 +290,6 @@ export function RenderNpcModel(arg1, arg2, arg3) {
   return window['go']['main']['App']['RenderNpcModel'](arg1, arg2, arg3);
 }
 
-export function RenderNpcModels(arg1, arg2, arg3) {
-  return window['go']['main']['App']['RenderNpcModels'](arg1, arg2, arg3);
-}
-
 export function RunCacheImport(arg1) {
   return window['go']['main']['App']['RunCacheImport'](arg1);
 }

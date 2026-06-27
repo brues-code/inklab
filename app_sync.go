@@ -312,33 +312,9 @@ func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 	return "Started"
 }
 
-// RenderNpcModels renders creature models from the client MPQs under baseDir
-// into data/npc_images (local only — no remote fallback). Resumable via startFrom
-// (a starting display id).
-func (a *App) RenderNpcModels(baseDir string, startFrom int, delayMs int) string {
-	fmt.Printf("[API] RenderNpcModels called: baseDir=%s startFrom=%d\n", baseDir, startFrom)
-	if delayMs <= 0 {
-		delayMs = 50
-	}
-	a.npcService.ResetStop()
-
-	go func() {
-		cb := func(current, total, displayID int) {
-			runtime.EventsEmit(a.ctx, "sync:models:progress", map[string]interface{}{
-				"current":  current,
-				"total":    total,
-				"itemId":   displayID,
-				"itemName": fmt.Sprintf("Display %d", displayID),
-			})
-		}
-		if err := a.npcService.RenderAllNpcModels(baseDir, startFrom, delayMs, cb); err != nil {
-			runtime.EventsEmit(a.ctx, "sync:models_full:error", err.Error())
-		} else {
-			runtime.EventsEmit(a.ctx, "sync:models_full:complete", "Model render/download complete")
-		}
-	}()
-	return "Started"
-}
+// NPC model renders are produced on demand when a creature is viewed (see
+// RenderNpcModel) and the data/npc_images cache is age-swept, so there's no
+// bulk "render everything" pass — it just churned a multi-GB cache.
 
 // FullSyncObjects re-syncs spawn points for every known game object from the web
 // (octowow.st) — the bulk counterpart to SyncObjectSpawns. Runs in the

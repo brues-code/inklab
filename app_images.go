@@ -2,12 +2,19 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"inklab/backend/datatools"
 )
+
+// npcImageMaxAge bounds the npc_images cache: renders not viewed within this
+// window are swept. They re-render on demand (or fall back to octowow) when next
+// viewed, so the directory is a cache, not a permanent store.
+const npcImageMaxAge = 7 * 24 * time.Hour
 
 // ImageResult represents the result of an image fetch
 type ImageResult struct {
@@ -54,6 +61,12 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 			if ext == ".png" {
 				mimeType = "image/png"
 			}
+			// npc_images is an age-swept cache; mark this render recently used so
+			// the TTL sweep keeps what's actually being viewed. Throttled so a
+			// list of thumbnails doesn't rewrite mtimes on every scroll.
+			if imageType == "npc_model" {
+				touchIfStale(filePath)
+			}
 			return &ImageResult{
 				Data:     base64.StdEncoding.EncodeToString(data),
 				MimeType: mimeType,
@@ -63,6 +76,60 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	}
 
 	return &ImageResult{Error: "file not found: " + name}
+}
+
+// touchIfStale bumps a file's mtime to now if it's more than a day old, so the
+// npc-image TTL sweep treats "viewed" as "recently used" without writing on
+// every single serve.
+func touchIfStale(path string) {
+	if info, err := os.Stat(path); err == nil && time.Since(info.ModTime()) > 24*time.Hour {
+		now := time.Now()
+		_ = os.Chtimes(path, now, now)
+	}
+}
+
+// startNpcImageCleanup sweeps the npc_images cache now and once a day, deleting
+// renders not viewed within npcImageMaxAge. Runs in the background.
+func (a *App) startNpcImageCleanup() {
+	dir := filepath.Join(a.DataDir, "npc_images")
+	sweep := func() {
+		removed, freed := cleanupNpcImages(dir, npcImageMaxAge)
+		if removed > 0 {
+			fmt.Printf("[cache] npc_images: removed %d stale renders (%.0f MB)\n", removed, float64(freed)/(1024*1024))
+		}
+	}
+	go func() {
+		sweep()
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for range t.C {
+			sweep()
+		}
+	}()
+}
+
+// cleanupNpcImages deletes files in dir whose mtime is older than maxAge,
+// returning how many were removed and how many bytes were freed.
+func cleanupNpcImages(dir string, maxAge time.Duration) (removed int, freed int64) {
+	cutoff := time.Now().Add(-maxAge)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, 0
+	}
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || !info.ModTime().Before(cutoff) {
+			continue
+		}
+		if os.Remove(filepath.Join(dir, e.Name())) == nil {
+			removed++
+			freed += info.Size()
+		}
+	}
+	return removed, freed
 }
 
 // clientMPQ returns a cached MPQ source for <baseDir>/Data, opening (and

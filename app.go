@@ -254,6 +254,9 @@ func (a *App) startup(ctx context.Context) {
 		}
 	}
 
+	// Keep the npc_images render cache bounded (TTL sweep; renders re-create on view).
+	a.startNpcImageCleanup()
+
 	fmt.Println("✓ InkLab ready!")
 }
 
