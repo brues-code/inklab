@@ -24,9 +24,12 @@ const TAB_ACTIVE = '!bg-bg-active !text-white !border-border-light'
 /**
  * Database tabs view (route /database/$tab). The active tab comes from the URL
  * param; clicking an entity navigates to the nested detail route which renders
- * in <Outlet>. While a detail is active the tab list is hidden (but kept
- * mounted) so Back returns to the same scroll/filter state — mirroring the old
- * detailStack overlay behavior, now backed by browser history.
+ * in <Outlet>. While a detail is active the detail renders as an opaque overlay
+ * ON TOP of the still-displayed list (rather than display:none-ing the list).
+ * This is deliberate: Chromium/WebView2 resets a scroll container's scrollTop
+ * when an ancestor toggles display:none, so hiding the list that way wiped your
+ * place on Back. Keeping the list displayed (just covered) preserves both its
+ * scroll position and filter state for free.
  */
 export function DatabaseTabs() {
     const { tab } = useParams({ strict: false }) as { tab?: string }
@@ -46,8 +49,10 @@ export function DatabaseTabs() {
 
     return (
         <PageLayout>
-            {/* Tab list — hidden (kept mounted) while a detail is open */}
-            <div className={`flex flex-col h-full flex-1 overflow-hidden ${detailActive ? 'hidden' : ''}`}>
+            <div className="relative flex-1 flex flex-col overflow-hidden">
+            {/* Tab list — always displayed (never display:none) so its scroll
+                position and filters survive a detail visit; the detail covers it. */}
+            <div className="flex flex-col h-full flex-1 overflow-hidden">
                 <TabBar>
                     {TABS.map(label => {
                         const key = label.toLowerCase()
@@ -83,8 +88,13 @@ export function DatabaseTabs() {
                 )}
             </div>
 
-            {/* Detail overlay */}
-            <Outlet />
+            {/* Detail overlay: covers the list (opaque) while preserving its
+                scroll. Only the overlay is display:none'd when inactive — never
+                the list — so the detail's own scroll reset on exit is harmless. */}
+            <div className={`absolute inset-0 z-20 flex flex-col bg-bg-dark overflow-hidden ${detailActive ? '' : 'hidden'}`}>
+                <Outlet />
+            </div>
+            </div>
         </PageLayout>
     )
 }

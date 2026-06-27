@@ -190,8 +190,10 @@ function AtlasLootPage() {
 
   return (
     <PageLayout>
-      {/* Main Loot Browser - Hidden when detail active */}
-      <div className={`flex flex-col h-full flex-1 overflow-hidden ${detailActive ? 'hidden' : ''}`}>
+      <div className="relative flex-1 flex flex-col overflow-hidden">
+      {/* Main loot browser — always displayed (never display:none) so its scroll
+          position and filters survive a detail visit; the detail covers it. */}
+      <div className="flex flex-col h-full flex-1 overflow-hidden">
         {categoriesQuery.isError && (
           <div className="mx-3 mt-3 p-3 bg-red-900/30 border border-red-500/30 rounded flex items-center gap-3 text-red-400">
             <span>❌</span>
@@ -306,8 +308,11 @@ function AtlasLootPage() {
         </ContentGrid>
       </div>
 
-      {/* Detail View Overlay (routed) */}
-      <Outlet />
+      {/* Detail overlay: covers the list (opaque) while preserving its scroll. */}
+      <div className={`absolute inset-0 z-20 flex flex-col bg-bg-dark overflow-hidden ${detailActive ? '' : 'hidden'}`}>
+        <Outlet />
+      </div>
+      </div>
     </PageLayout>
   );
 }
