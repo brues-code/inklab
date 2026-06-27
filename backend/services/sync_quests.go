@@ -244,6 +244,7 @@ func (s *SyncService) FetchAndImportQuest(questID int) *SyncQuestResult {
 	setText("OfferRewardText", data.OfferRewardText)
 	setInt("MinLevel", data.MinLevel)
 	setInt("RewXP", data.RewXP)
+	setInt("RewSpellCast", data.RewSpellCast) // WDB cache lacks this; scrape is the source
 	setInt("RequiredRaces", data.RaceMask)
 	setInt("RequiredClasses", data.ClassMask)
 	setInt("PrevQuestId", data.PrevQuestID)

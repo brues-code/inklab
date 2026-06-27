@@ -28,6 +28,7 @@ type ScrapedQuestData struct {
 	ClassMask       int    // RequiredClasses
 	PrevQuestID     int
 	NextQuestID     int
+	RewSpellCast    int              // spell cast on completion ("will be cast on you") — RewSpellCast
 	Starters        []int            // start-NPC ids (creature_questrelation)
 	Enders          []int            // end-NPC ids (creature_involvedrelation)
 	RepRewards      []QuestRepReward // reputation gains (faction name + value)
@@ -47,6 +48,10 @@ var (
 	}
 	// e.g. "75 Reputation with <a href="?faction=72">Stormwind</a>"
 	questRepRe = regexp.MustCompile(`(-?\d+)\s+Reputation with\s*<a[^>]*faction=(\d+)`)
+	// "The following spell will be cast on you: ... <a href="?spell=1446">". This
+	// is the quest's RewSpellCast — a world-DB field the WDB quest cache doesn't
+	// carry, so the scrape is its source.
+	questCastSpellRe = regexp.MustCompile(`(?s)spell will be cast on you:.*?[?&]spell=(\d+)`)
 )
 
 // firstRefID returns the first id of the given kind (npc/quest) linked inside a
@@ -147,6 +152,11 @@ func ParseQuestDataTurtlecraft(r io.Reader, entry int) (*ScrapedQuestData, error
 			if val != 0 && fid != 0 {
 				data.RepRewards = append(data.RepRewards, QuestRepReward{FactionID: fid, Value: val})
 			}
+		}
+
+		// Reward spell cast on completion (RewSpellCast).
+		if m := questCastSpellRe.FindStringSubmatch(fullHTML); m != nil {
+			data.RewSpellCast, _ = strconv.Atoi(m[1])
 		}
 	}
 
