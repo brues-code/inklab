@@ -129,10 +129,17 @@ func (s *ScraperService) scrapeFromTurtlecraft(npcID int) (*ScrapedNpcData, erro
 		return nil, fmt.Errorf("turtlecraft returned status %d", resp.StatusCode)
 	}
 
-	data, err := parsers.ParseNpcDataTurtlecraft(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	data, err := parsers.ParseNpcDataTurtlecraft(bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	// Trainer spells live in a script Listview, not the DOM table — parse from the
+	// raw HTML.
+	data.TrainerSpells = parsers.ParseTrainerSpells(string(body))
 	// octowow serves model images as a relative path (images/models/<id>.png);
 	// resolve it against the database base URL.
 	if data.ModelImageURL != "" && !strings.HasPrefix(data.ModelImageURL, "http") {

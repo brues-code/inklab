@@ -136,6 +136,17 @@ type NpcFullDetails struct {
 	Abilities     []NpcAbility      `json:"abilities"`
 	Spawns        []NpcSpawn        `json:"spawns"`
 	Sells         []NpcSellItem     `json:"sells"`
+	Trains        []NpcTrainSpell   `json:"trains"` // spells this NPC teaches (trainer)
+}
+
+// NpcTrainSpell is a spell this NPC trains (from npc_trainer_spell), with display
+// info from spell_template.
+type NpcTrainSpell struct {
+	SpellID  int    `json:"spellId"`
+	Name     string `json:"name"`
+	Subtext  string `json:"subtext"` // rank, e.g. "Rank 2"
+	Level    int    `json:"level"`   // spellLevel (learn level)
+	IconName string `json:"iconName"`
 }
 
 // NpcSellItem is an item this NPC sells (reverse of item_vendor).
@@ -405,7 +416,40 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 		}
 	}
 
+	// Load what this NPC trains (scraped trainer spell list; spell info from our DB).
+	trainRows, err := s.sqlite.Query(`
+		SELECT ts.spell_id, COALESCE(st.name, ''), COALESCE(st.nameSubtext, ''),
+		       COALESCE(st.spellLevel, 0), COALESCE(NULLIF(si.icon_name, ''), st.iconName, '')
+		FROM npc_trainer_spell ts
+		LEFT JOIN spell_template st ON st.entry = ts.spell_id
+		LEFT JOIN spell_icons si ON st.spellIconId = si.id
+		WHERE ts.npc_entry = ?
+		ORDER BY st.name, st.spellLevel
+	`, entry)
+	if err == nil {
+		defer trainRows.Close()
+		for trainRows.Next() {
+			var t NpcTrainSpell
+			if err := trainRows.Scan(&t.SpellID, &t.Name, &t.Subtext, &t.Level, &t.IconName); err == nil {
+				details.Trains = append(details.Trains, t)
+			}
+		}
+	}
+
 	return details, nil
+}
+
+// writeTrainerSpells replaces an NPC's npc_trainer_spell rows from the scraped
+// "teaches" list. No-op when the scrape found none, so a parse miss doesn't wipe
+// a previously-captured list.
+func (s *NpcService) writeTrainerSpells(entry int, spellIDs []int) {
+	if len(spellIDs) == 0 {
+		return
+	}
+	s.sqlite.Exec("DELETE FROM npc_trainer_spell WHERE npc_entry = ?", entry)
+	for _, id := range spellIDs {
+		s.sqlite.Exec("INSERT OR IGNORE INTO npc_trainer_spell (npc_entry, spell_id) VALUES (?, ?)", entry, id)
+	}
 }
 
 // syncCreatureFromMySQL syncs basic creature data from MySQL to SQLite (fast, no web scraping)
@@ -1535,6 +1579,7 @@ func (s *NpcService) SyncNpcData(entry int) error {
 	// stale or missing) MySQL dump — octowow.st is the source of truth for these.
 	s.applyScrapedStats(entry, scraped)
 	s.applyScrapedSpawns(entry, scraped)
+	s.writeTrainerSpells(entry, scraped.TrainerSpells)
 
 	return nil
 }

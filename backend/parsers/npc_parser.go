@@ -22,6 +22,35 @@ type ScrapedNpcData struct {
 	Y             float64           `json:"y"`
 	Spawns        []ScrapedSpawn    `json:"spawns"` // every spawn point across every zone (octowow mapper data)
 	Sells         []VendorSale      `json:"sells"`  // items this NPC sells (octowow "sells" tab)
+	TrainerSpells []int             `json:"trainerSpells"` // spell ids this NPC trains (octowow "teaches" tab)
+}
+
+// aowow embeds a trainer's taught spells in a "teaches-ability" Listview:
+//
+//	new Listview({template:'spell',id:'teaches-ability',...,data:[{name:'@X',...,id: 1303},...]})
+//
+// trainerBlockRe isolates that listview's data array; trainerIdRe pulls each
+// spell id out of it.
+var (
+	trainerBlockRe = regexp.MustCompile(`(?s)id:'teaches-ability'.*?data:\s*\[(.*?)\]`)
+	trainerIDRe    = regexp.MustCompile(`,\s*id:\s*(\d+)`)
+)
+
+// ParseTrainerSpells extracts the spell ids an NPC trains from an aowow NPC page.
+func ParseTrainerSpells(html string) []int {
+	block := trainerBlockRe.FindStringSubmatch(html)
+	if block == nil {
+		return nil
+	}
+	var out []int
+	seen := map[int]bool{}
+	for _, m := range trainerIDRe.FindAllStringSubmatch(block[1], -1) {
+		if id, err := strconv.Atoi(m[1]); err == nil && id > 0 && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // ScrapedSpawn is one spawn point: its zone (id + resolved name) and the

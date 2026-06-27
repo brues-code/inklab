@@ -243,6 +243,55 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             </div>
                         </DetailSection>
                     )}
+
+                    {/* Taught By — trainers (scraped) + recipe items */}
+                    {((detail.taughtByNpcs && detail.taughtByNpcs.length > 0) ||
+                        (detail.taughtByItems && detail.taughtByItems.length > 0)) && (
+                        <DetailSection title="Taught By">
+                            <div className="space-y-1">
+                                {detail.taughtByItems?.map((item) => (
+                                    <div
+                                        key={`item-${item.entry}`}
+                                        className="flex cursor-pointer items-center gap-2 rounded p-1.5 transition-colors hover:bg-white/5"
+                                        onClick={() => onNavigate?.('item', item.entry)}
+                                    >
+                                        <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded bg-black">
+                                            <ItemIcon iconName={item.iconPath} />
+                                        </div>
+                                        <span
+                                            className="truncate text-sm font-medium"
+                                            style={{ color: getQualityColor(item.quality) }}
+                                        >
+                                            {item.name}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-500">Item</span>
+                                    </div>
+                                ))}
+                                {detail.taughtByNpcs?.map((npc) => (
+                                    <div
+                                        key={`npc-${npc.entry}`}
+                                        className="flex cursor-pointer items-center gap-2 rounded p-1.5 transition-colors hover:bg-white/5"
+                                        onClick={() => onNavigate?.('npc', npc.entry)}
+                                    >
+                                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-wow-gold/40 bg-wow-gold/20 text-[8px] font-bold text-wow-gold">
+                                            NPC
+                                        </span>
+                                        <span className="truncate text-sm font-medium text-wow-gold">
+                                            {npc.name || `NPC #${npc.entry}`}
+                                        </span>
+                                        {npc.levelMax > 0 && (
+                                            <span className="ml-auto text-xs text-gray-500">
+                                                Lvl {npc.levelMin}
+                                                {npc.levelMax > npc.levelMin
+                                                    ? `-${npc.levelMax}`
+                                                    : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </DetailSection>
+                    )}
                 </div>
 
                 {/* Side Panel */}

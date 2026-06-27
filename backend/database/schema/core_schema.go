@@ -461,5 +461,14 @@ func CoreSchema() string {
 		UNIQUE(gameobject_entry, map_id, position_x, position_y)
 	);
 	CREATE INDEX IF NOT EXISTS idx_gameobject_spawn_entry ON gameobject_spawn(gameobject_entry);
+
+	-- Trainer spell lists (which spells an NPC teaches), scraped from octowow NPC
+	-- pages. Drives the NPC "Trains" section and the spell "Taught By" (reverse).
+	CREATE TABLE IF NOT EXISTS npc_trainer_spell (
+		npc_entry INTEGER,
+		spell_id INTEGER,
+		PRIMARY KEY (npc_entry, spell_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_npc_trainer_spell_spell ON npc_trainer_spell(spell_id);
 	`
 }

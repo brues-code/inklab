@@ -160,6 +160,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const loot = detail.loot || []
     const abilities = detail.abilities || []
     const sells = detail.sells || []
+    const trains = detail.trains || []
 
     const tabs = [
         { id: 'overview', label: 'Overview' },
@@ -170,6 +171,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         },
         { id: 'abilities', label: `Abilities (${abilities.length})` },
         ...(sells.length > 0 ? [{ id: 'sells', label: `Sells (${sells.length})` }] : []),
+        ...(trains.length > 0 ? [{ id: 'trains', label: `Trains (${trains.length})` }] : []),
     ]
 
     return (
@@ -664,6 +666,37 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                             )
                                         })}
                                     </LootGrid>
+                                </div>
+                            )}
+
+                            {activeTab === 'trains' && (
+                                <div className="animate-fade-in bg-bg-sub rounded border border-border-light">
+                                    {trains.map((sp, i) => (
+                                        <div
+                                            key={sp.spellId}
+                                            onClick={() => onNavigate('spell', sp.spellId)}
+                                            className={`flex cursor-pointer items-center gap-3 p-2.5 transition-colors hover:bg-white/5 ${
+                                                i !== trains.length - 1
+                                                    ? 'border-b border-border-light/50'
+                                                    : ''
+                                            }`}
+                                        >
+                                            <AbilityIcon iconName={sp.iconName} />
+                                            <span className="flex-1 truncate text-sm font-medium text-wow-rare">
+                                                {sp.name || `Spell ${sp.spellId}`}
+                                                {sp.subtext && (
+                                                    <span className="ml-1 text-gray-500">
+                                                        ({sp.subtext})
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {sp.level > 0 && (
+                                                <span className="whitespace-nowrap text-xs text-gray-500">
+                                                    Req Lvl {sp.level}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 

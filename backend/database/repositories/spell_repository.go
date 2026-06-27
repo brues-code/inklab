@@ -572,6 +572,49 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		}
 	}
 
+	// Trainers that teach this spell (reverse of the scraped npc_trainer_spell).
+	npcRows, err := r.db.Query(`
+		SELECT ts.npc_entry, COALESCE(c.name, ''), COALESCE(c.level_min, 0), COALESCE(c.level_max, 0)
+		FROM npc_trainer_spell ts
+		LEFT JOIN creature_template c ON c.entry = ts.npc_entry
+		WHERE ts.spell_id = ?
+		ORDER BY c.name
+		LIMIT 100
+	`, entry)
+	if err == nil {
+		defer npcRows.Close()
+		for npcRows.Next() {
+			n := &models.SpellTrainerNpc{}
+			if err := npcRows.Scan(&n.Entry, &n.Name, &n.LevelMin, &n.LevelMax); err == nil {
+				detail.TaughtByNpcs = append(detail.TaughtByNpcs, n)
+			}
+		}
+	}
+
+	// Recipe items that teach this spell: an item whose on-use spell is a
+	// learn-spell (effect 36) whose triggered spell is this one.
+	itemRows, err := r.db.Query(`
+		SELECT DISTINCT i.entry, i.name, i.quality, COALESCE(d.icon, '')
+		FROM item_template i
+		JOIN spell_template ls ON ls.entry IN
+			(i.spellid_1, i.spellid_2, i.spellid_3, i.spellid_4, i.spellid_5)
+		LEFT JOIN item_display_info d ON i.display_id = d.ID
+		WHERE (ls.effect1 = 36 AND ls.effectTriggerSpell1 = ?)
+		   OR (ls.effect2 = 36 AND ls.effectTriggerSpell2 = ?)
+		   OR (ls.effect3 = 36 AND ls.effectTriggerSpell3 = ?)
+		ORDER BY i.quality DESC, i.name
+		LIMIT 50
+	`, entry, entry, entry)
+	if err == nil {
+		defer itemRows.Close()
+		for itemRows.Next() {
+			it := &models.SpellUsedByItem{}
+			if err := itemRows.Scan(&it.Entry, &it.Name, &it.Quality, &it.IconPath); err == nil {
+				detail.TaughtByItems = append(detail.TaughtByItems, it)
+			}
+		}
+	}
+
 	return detail
 }
 

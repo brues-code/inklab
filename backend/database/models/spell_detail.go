@@ -39,4 +39,14 @@ type SpellDetail struct {
 	Effects     []SpellEffectInfo  `json:"effects,omitempty"`
 	Flags       []string           `json:"flags,omitempty"`
 	UsedByItems []*SpellUsedByItem `json:"usedByItems,omitempty"`
+	TaughtByNpcs  []*SpellTrainerNpc `json:"taughtByNpcs,omitempty"`  // trainers (scraped)
+	TaughtByItems []*SpellUsedByItem `json:"taughtByItems,omitempty"` // recipe items that teach it
+}
+
+// SpellTrainerNpc is an NPC that trains this spell (from npc_trainer_spell).
+type SpellTrainerNpc struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	LevelMin int    `json:"levelMin"`
+	LevelMax int    `json:"levelMax"`
 }
