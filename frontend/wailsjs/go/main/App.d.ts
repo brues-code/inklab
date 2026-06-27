@@ -36,8 +36,6 @@ export function FullSyncObjects(arg1:number,arg2:number):Promise<string>;
 
 export function FullSyncQuests(arg1:number,arg2:number):Promise<string>;
 
-export function FullSyncSpells(arg1:number,arg2:boolean,arg3:number):Promise<string>;
-
 export function GetAllFavorites():Promise<Array<models.FavoriteItem>>;
 
 export function GetBeastFamilies():Promise<Array<models.BeastFamily>>;
@@ -168,7 +166,7 @@ export function SyncMissingAtlasLoot(arg1:number,arg2:number):Promise<services.I
 
 export function SyncNpcData(arg1:number):Promise<services.NpcFullDetails>;
 
-export function SyncObjectSpawns(arg1:number):Promise<models.GameObjectDetail>;
+export function SyncObject(arg1:number):Promise<models.GameObjectDetail>;
 
 export function SyncQuestData(arg1:number):Promise<models.QuestDetail>;
 

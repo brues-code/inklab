@@ -254,36 +254,6 @@ func (a *App) FullSyncItems(delayMs int, fixIcons bool, startFrom int) string {
 	return "Started"
 }
 
-// FullSyncSpells resolves all spell descriptions locally from DBC data (the
-// delayMs/fixIcons args are kept for API/binding compatibility but unused).
-func (a *App) FullSyncSpells(delayMs int, fixIcons bool, startFrom int) string {
-	fmt.Printf("[API] FullSyncSpells called with delayMs=%d, fixIcons=%v, startFrom=%d\n", delayMs, fixIcons, startFrom)
-
-	if delayMs <= 0 {
-		delayMs = 200
-	}
-
-	a.syncService.ResetStop()
-	iconDir := filepath.Join(a.DataDir, "icons")
-
-	go func() {
-		// Create progress callback that emits events to frontend
-		progressCb := func(current, total int, itemID int, itemName string) {
-			runtime.EventsEmit(a.ctx, "sync:spells:progress", map[string]interface{}{
-				"current":  current,
-				"total":    total,
-				"itemId":   itemID,
-				"itemName": itemName,
-			})
-		}
-
-		result := a.syncService.FullSyncSpells(delayMs, fixIcons, iconDir, startFrom, progressCb)
-		runtime.EventsEmit(a.ctx, "sync:spells_full:complete", result.Message)
-	}()
-
-	return "Started"
-}
-
 // FullSyncQuests re-syncs all quests
 func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 	fmt.Printf("[API] FullSyncQuests called with delayMs=%d, startFrom=%d\n", delayMs, startFrom)

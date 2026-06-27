@@ -3,7 +3,6 @@ import {
   GetSyncStats,
   FullSyncNpcs,
   FullSyncItems,
-  FullSyncSpells,
   FullSyncQuests,
   FullSyncObjects,
   StopSync,
@@ -15,7 +14,6 @@ import { PageLayout } from "../../components/ui";
 const SYNC_TYPES = [
   { id: "npc", name: "NPCs", icon: "👤" },
   { id: "item", name: "Items", icon: "⚔️" },
-  { id: "spell", name: "Spells", icon: "✨" },
   { id: "quest", name: "Quests", icon: "📜" },
   { id: "object", name: "Objects", icon: "📦" },
 ];
@@ -33,7 +31,6 @@ function SyncPage() {
   const [startIds, setStartIds] = useState({
       npc: parseInt(localStorage.getItem('lastSyncedNpcId') || "0", 10),
       item: parseInt(localStorage.getItem('lastSyncedItemId') || "0", 10),
-      spell: parseInt(localStorage.getItem('lastSyncedSpellId') || "0", 10),
       quest: parseInt(localStorage.getItem('lastSyncedQuestId') || "0", 10),
       object: parseInt(localStorage.getItem('lastSyncedObjectId') || "0", 10),
       model: parseInt(localStorage.getItem('lastSyncedModelId') || "0", 10),
@@ -58,10 +55,6 @@ function SyncPage() {
     EventsOn("sync:item_full:error", (msg) => handleSyncError("item", msg));
     EventsOn("sync:item_full:complete", (msg) => handleSyncDone("item", msg));
     
-    // Spell Progress
-    EventsOn("sync:spells:progress", (data) => handleProgress("spell", data));
-    EventsOn("sync:spells_full:complete", (msg) => handleSyncDone("spell", msg));
-
     // Quest Progress
     EventsOn("sync:quests:progress", (data) => handleProgress("quest", data));
     EventsOn("sync:quests_full:complete", (msg) => handleSyncDone("quest", msg));
@@ -78,8 +71,6 @@ function SyncPage() {
         EventsOff("sync:progress");
         EventsOff("sync:item_full:error");
         EventsOff("sync:item_full:complete");
-        EventsOff("sync:spells:progress");
-        EventsOff("sync:spells_full:complete");
         EventsOff("sync:quests:progress");
         EventsOff("sync:quests_full:complete");
         EventsOff("sync:objects:progress");
@@ -152,9 +143,6 @@ function SyncPage() {
               break;
           case 'item':
               await FullSyncItems(100, true, startId);
-              break;
-          case 'spell':
-              await FullSyncSpells(100, true, startId);
               break;
           case 'quest':
               await FullSyncQuests(100, startId);
@@ -379,7 +367,7 @@ function SyncPage() {
                     🚀 Optimization
                 </h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                    NPC, item, and quest sync use a multi-threaded worker pool (10 workers) to speed up downloads. Spell descriptions are resolved locally from client (DBC) data — no download needed.
+                    NPC, item, quest, and object sync use a multi-threaded worker pool (10 workers) to speed up downloads. Spell descriptions are resolved locally from client (DBC) data as part of the Client Data import — no separate sync needed.
                 </p>
             </div>
         </div>

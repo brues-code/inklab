@@ -66,10 +66,6 @@ export function FullSyncQuests(arg1, arg2) {
   return window['go']['main']['App']['FullSyncQuests'](arg1, arg2);
 }
 
-export function FullSyncSpells(arg1, arg2, arg3) {
-  return window['go']['main']['App']['FullSyncSpells'](arg1, arg2, arg3);
-}
-
 export function GetAllFavorites() {
   return window['go']['main']['App']['GetAllFavorites']();
 }
@@ -330,8 +326,8 @@ export function SyncNpcData(arg1) {
   return window['go']['main']['App']['SyncNpcData'](arg1);
 }
 
-export function SyncObjectSpawns(arg1) {
-  return window['go']['main']['App']['SyncObjectSpawns'](arg1);
+export function SyncObject(arg1) {
+  return window['go']['main']['App']['SyncObject'](arg1);
 }
 
 export function SyncQuestData(arg1) {
