@@ -6,7 +6,7 @@
 import { getClientBasePath } from '../utils/constants';
 
 /** Local image categories understood by the backend GetLocalImage call. */
-export type ImageType = 'icon' | 'npc_model' | 'npc_map' | 'zone_map';
+export type ImageType = 'icon' | 'npc_model' | 'npc_map' | 'zone_map' | 'race_icon';
 
 // Image cache to avoid repeated API calls
 const imageCache = new Map<string, string>();

@@ -2,11 +2,27 @@ import { useState, useMemo } from 'react'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useRaces } from '../../../hooks/queries/races'
-import { useIcon } from '../../../services/useImage'
+import { useIcon, useImage } from '../../../services/useImage'
 
 const FALLBACK_ICON = '/local-icons/inv_misc_questionmark.jpg'
 const FACTION_COLOR = { Alliance: '#3b82f6', Horde: '#e0294a' }
 const factionColor = (f) => FACTION_COLOR[f] || '#FFD100'
+
+const iconKey = (fileString, gender) => `${(fileString || '').toLowerCase()}_${gender}`
+
+// A race/gender portrait cropped from the client character-create sprite sheet.
+function RaceGenderIcon({ fileString, gender, size = 'lg' }) {
+    const { src } = useImage('race_icon', iconKey(fileString, gender))
+    if (!src) return null
+    const box = size === 'lg' ? 'w-14 h-14' : 'w-6 h-6'
+    return (
+        <div className="flex flex-col items-center gap-1">
+            <div className={`${box} rounded border border-border-dark overflow-hidden bg-black`}>
+                <img src={src} alt={gender} className="w-full h-full object-cover" draggable={false} />
+            </div>
+        </div>
+    )
+}
 
 // One racial ability resolved to a real spell — clickable through to its page,
 // with a spell tooltip on hover.
@@ -53,6 +69,7 @@ function RacesTab({ onNavigate, tooltipHook }) {
                             onClick={() => setSelectedId(race.id)}
                         >
                             <span className="flex items-center gap-2">
+                                <RaceGenderIcon fileString={race.fileString} gender="male" size="sm" />
                                 <span
                                     className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
                                     style={{ background: factionColor(race.faction) }}
@@ -77,18 +94,24 @@ function RacesTab({ onNavigate, tooltipHook }) {
                 ) : (
                     <ScrollList className="p-4 space-y-5">
                         {/* Header */}
-                        <div className="flex items-baseline gap-3">
-                            <h2 className="text-2xl font-bold" style={{ color: factionColor(selected.faction) }}>
-                                {selected.name}
-                            </h2>
-                            {selected.faction && (
-                                <span
-                                    className="px-2 py-0.5 rounded text-[11px] font-bold uppercase"
-                                    style={{ background: `${factionColor(selected.faction)}22`, color: factionColor(selected.faction) }}
-                                >
-                                    {selected.faction}
-                                </span>
-                            )}
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-baseline gap-3">
+                                <h2 className="text-2xl font-bold" style={{ color: factionColor(selected.faction) }}>
+                                    {selected.name}
+                                </h2>
+                                {selected.faction && (
+                                    <span
+                                        className="px-2 py-0.5 rounded text-[11px] font-bold uppercase"
+                                        style={{ background: `${factionColor(selected.faction)}22`, color: factionColor(selected.faction) }}
+                                    >
+                                        {selected.faction}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-3 shrink-0">
+                                <RaceGenderIcon fileString={selected.fileString} gender="male" />
+                                <RaceGenderIcon fileString={selected.fileString} gender="female" />
+                            </div>
                         </div>
 
                         {/* Flavor text */}

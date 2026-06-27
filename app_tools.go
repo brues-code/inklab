@@ -55,6 +55,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"maps", "Zone maps", `Interface\WorldMap + WorldMapArea.dbc`, "image", maps},
 		{"npcImages", "NPC model renders", `Creature\*.m2 (client MPQs)`, "image", npcImages},
 		{"talentBgs", "Talent backgrounds", `Interface\TalentFrame art`, "image", talentBgs},
+		{"raceIcons", "Race / gender icons", `UI-CharacterCreate-Races.blp`, "image", countFiles(filepath.Join(a.DataDir, "race_icons"), ".png")},
 		// DBC-derived reference tables (row counts).
 		{"itemIcons", "Item icon mappings", "ItemDisplayInfo.dbc", "table", a.countRows("item_display_info")},
 		{"spellIcons", "Spell icon mappings", "Spell.dbc + SpellIcon.dbc", "table", a.countRows("spell_icons")},
@@ -257,7 +258,15 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		rep.Lines = append(rep.Lines, line)
 	}
 
-	// 5. Area grid: per-chunk ADT zone data for authoritative spawn->zone
+	// 5. Race/gender icons cropped from the character-create sprite sheet.
+	raceSrc := pick(datatools.NewDirSourceClient(baseDir))
+	if res, err := datatools.GenerateRaceIcons(raceSrc, filepath.Join(a.DataDir, "race_icons")); err != nil {
+		fail("Race icons: " + err.Error())
+	} else {
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%d race icons", res.Generated))
+	}
+
+	// 6. Area grid: per-chunk ADT zone data for authoritative spawn->zone
 	//    resolution. Needs the MPQ/loose World\Maps terrain; non-fatal.
 	gridSrc := pick(datatools.NewDirSourceClient(baseDir))
 	if err := datatools.GenerateAreaGrid(gridSrc, filepath.Join(a.DataDir, "area_grid.bin"), nil); err != nil {

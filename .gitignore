@@ -59,5 +59,7 @@ data/*.json
 data/npc_images/
 # Talent-frame background art — extracted locally from client art (not shipped)
 data/talent_bg/
+# Race/gender icons — cropped locally from the client sprite sheet (not shipped)
+data/race_icons/
 # Per-chunk ADT area grid for spawn->zone resolution (regenerated via the Import tab)
 data/area_grid.bin
