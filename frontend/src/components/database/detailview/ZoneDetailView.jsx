@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useZoneDetail } from '../../../hooks/queries/zones'
-import { useZoneMap } from '../../../services/useImage'
+import { useZoneMap, useZoneMinimap } from '../../../services/useImage'
 import { DetailPageLayout, DetailLoading, DetailError } from '../../ui'
 
 const ZONE_COLOR = '#4ADE80'
@@ -34,6 +34,8 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
     const [activeTab, setActiveTab] = useState('npcs')
     const [showMapModal, setShowMapModal] = useState(false)
     const [service, setService] = useState(null) // active service filter id
+    // Map style: 'atlas' = painted WorldMap, 'terrain' = in-game minimap art.
+    const [mapStyle, setMapStyle] = useState('atlas')
 
     const { data: detail, isLoading: loading } = useZoneDetail(entry)
 
@@ -44,7 +46,11 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
         setService(null)
     }
 
-    const mapImage = useZoneMap(detail?.mapName)
+    const atlasMap = useZoneMap(detail?.mapName)
+    const terrainMap = useZoneMinimap(detail?.mapName)
+    const terrainAvailable = !!terrainMap.src
+    const showTerrain = mapStyle === 'terrain' && (terrainMap.src || terrainMap.loading)
+    const mapImage = showTerrain ? terrainMap : atlasMap
 
     if (loading) return <DetailLoading />
     if (!detail) return <DetailError message="Zone not found" onBack={onBack} />
@@ -184,6 +190,28 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                                 </span>
                             )}
                         </div>
+
+                        {/* Map style toggle — only when a terrain minimap exists for this zone */}
+                        {terrainAvailable && (
+                            <div className="mb-2 inline-flex overflow-hidden rounded border border-white/10 text-[11px] font-semibold">
+                                {[
+                                    ['atlas', 'Atlas'],
+                                    ['terrain', 'Terrain'],
+                                ].map(([key, label]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setMapStyle(key)}
+                                        className={`px-2.5 py-0.5 transition-colors ${
+                                            mapStyle === key
+                                                ? 'bg-wow-gold/20 text-wow-gold'
+                                                : 'bg-bg-panel text-gray-400 hover:bg-bg-hover hover:text-gray-200'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
                         <div
                             className="group relative aspect-[488/325] w-full cursor-pointer overflow-hidden rounded border border-white/20 bg-black bg-cover bg-center shadow-lg"

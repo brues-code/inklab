@@ -3,7 +3,7 @@ import { queryClient } from '../../../queryClient'
 import { useObjectDetail } from '../../../hooks/queries/objects'
 import { queryKeys } from '../../../hooks/queries/keys'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
-import { useZoneMap } from '../../../services/useImage'
+import { useZoneMap, useZoneMinimap } from '../../../services/useImage'
 import {
     DetailPageLayout,
     DetailHeader,
@@ -18,6 +18,8 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [showMapModal, setShowMapModal] = useState(false)
     const [selectedZone, setSelectedZone] = useState(null)
     const [syncing, setSyncing] = useState(false)
+    // Map style: 'atlas' = painted WorldMap, 'terrain' = in-game minimap art.
+    const [mapStyle, setMapStyle] = useState('atlas')
 
     const { data: detail, isLoading: loading } = useObjectDetail(entry)
 
@@ -47,7 +49,11 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
     const activeZone =
         (selectedZone && zones.find((z) => z.name === selectedZone)) || zones[0] || null
-    const mapImage = useZoneMap(activeZone?.name)
+    const atlasMap = useZoneMap(activeZone?.name)
+    const terrainMap = useZoneMinimap(activeZone?.name)
+    const terrainAvailable = !!terrainMap.src
+    const showTerrain = mapStyle === 'terrain' && (terrainMap.src || terrainMap.loading)
+    const mapImage = showTerrain ? terrainMap : atlasMap
 
     // One sync per object: octowow's page drives both spawns and (for chests) loot.
     const handleSync = () => {
@@ -178,6 +184,28 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                         >
                                             {z.name}{' '}
                                             <span className="text-gray-500">({z.pts.length})</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Map style toggle — only when a terrain minimap exists for this zone */}
+                            {terrainAvailable && (
+                                <div className="mb-2 inline-flex overflow-hidden rounded border border-white/10 text-[11px] font-semibold">
+                                    {[
+                                        ['atlas', 'Atlas'],
+                                        ['terrain', 'Terrain'],
+                                    ].map(([key, label]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => setMapStyle(key)}
+                                            className={`px-2.5 py-0.5 transition-colors ${
+                                                mapStyle === key
+                                                    ? 'bg-wow-gold/20 text-wow-gold'
+                                                    : 'bg-bg-panel text-gray-400 hover:bg-bg-hover hover:text-gray-200'
+                                            }`}
+                                        >
+                                            {label}
                                         </button>
                                     ))}
                                 </div>

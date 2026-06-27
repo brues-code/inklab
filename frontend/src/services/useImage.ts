@@ -12,6 +12,7 @@ import {
     loadNpcModel,
     loadNpcPortrait,
     loadZoneMap,
+    loadZoneMinimap,
     type ImageType,
 } from './imageService'
 import { queryKeys } from '../hooks/queries/keys'
@@ -94,6 +95,21 @@ export const useZoneMap = (zoneName?: string | null, reloadKey = 0): ImageState 
     const q = useQuery({
         queryKey: queryKeys.zoneMap(zoneName, reloadKey),
         queryFn: () => loadZoneMap(zoneName),
+        enabled: !!zoneName,
+        staleTime: Infinity,
+    })
+    return imageState(q)
+}
+
+/**
+ * Load a locally-generated terrain minimap by zone name. Mirrors useZoneMap;
+ * settles with no src when the zone has no minimap, so the UI can fall back to
+ * the atlas map.
+ */
+export const useZoneMinimap = (zoneName?: string | null, reloadKey = 0): ImageState => {
+    const q = useQuery({
+        queryKey: queryKeys.zoneMinimap(zoneName, reloadKey),
+        queryFn: () => loadZoneMinimap(zoneName),
         enabled: !!zoneName,
         staleTime: Infinity,
     })

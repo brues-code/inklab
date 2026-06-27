@@ -3,7 +3,13 @@ import { queryClient } from '../../../queryClient'
 import { SyncNpcData, RefreshNpcImages } from '../../../services/api'
 import { useNpcDetail } from '../../../hooks/queries/npcs'
 import { queryKeys } from '../../../hooks/queries/keys'
-import { useNpcModel, useNpcPortrait, useZoneMap, useIcon } from '../../../services/useImage'
+import {
+    useNpcModel,
+    useNpcPortrait,
+    useZoneMap,
+    useZoneMinimap,
+    useIcon,
+} from '../../../services/useImage'
 import { evictImage } from '../../../services/imageService'
 import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
@@ -38,6 +44,9 @@ const AbilityIcon = ({ iconName }) => {
 const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [activeTab, setActiveTab] = useState('overview')
     const [showMapModal, setShowMapModal] = useState(false)
+    // Map style: 'atlas' = the painted WorldMap image, 'terrain' = the in-game
+    // minimap art. Falls back to atlas automatically when a zone has no minimap.
+    const [mapStyle, setMapStyle] = useState('atlas')
     const [imgReload, setImgReload] = useState(0)
     const [refreshingImages, setRefreshingImages] = useState(false)
     // When an NPC spawns across multiple zones, this overrides which zone's map is
@@ -77,7 +86,22 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
     // The active zone: an explicit toggle selection, else the resolved primary.
     const activeZone = selectedZone || detail?.zoneName || zoneList[0]?.name || null
-    const mapImage = useZoneMap(activeZone, imgReload)
+    const atlasMap = useZoneMap(activeZone, imgReload)
+    // Terrain source: the zone's minimap when it has one, else a raw whole-map
+    // minimap keyed by map id — covers maps with no WorldMapArea zone (e.g. the
+    // development map, where spawns fall back to the "Azeroth" continent label).
+    const terrainByZone = useZoneMinimap(activeZone, imgReload)
+    const primaryMapId = detail?.spawns?.[0]?.mapId
+    const terrainByMap = useZoneMinimap(
+        primaryMapId != null ? `map_${primaryMapId}` : null,
+        imgReload,
+    )
+    const terrainMap = terrainByZone.src ? terrainByZone : terrainByMap
+    // Terrain is only offered when a minimap actually exists for this NPC.
+    const terrainAvailable = !!terrainMap.src
+    // Show terrain when selected and present (or still loading); otherwise the atlas.
+    const showTerrain = mapStyle === 'terrain' && (terrainMap.src || terrainMap.loading)
+    const mapImage = showTerrain ? terrainMap : atlasMap
 
     // Only plot markers for spawns in the active zone — a spawn from another zone
     // carries coordinates relative to ITS own zone map, so drawing it on this map
@@ -280,6 +304,28 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                             >
                                                 {z.name}{' '}
                                                 <span className="opacity-60">{z.count}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Map style toggle — only when a terrain minimap exists for this zone */}
+                                {terrainAvailable && (
+                                    <div className="mb-2 inline-flex overflow-hidden rounded border border-white/10 text-[11px] font-semibold">
+                                        {[
+                                            ['atlas', 'Atlas'],
+                                            ['terrain', 'Terrain'],
+                                        ].map(([key, label]) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => setMapStyle(key)}
+                                                className={`px-2.5 py-0.5 transition-colors ${
+                                                    mapStyle === key
+                                                        ? 'bg-wow-gold/20 text-wow-gold'
+                                                        : 'bg-bg-panel text-gray-400 hover:bg-bg-hover hover:text-gray-200'
+                                                }`}
+                                            >
+                                                {label}
                                             </button>
                                         ))}
                                     </div>

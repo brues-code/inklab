@@ -94,4 +94,6 @@ export const queryKeys = {
         reloadKey: unknown,
     ) => ['npcPortrait', displayId, creatureEntry, generate, reloadKey] as const,
     zoneMap: (zoneName: unknown, reloadKey: unknown) => ['zoneMap', zoneName, reloadKey] as const,
+    zoneMinimap: (zoneName: unknown, reloadKey: unknown) =>
+        ['zoneMinimap', zoneName, reloadKey] as const,
 }

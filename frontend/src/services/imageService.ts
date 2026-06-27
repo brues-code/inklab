@@ -6,7 +6,14 @@
 import { getClientBasePath } from '../utils/constants'
 
 /** Local image categories understood by the backend GetLocalImage call. */
-export type ImageType = 'icon' | 'npc_model' | 'npc_map' | 'zone_map' | 'race_icon' | 'coin'
+export type ImageType =
+    | 'icon'
+    | 'npc_model'
+    | 'npc_map'
+    | 'zone_map'
+    | 'zone_minimap'
+    | 'race_icon'
+    | 'coin'
 
 // Image cache to avoid repeated API calls
 const imageCache = new Map<string, string>()
@@ -161,6 +168,16 @@ export const loadNpcPortrait = async (
 export const loadZoneMap = async (zoneName?: string | null): Promise<string | null> => {
     if (!zoneName) return null
     return loadImage('zone_map', zoneName)
+}
+
+/**
+ * Load a locally-generated terrain minimap by zone name (same keying as the
+ * atlas zone map). Returns null when the zone has no minimap (e.g. instances),
+ * so callers can fall back to the atlas map. Local-only; no remote fallback.
+ */
+export const loadZoneMinimap = async (zoneName?: string | null): Promise<string | null> => {
+    if (!zoneName) return null
+    return loadImage('zone_minimap', zoneName)
 }
 
 /**

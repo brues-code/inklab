@@ -53,6 +53,7 @@ func (a *App) GetDataStatus() DataStatus {
 		// Image data (file counts under data/).
 		{"icons", "Item / spell icons", `Interface\Icons\*.blp`, "image", icons},
 		{"maps", "Zone maps", `Interface\WorldMap + WorldMapArea.dbc`, "image", maps},
+		{"minimaps", "Zone minimaps (terrain)", `textures\Minimap + WorldMapArea.dbc`, "image", countFiles(filepath.Join(a.DataDir, "minimaps"), ".jpg", ".png")},
 		{"npcImages", "NPC model renders", `Creature\*.m2 (client MPQs)`, "image", npcImages},
 		{"talentBgs", "Talent backgrounds", `Interface\TalentFrame art`, "image", talentBgs},
 		{"raceIcons", "Race / gender icons", `UI-CharacterCreate-Races.blp`, "image", countFiles(filepath.Join(a.DataDir, "race_icons"), ".png")},
@@ -275,6 +276,21 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		fail("Coin icons: " + err.Error())
 	} else {
 		rep.Lines = append(rep.Lines, fmt.Sprintf("%d coin icons", res.Generated))
+	}
+
+	// 5c. Minimaps (terrain view): the in-game minimap tiles stitched per zone and
+	//     cropped to each WorldMapArea rect — the same rect the painted atlas maps
+	//     cover, so spawn pins line up on either view. Lets the UI toggle a zone
+	//     between its atlas painting and the terrain minimap.
+	mmSrc := pick(datatools.NewDirSourceClient(baseDir))
+	if res, err := datatools.GenerateMinimaps(mmSrc, filepath.Join(a.DataDir, "minimaps"), nil); err != nil {
+		fail("Minimaps: " + err.Error())
+	} else {
+		line := fmt.Sprintf("%d minimaps", res.Generated)
+		if res.Skipped > 0 {
+			line += fmt.Sprintf(" (%d skipped)", res.Skipped)
+		}
+		rep.Lines = append(rep.Lines, line)
 	}
 
 	// 6. Area grid: per-chunk ADT zone data for authoritative spawn->zone

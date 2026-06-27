@@ -50,6 +50,8 @@ tmp/
 
 # Locally-generated zone maps (from client art; not shipped)
 data/maps/
+# Locally-generated terrain minimaps (stitched from client minimap tiles; not shipped)
+data/minimaps/
 # Icons — extracted locally from client art / downloaded at runtime (not shipped)
 data/icons/
 # Reference JSON generated from the client DBCs (regenerated via the Import tab;

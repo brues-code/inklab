@@ -51,7 +51,12 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 		// Zone maps are keyed by texture-folder name (e.g. "UngoroCrater") but
 		// the stored zone name may differ in spacing/punctuation ("Ungoro
 		// Crater", "Zul'Gurub"). Match on a normalized key.
-		return a.findZoneMap(name)
+		return a.findMapImage(filepath.Join(a.DataDir, "maps"), name)
+	case "zone_minimap":
+		// Terrain minimaps share the zone-map keying (same WorldMapArea names),
+		// just served from data/minimaps. Returns an error result when a zone has
+		// no minimap (e.g. instances), so the UI falls back to the atlas map.
+		return a.findMapImage(filepath.Join(a.DataDir, "minimaps"), name)
 	default:
 		return &ImageResult{Error: "unknown image type: " + imageType}
 	}
@@ -219,10 +224,10 @@ func normKey(s string) string {
 	return k
 }
 
-// findZoneMap resolves a zone name to data/maps/<file>, trying an exact match
-// first then a normalized scan of the maps directory.
-func (a *App) findZoneMap(name string) *ImageResult {
-	dir := filepath.Join(a.DataDir, "maps")
+// findMapImage resolves a zone name to <dir>/<file>, trying an exact match first
+// then a normalized scan of the directory. Used for both the painted atlas maps
+// (data/maps) and the terrain minimaps (data/minimaps), which share zone keying.
+func (a *App) findMapImage(dir, name string) *ImageResult {
 	read := func(path, ext string) *ImageResult {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -270,6 +275,6 @@ func (a *App) findZoneMap(name string) *ImageResult {
 			}
 		}
 	}
-	return &ImageResult{Error: "zone map not found: " + name}
+	return &ImageResult{Error: "map image not found: " + name}
 }
 
