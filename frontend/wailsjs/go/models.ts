@@ -1560,6 +1560,7 @@ export namespace models {
 	    iconPath: string;
 	    chance: number;
 	    skill?: string;
+	    skillReq?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemContainer(source);
@@ -1574,6 +1575,7 @@ export namespace models {
 	        this.iconPath = source["iconPath"];
 	        this.chance = source["chance"];
 	        this.skill = source["skill"];
+	        this.skillReq = source["skillReq"];
 	    }
 	}
 	export class ItemCraftSource {

@@ -1523,7 +1523,8 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 	goRows, err := r.db.Query(`
 		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance,
 		       l.type1, l.type2, l.type3, l.type4, l.type5,
-		       l.prop1, l.prop2, l.prop3, l.prop4, l.prop5
+		       l.prop1, l.prop2, l.prop3, l.prop4, l.prop5,
+		       l.req1, l.req2, l.req3, l.req4, l.req5
 		FROM gameobject_loot_template gl
 		JOIN gameobject_template o ON o.data1 = gl.entry
 		LEFT JOIN locks l ON l.id = o.data0
@@ -1534,17 +1535,19 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 	if err == nil {
 		for goRows.Next() {
 			c := &models.ItemContainer{Kind: "object"}
-			var typ, prop [5]int
+			var typ, prop, req [5]int
 			if goRows.Scan(&c.Entry, &c.Name, &c.Chance,
 				&typ[0], &typ[1], &typ[2], &typ[3], &typ[4],
-				&prop[0], &prop[1], &prop[2], &prop[3], &prop[4]) != nil {
+				&prop[0], &prop[1], &prop[2], &prop[3], &prop[4],
+				&req[0], &req[1], &req[2], &req[3], &req[4]) != nil {
 				continue
 			}
-			// Type 2 == skill lock; prop is the LockType id.
+			// Type 2 == skill lock; prop is the LockType id, req the skill level.
 			for i := 0; i < 5; i++ {
 				if typ[i] == 2 {
 					if skill, ok := gatheringLockTypes[prop[i]]; ok {
 						c.Skill = skill
+						c.SkillReq = req[i]
 						break
 					}
 				}

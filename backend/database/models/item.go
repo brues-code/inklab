@@ -275,7 +275,8 @@ type ItemContainer struct {
 	Quality  int     `json:"quality"`
 	IconPath string  `json:"iconPath"`
 	Chance   float64 `json:"chance"`
-	Skill    string  `json:"skill,omitempty"` // gathering skill for nodes (Herbalism/Mining/Fishing)
+	Skill    string  `json:"skill,omitempty"`    // gathering skill for nodes (Herbalism/Mining/Fishing)
+	SkillReq int     `json:"skillReq,omitempty"` // required skill level to gather (lock req value)
 }
 
 // ItemCraftSource is a recipe/spell that creates this item (a tradeskill spell
