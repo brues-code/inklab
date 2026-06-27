@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageLayout } from '../../components/ui'
 import { DEFAULT_WOW_BASE } from '../../utils/constants'
 import { useEntityNavigate } from '../../utils/entityNav'
@@ -93,9 +93,31 @@ function ToolsPage() {
     const [base, setBase] = useState(() => localStorage.getItem('toolsBasePath') || DEFAULT_BASE)
     const [running, setRunning] = useState(null)
     const [reports, setReports] = useState({})
-    const [whatsNew, setWhatsNew] = useState(null)
-    const [wnLoading, setWnLoading] = useState(false)
     const [status, setStatus] = useState(null)
+
+    // What's New is server-derived (a DB-vs-baseline diff). Back it with Query so
+    // it stays cached for the session — visiting an entity and coming back keeps
+    // the last result instead of forcing a regenerate. Lazy (enabled:false): only
+    // the Check button (refetch) runs it.
+    const {
+        data: whatsNew,
+        isFetching: wnLoading,
+        refetch: loadWhatsNew,
+    } = useQuery({
+        queryKey: ['whatsNew'],
+        queryFn: async () => {
+            const app = window?.go?.main?.App
+            if (!app?.WhatsNew) return { error: 'Binding not found (dev build?)' }
+            try {
+                return await app.WhatsNew()
+            } catch (e) {
+                return { error: String(e) }
+            }
+        },
+        enabled: false,
+        staleTime: Infinity,
+        gcTime: Infinity,
+    })
 
     const refreshStatus = useCallback(async () => {
         const app = window?.go?.main?.App
@@ -110,22 +132,6 @@ function ToolsPage() {
     useEffect(() => {
         refreshStatus()
     }, [refreshStatus])
-
-    const loadWhatsNew = async () => {
-        const app = window?.go?.main?.App
-        if (!app?.WhatsNew) {
-            setWhatsNew({ error: 'Binding not found (dev build?)' })
-            return
-        }
-        setWnLoading(true)
-        try {
-            setWhatsNew(await app.WhatsNew())
-        } catch (e) {
-            setWhatsNew({ error: String(e) })
-        } finally {
-            setWnLoading(false)
-        }
-    }
 
     const saveBase = (v) => {
         setBase(v)
@@ -285,7 +291,7 @@ function ToolsPage() {
                             )}
                         </div>
                         <button
-                            onClick={loadWhatsNew}
+                            onClick={() => loadWhatsNew()}
                             disabled={wnLoading}
                             className="shrink-0 rounded bg-wow-gold/90 px-5 py-2 font-bold text-black transition-colors hover:bg-wow-gold disabled:cursor-not-allowed disabled:opacity-40"
                         >
