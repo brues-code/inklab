@@ -16,7 +16,8 @@ export function useItemTooltip() {
     // Preload (and optionally force-refresh) an item's tooltip into the cache.
     // Idempotent: repeated calls dedupe / serve cached data. Returns the data.
     const loadTooltipData = useCallback(async (itemId: number, forceReload = false) => {
-        if (forceReload) await queryClient.invalidateQueries({ queryKey: queryKeys.tooltip(itemId) })
+        if (forceReload)
+            await queryClient.invalidateQueries({ queryKey: queryKeys.tooltip(itemId) })
         try {
             return await queryClient.ensureQueryData(tooltipQuery(itemId))
         } catch (err) {
@@ -44,9 +45,12 @@ export function useItemTooltip() {
     }, [])
 
     // Handle item enter - preload tooltip data
-    const handleItemEnter = useCallback((itemId: number) => {
-        loadTooltipData(itemId)
-    }, [loadTooltipData])
+    const handleItemEnter = useCallback(
+        (itemId: number) => {
+            loadTooltipData(itemId)
+        },
+        [loadTooltipData],
+    )
 
     // Handle item leave - hide tooltip
     const handleItemLeave = useCallback(() => {
@@ -54,11 +58,14 @@ export function useItemTooltip() {
     }, [])
 
     // Get event handlers for an item element
-    const getItemHandlers = useCallback((itemId: number) => ({
-        onMouseEnter: () => handleItemEnter(itemId),
-        onMouseMove: (e: MouseEvent<HTMLElement>) => handleMouseMove(e, itemId),
-        onMouseLeave: handleItemLeave,
-    }), [handleItemEnter, handleMouseMove, handleItemLeave])
+    const getItemHandlers = useCallback(
+        (itemId: number) => ({
+            onMouseEnter: () => handleItemEnter(itemId),
+            onMouseMove: (e: MouseEvent<HTMLElement>) => handleMouseMove(e, itemId),
+            onMouseLeave: handleItemLeave,
+        }),
+        [handleItemEnter, handleMouseMove, handleItemLeave],
+    )
 
     return {
         hoveredItem,

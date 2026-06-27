@@ -7,4 +7,8 @@ export const useFactions = () =>
     useQuery({ queryKey: queryKeys.factions, queryFn: GetFactions, staleTime: Infinity })
 
 export const useFactionDetail = (id: number) =>
-    useQuery({ queryKey: queryKeys.factionDetail(id), queryFn: () => GetFactionDetail(id), enabled: id != null })
+    useQuery({
+        queryKey: queryKeys.factionDetail(id),
+        queryFn: () => GetFactionDetail(id),
+        enabled: id != null,
+    })

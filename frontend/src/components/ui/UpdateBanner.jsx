@@ -26,7 +26,10 @@ export function UpdateBanner() {
 
     const dismiss = () => {
         try {
-            localStorage.setItem(SNOOZE_KEY, JSON.stringify({ version: info.latest, at: Date.now() }))
+            localStorage.setItem(
+                SNOOZE_KEY,
+                JSON.stringify({ version: info.latest, at: Date.now() }),
+            )
         } catch {
             // ignore storage failures; just hide for this session
         }
@@ -34,9 +37,10 @@ export function UpdateBanner() {
     }
 
     return (
-        <div className="flex items-center justify-between gap-4 px-5 py-2 text-sm bg-wow-gold/15 border-b border-wow-gold/40 text-wow-gold">
+        <div className="flex items-center justify-between gap-4 border-b border-wow-gold/40 bg-wow-gold/15 px-5 py-2 text-sm text-wow-gold">
             <span>
-                A new version <strong>{info.latest}</strong> is available — you're on {info.current}.
+                A new version <strong>{info.latest}</strong> is available — you're on {info.current}
+                .
             </span>
             <div className="flex items-center gap-4">
                 <a
@@ -51,7 +55,7 @@ export function UpdateBanner() {
                     onClick={dismiss}
                     aria-label="Dismiss for a week"
                     title="Dismiss for a week"
-                    className="text-wow-gold/70 hover:text-wow-gold text-base leading-none"
+                    className="text-base leading-none text-wow-gold/70 hover:text-wow-gold"
                 >
                     ✕
                 </button>

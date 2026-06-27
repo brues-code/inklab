@@ -4,7 +4,7 @@ import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem } from 
 import { filterItems } from '../../../utils/databaseApi'
 import { useRaces } from '../../../hooks/queries/races'
 import { useIcon, useImage } from '../../../services/useImage'
-import { QUESTION_MARK_ICON } from "../../../utils/wow.ts";
+import { QUESTION_MARK_ICON } from '../../../utils/wow.ts'
 
 const FACTION_COLOR = { Alliance: '#3b82f6', Horde: '#e0294a' }
 const factionColor = (f) => FACTION_COLOR[f] || '#FFD100'
@@ -18,8 +18,13 @@ function RaceGenderIcon({ fileString, gender, size = 'lg' }) {
     const box = size === 'lg' ? 'w-14 h-14' : 'w-6 h-6'
     return (
         <div className="flex flex-col items-center gap-1">
-            <div className={`${box} rounded border border-border-dark overflow-hidden bg-black`}>
-                <img src={src} alt={gender} className="w-full h-full object-cover" draggable={false} />
+            <div className={`${box} overflow-hidden rounded border border-border-dark bg-black`}>
+                <img
+                    src={src}
+                    alt={gender}
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                />
             </div>
         </div>
     )
@@ -33,13 +38,17 @@ function RacialSpell({ spell, onNavigate, tooltipHook }) {
         <button
             onClick={() => onNavigate?.('spell', spell.id)}
             {...(tooltipHook?.getSpellHandlers?.(spell.id) || {})}
-            className="flex items-center gap-2 p-2 bg-white/[0.02] hover:bg-white/5 border border-border-dark/50 rounded text-left transition-colors"
+            className="flex items-center gap-2 rounded border border-border-dark/50 bg-white/[0.02] p-2 text-left transition-colors hover:bg-white/5"
         >
-            <div className="w-8 h-8 shrink-0 bg-black rounded overflow-hidden border border-gray-700/50">
-                <img src={icon.src || QUESTION_MARK_ICON} alt="" className="w-full h-full object-cover" />
+            <div className="h-8 w-8 shrink-0 overflow-hidden rounded border border-gray-700/50 bg-black">
+                <img
+                    src={icon.src || QUESTION_MARK_ICON}
+                    alt=""
+                    className="h-full w-full object-cover"
+                />
             </div>
-            <span className="text-sm text-wow-rare font-semibold truncate">{spell.name}</span>
-            <span className="ml-auto text-[11px] font-mono text-gray-600">#{spell.id}</span>
+            <span className="truncate text-sm font-semibold text-wow-rare">{spell.name}</span>
+            <span className="ml-auto font-mono text-[11px] text-gray-600">#{spell.id}</span>
         </button>
     )
 }
@@ -70,9 +79,13 @@ function RacesTab({ onNavigate, tooltipHook }) {
                             onClick={() => setSelectedId(race.id)}
                         >
                             <span className="flex items-center gap-2">
-                                <RaceGenderIcon fileString={race.fileString} gender="male" size="sm" />
+                                <RaceGenderIcon
+                                    fileString={race.fileString}
+                                    gender="male"
+                                    size="sm"
+                                />
                                 <span
-                                    className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
                                     style={{ background: factionColor(race.faction) }}
                                 />
                                 {race.name}
@@ -85,31 +98,37 @@ function RacesTab({ onNavigate, tooltipHook }) {
             {/* Race detail */}
             <ContentPanel className="col-span-3">
                 {isLoading ? (
-                    <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
+                    <div className="flex flex-1 animate-pulse items-center justify-center italic text-wow-gold">
                         Loading races...
                     </div>
                 ) : !selected ? (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         No race data. Run a Client Data import to populate races.
                     </div>
                 ) : (
-                    <ScrollList className="p-4 space-y-7">
+                    <ScrollList className="space-y-7 p-4">
                         {/* Header */}
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-baseline gap-3">
-                                <h2 className="text-2xl font-bold" style={{ color: factionColor(selected.faction) }}>
+                                <h2
+                                    className="text-2xl font-bold"
+                                    style={{ color: factionColor(selected.faction) }}
+                                >
                                     {selected.name}
                                 </h2>
                                 {selected.faction && (
                                     <span
-                                        className="px-2 py-0.5 rounded text-[11px] font-bold uppercase"
-                                        style={{ background: `${factionColor(selected.faction)}22`, color: factionColor(selected.faction) }}
+                                        className="rounded px-2 py-0.5 text-[11px] font-bold uppercase"
+                                        style={{
+                                            background: `${factionColor(selected.faction)}22`,
+                                            color: factionColor(selected.faction),
+                                        }}
                                     >
                                         {selected.faction}
                                     </span>
                                 )}
                             </div>
-                            <div className="flex gap-3 shrink-0">
+                            <div className="flex shrink-0 gap-3">
                                 <RaceGenderIcon fileString={selected.fileString} gender="male" />
                                 <RaceGenderIcon fileString={selected.fileString} gender="female" />
                             </div>
@@ -117,18 +136,22 @@ function RacesTab({ onNavigate, tooltipHook }) {
 
                         {/* Flavor text */}
                         {selected.info && (
-                            <p className="text-sm text-gray-300 leading-relaxed italic">{selected.info}</p>
+                            <p className="text-sm italic leading-relaxed text-gray-300">
+                                {selected.info}
+                            </p>
                         )}
 
                         {/* Available classes */}
                         {selected.classes?.length > 0 && (
                             <div>
-                                <div className="text-xs font-bold text-wow-gold uppercase mb-2">Available Classes</div>
+                                <div className="mb-2 text-xs font-bold uppercase text-wow-gold">
+                                    Available Classes
+                                </div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {selected.classes.map((c) => (
                                         <span
                                             key={c.id}
-                                            className="px-2.5 py-1 rounded text-xs font-semibold bg-white/[0.03] border"
+                                            className="rounded border bg-white/[0.03] px-2.5 py-1 text-xs font-semibold"
                                             style={{
                                                 color: c.color || '#e5e7eb',
                                                 borderColor: c.color ? `${c.color}66` : undefined,
@@ -144,10 +167,14 @@ function RacesTab({ onNavigate, tooltipHook }) {
                         {/* Racial traits (flavor blurbs) */}
                         {selected.abilities?.length > 0 && (
                             <div>
-                                <div className="text-xs font-bold text-wow-gold uppercase mb-2">Racial Traits</div>
+                                <div className="mb-2 text-xs font-bold uppercase text-wow-gold">
+                                    Racial Traits
+                                </div>
                                 <ul className="space-y-1 text-sm text-gray-300">
                                     {selected.abilities.map((a, i) => (
-                                        <li key={i} className="leading-snug">{a}</li>
+                                        <li key={i} className="leading-snug">
+                                            {a}
+                                        </li>
                                     ))}
                                 </ul>
                             </div>
@@ -155,19 +182,27 @@ function RacesTab({ onNavigate, tooltipHook }) {
 
                         {/* Racial abilities (linked spells) */}
                         <div>
-                            <div className="text-xs font-bold text-wow-gold uppercase mb-2">Racial Abilities</div>
+                            <div className="mb-2 text-xs font-bold uppercase text-wow-gold">
+                                Racial Abilities
+                            </div>
                             {selected.racials?.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                                     {selected.racials.map((s) => (
-                                        <RacialSpell key={s.id} spell={s} onNavigate={onNavigate} tooltipHook={tooltipHook} />
+                                        <RacialSpell
+                                            key={s.id}
+                                            spell={s}
+                                            onNavigate={onNavigate}
+                                            tooltipHook={tooltipHook}
+                                        />
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-xs text-gray-500 italic leading-relaxed">
-                                    No racial spells are linked for this race — the Turtle devs never wired
-                                    its racial skill line to any spells in the client data, so there's
-                                    nothing to point to. The traits above are the character-create blurbs.
-                                    If the Octo/Capy devs ever fix it, a new client import will repopulate them here.
+                                <p className="text-xs italic leading-relaxed text-gray-500">
+                                    No racial spells are linked for this race — the Turtle devs
+                                    never wired its racial skill line to any spells in the client
+                                    data, so there's nothing to point to. The traits above are the
+                                    character-create blurbs. If the Octo/Capy devs ever fix it, a
+                                    new client import will repopulate them here.
                                 </p>
                             )}
                         </div>

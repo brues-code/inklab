@@ -6,24 +6,28 @@ import { SyncSingleItem } from '../../../wailsjs/go/main/App'
 /**
  * Loot item display with icon, name, and quality color
  */
-export const LootItem = ({ 
+export const LootItem = ({
     item,
     onClick,
     onMouseEnter,
     onMouseMove,
     onMouseLeave,
     showDropChance = false,
-    className = '' 
+    className = '',
 }) => {
     const itemId = item.entry || item.itemId || item.id
-    
+
     // Manage local name state to reflect updates immediately after sync
     const initialName = item.name || item.itemName
     const [localName, setLocalName] = useState(initialName)
     const [syncing, setSyncing] = useState(false)
 
     // Determine if item is "unknown" or missing data
-    const isUnknown = !localName || localName === '' || localName.startsWith('Unknown Item') || localName.startsWith('Item ')
+    const isUnknown =
+        !localName ||
+        localName === '' ||
+        localName.startsWith('Unknown Item') ||
+        localName.startsWith('Item ')
 
     const quality = item.quality || 0
     const qualityColor = getQualityColor(quality)
@@ -31,7 +35,7 @@ export const LootItem = ({
 
     // Use unified icon loading
     const icon = useIcon(iconName)
-    
+
     // Handle individual item sync
     const handleSync = async (e) => {
         e.stopPropagation() // Prevent navigating to item detail
@@ -42,21 +46,15 @@ export const LootItem = ({
                 setLocalName(res.name) // Update name locally
             }
         } catch (err) {
-            console.error("Failed to sync item:", itemId, err)
+            console.error('Failed to sync item:', itemId, err)
         } finally {
             setSyncing(false)
         }
     }
 
     return (
-        <div 
-            className={`
-                flex items-center gap-2 p-1.5 
-                bg-white/[0.02] hover:bg-white/5 
-                border border-white/5 rounded 
-                transition-all cursor-pointer group
-                ${className}
-            `}
+        <div
+            className={`group flex cursor-pointer items-center gap-2 rounded border border-white/5 bg-white/[0.02] p-1.5 transition-all hover:bg-white/5 ${className} `}
             data-quality={quality}
             onClick={onClick}
             onMouseEnter={onMouseEnter}
@@ -64,48 +62,40 @@ export const LootItem = ({
             onMouseLeave={onMouseLeave}
         >
             {/* Icon */}
-            <div 
-                className="w-8 h-8 rounded border flex-shrink-0 bg-black/40 flex items-center justify-center overflow-hidden"
+            <div
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded border bg-black/40"
                 style={{ borderColor: qualityColor }}
             >
                 {icon.loading ? (
-                    <div className="w-full h-full bg-white/5 animate-pulse" />
+                    <div className="h-full w-full animate-pulse bg-white/5" />
                 ) : (
-                    <img 
+                    <img
                         src={icon.src || QUESTION_MARK_ICON} // Fallback only for display
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-cover"
                     />
                 )}
             </div>
-            
+
             {/* ID */}
-            <span className="text-gray-600 text-[11px] font-mono min-w-[40px]">
-                [{itemId}]
-            </span>
-            
+            <span className="min-w-[40px] font-mono text-[11px] text-gray-600">[{itemId}]</span>
+
             {/* Name and Sync UI */}
-            <div className="flex-1 min-w-0 flex items-center justify-between">
-                <span 
-                    className={`
-                        text-[13px] font-bold truncate pr-2
-                        ${isUnknown ? 'text-gray-400 italic' : ''}
-                    `}
+            <div className="flex min-w-0 flex-1 items-center justify-between">
+                <span
+                    className={`truncate pr-2 text-[13px] font-bold ${isUnknown ? 'italic text-gray-400' : ''} `}
                     style={!isUnknown ? { color: qualityColor } : {}}
                 >
                     {localName || `Unknown Item #${itemId}`}
                 </span>
 
                 {isUnknown && (
-                    <button 
-                        className={`
-                            px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded shadow-sm flex-shrink-0
-                            transition-all duration-200
-                            ${syncing 
-                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                                : 'bg-blue-600 hover:bg-blue-500 text-white'
-                            }
-                        `}
+                    <button
+                        className={`flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all duration-200 ${
+                            syncing
+                                ? 'cursor-not-allowed bg-gray-600 text-gray-400'
+                                : 'bg-blue-600 text-white hover:bg-blue-500'
+                        } `}
                         onClick={handleSync}
                         disabled={syncing}
                         title="Sync item data from Turtle WoW Database"
@@ -114,10 +104,10 @@ export const LootItem = ({
                     </button>
                 )}
             </div>
-            
+
             {/* Drop Chance (optional) */}
             {showDropChance && item.dropChance && (
-                <span className="text-gray-500 text-[10px] uppercase tracking-tight ml-2">
+                <span className="ml-2 text-[10px] uppercase tracking-tight text-gray-500">
                     {item.dropChance}
                 </span>
             )}
@@ -128,20 +118,16 @@ export const LootItem = ({
 /**
  * Icon placeholder for non-item entities (NPC, Object, etc)
  */
-export const EntityIcon = ({ 
-    label, 
-    color = '#555',
-    size = 'md' 
-}) => {
+export const EntityIcon = ({ label, color = '#555', size = 'md' }) => {
     const sizes = {
         sm: 'w-6 h-6 text-[10px]',
         md: 'w-8 h-8 text-[11px]',
         lg: 'w-10 h-10 text-xs',
     }
-    
+
     return (
-        <div 
-            className={`${sizes[size]} rounded flex items-center justify-center font-bold text-white flex-shrink-0`}
+        <div
+            className={`${sizes[size]} flex flex-shrink-0 items-center justify-center rounded font-bold text-white`}
             style={{ backgroundColor: color }}
         >
             {label}

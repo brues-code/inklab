@@ -18,10 +18,8 @@ const OTHER_STAT_OPTIONS = [
 function FilterSection({ title, children }) {
     return (
         <div className="mb-4 px-2">
-            <div className="text-xs font-bold text-wow-gold uppercase mb-1">{title}</div>
-            <div className="space-y-2">
-                {children}
-            </div>
+            <div className="mb-1 text-xs font-bold uppercase text-wow-gold">{title}</div>
+            <div className="space-y-2">{children}</div>
         </div>
     )
 }
@@ -29,14 +27,14 @@ function FilterSection({ title, children }) {
 function RangeInput({ label, minVal, maxVal, onMinChange, onMaxChange }) {
     return (
         <div className="flex flex-col gap-1">
-            {label && <span className="text-gray-400 text-xs">{label}</span>}
+            {label && <span className="text-xs text-gray-400">{label}</span>}
             <div className="flex items-center gap-2">
                 <input
                     type="number"
                     value={minVal}
                     onChange={(e) => onMinChange(e.target.value)}
                     placeholder="0"
-                    className="w-full bg-black/40 border border-gray-700 rounded text-xs px-2 py-1 text-white focus:border-wow-gold outline-none"
+                    className="w-full rounded border border-gray-700 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-wow-gold"
                     min="0"
                     max="100"
                 />
@@ -46,7 +44,7 @@ function RangeInput({ label, minVal, maxVal, onMinChange, onMaxChange }) {
                     value={maxVal}
                     onChange={(e) => onMaxChange(e.target.value)}
                     placeholder="60"
-                    className="w-full bg-black/40 border border-gray-700 rounded text-xs px-2 py-1 text-white focus:border-wow-gold outline-none"
+                    className="w-full rounded border border-gray-700 bg-black/40 px-2 py-1 text-xs text-white outline-none focus:border-wow-gold"
                     min="0"
                     max="100"
                 />
@@ -55,19 +53,31 @@ function RangeInput({ label, minVal, maxVal, onMinChange, onMaxChange }) {
     )
 }
 
-function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onMaxValueChange, onRemove, options }) {
+function StatRow({
+    stat,
+    minValue,
+    maxValue,
+    onStatChange,
+    onMinValueChange,
+    onMaxValueChange,
+    onRemove,
+    options,
+}) {
     return (
-        <div className="flex gap-1 items-center">
+        <div className="flex items-center gap-1">
             <select
                 value={stat}
                 onChange={(e) => onStatChange(e.target.value)}
-                className="flex-1 min-w-0 bg-black/40 border border-gray-700 rounded text-xs px-1 py-1 text-gray-300 focus:border-wow-gold outline-none"
+                className="min-w-0 flex-1 rounded border border-gray-700 bg-black/40 px-1 py-1 text-xs text-gray-300 outline-none focus:border-wow-gold"
             >
                 {options.map((opt, idx) => (
                     <option
                         key={opt.value}
                         value={opt.value}
-                        style={{ backgroundColor: idx % 2 === 0 ? '#181818' : '#242424', color: '#e0e0e0' }}
+                        style={{
+                            backgroundColor: idx % 2 === 0 ? '#181818' : '#242424',
+                            color: '#e0e0e0',
+                        }}
                     >
                         {opt.label}
                     </option>
@@ -78,17 +88,17 @@ function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onM
                 value={minValue}
                 onChange={(e) => onMinValueChange(e.target.value)}
                 placeholder="Min"
-                className="w-14 bg-black/40 border border-gray-700 rounded text-xs px-1 py-1 text-white focus:border-wow-gold outline-none"
+                className="w-14 rounded border border-gray-700 bg-black/40 px-1 py-1 text-xs text-white outline-none focus:border-wow-gold"
                 step="0.1"
                 min="0"
             />
-            <span className="text-gray-500 text-xs">-</span>
+            <span className="text-xs text-gray-500">-</span>
             <input
                 type="number"
                 value={maxValue}
                 onChange={(e) => onMaxValueChange(e.target.value)}
                 placeholder="Max"
-                className="w-14 bg-black/40 border border-gray-700 rounded text-xs px-1 py-1 text-white focus:border-wow-gold outline-none"
+                className="w-14 rounded border border-gray-700 bg-black/40 px-1 py-1 text-xs text-white outline-none focus:border-wow-gold"
                 step="0.1"
                 min="0"
             />
@@ -97,7 +107,7 @@ function StatRow({ stat, minValue, maxValue, onStatChange, onMinValueChange, onM
                     type="button"
                     onClick={onRemove}
                     aria-label="Remove stat"
-                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-500 transition-colors hover:bg-red-900/30 hover:text-red-400"
                 >
                     ×
                 </button>
@@ -129,7 +139,7 @@ function StatFilterSection({ title, fieldKey, rows, options, onUpdate, onAdd, on
             <button
                 type="button"
                 onClick={() => onAdd(fieldKey)}
-                className="text-[11px] text-wow-gold/80 hover:text-wow-gold transition-colors"
+                className="text-[11px] text-wow-gold/80 transition-colors hover:text-wow-gold"
             >
                 + Add stat
             </button>
@@ -143,7 +153,7 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
     const { data: statTypes } = useItemStatTypes()
     const statOptions = [
         { value: '', label: '- Select -' },
-        ...(statTypes || []).map(s => ({ value: String(s.id), label: s.name })),
+        ...(statTypes || []).map((s) => ({ value: String(s.id), label: s.name })),
     ]
 
     const updateFilter = (key, value) => {
@@ -178,18 +188,15 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
 
     return (
         <SidebarPanel>
-             <SectionHeader 
-                title="Filters" 
-                noSearch={true}
-            />
-            <ScrollList className="p-2 space-y-4">
+            <SectionHeader title="Filters" noSearch={true} />
+            <ScrollList className="space-y-4 p-2">
                 {/* Item Level */}
                 <FilterSection title="Item Level">
                     <RangeInput
                         minVal={filters.minIlvl || ''}
                         maxVal={filters.maxIlvl || ''}
-                        onMinChange={(v) => onChange({...filters, minIlvl: v})}
-                        onMaxChange={(v) => onChange({...filters, maxIlvl: v})}
+                        onMinChange={(v) => onChange({ ...filters, minIlvl: v })}
+                        onMaxChange={(v) => onChange({ ...filters, maxIlvl: v })}
                     />
                 </FilterSection>
 
@@ -198,8 +205,8 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
                     <RangeInput
                         minVal={filters.minRl || ''}
                         maxVal={filters.maxRl || ''}
-                        onMinChange={(v) => onChange({...filters, minRl: v})}
-                        onMaxChange={(v) => onChange({...filters, maxRl: v})}
+                        onMinChange={(v) => onChange({ ...filters, minRl: v })}
+                        onMaxChange={(v) => onChange({ ...filters, maxRl: v })}
                     />
                 </FilterSection>
 
@@ -207,32 +214,38 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
                 <FilterSection title="Quality">
                     <div className="flex flex-wrap gap-1">
                         {['Poor', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'].map((q, i) => {
-                            const currentQualities = Array.isArray(filters.quality) ? filters.quality : []
+                            const currentQualities = Array.isArray(filters.quality)
+                                ? filters.quality
+                                : []
                             const isSelected = currentQualities.includes(i)
                             const color = getQualityColor(i)
                             const isHighContrast = ['Rare', 'Epic'].includes(q)
-                            
+
                             return (
                                 <button
                                     key={q}
                                     onClick={() => {
                                         const newQualities = isSelected
-                                            ? currentQualities.filter(q => q !== i)
+                                            ? currentQualities.filter((q) => q !== i)
                                             : [...currentQualities, i]
-                                        onChange({...filters, quality: newQualities})
+                                        onChange({ ...filters, quality: newQualities })
                                     }}
-                                    className={`
-                                        px-2 py-1 text-xs rounded border transition-all duration-200 flex-1 min-w-[45%] text-center font-medium
-                                        ${isSelected 
-                                            ? (isHighContrast ? 'text-white' : 'text-black') 
-                                            : 'bg-black/40 border-gray-700 hover:bg-black/60'}
-                                    `}
+                                    className={`min-w-[45%] flex-1 rounded border px-2 py-1 text-center text-xs font-medium transition-all duration-200 ${
+                                        isSelected
+                                            ? isHighContrast
+                                                ? 'text-white'
+                                                : 'text-black'
+                                            : 'border-gray-700 bg-black/40 hover:bg-black/60'
+                                    } `}
                                     style={{
                                         backgroundColor: isSelected ? color : undefined,
                                         borderColor: isSelected ? color : undefined,
                                         color: isSelected ? undefined : color,
-                                        textShadow: isSelected && isHighContrast ? '0 1px 2px rgba(0,0,0,0.8)' : 'none',
-                                        boxShadow: isSelected ? `0 0 15px ${color}66` : 'none'
+                                        textShadow:
+                                            isSelected && isHighContrast
+                                                ? '0 1px 2px rgba(0,0,0,0.8)'
+                                                : 'none',
+                                        boxShadow: isSelected ? `0 0 15px ${color}66` : 'none',
                                     }}
                                 >
                                     {q}
@@ -263,12 +276,12 @@ export default function ItemFilters({ filters, onChange, onSearch, onReset }) {
                     onAdd={addStat}
                     onRemove={removeStat}
                 />
-                
+
                 {/* Reset Button */}
-                <div className="pt-2 flex justify-center">
-                    <button 
+                <div className="flex justify-center pt-2">
+                    <button
                         onClick={handleReset}
-                        className="w-1/2 bg-red-900/30 border border-red-800 text-red-400 hover:bg-red-800/50 hover:text-white text-xs py-2 rounded transition-colors uppercase font-semibold"
+                        className="w-1/2 rounded border border-red-800 bg-red-900/30 py-2 text-xs font-semibold uppercase text-red-400 transition-colors hover:bg-red-800/50 hover:text-white"
                     >
                         Reset Filters
                     </button>

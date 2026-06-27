@@ -8,6 +8,7 @@ import { AdvancedSearch } from '../../../wailsjs/go/main/App'
 export const useGlobalSearch = (query: string) =>
     useQuery({
         queryKey: queryKeys.search(query),
-        queryFn: () => AdvancedSearch({ query, minLevel: 0, maxLevel: 0, quality: [], limit: 50, offset: 0 }),
+        queryFn: () =>
+            AdvancedSearch({ query, minLevel: 0, maxLevel: 0, quality: [], limit: 50, offset: 0 }),
         enabled: query.length >= 2,
     })

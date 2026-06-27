@@ -6,7 +6,14 @@
  * the per-hook fetch effect.
  */
 import { useQuery } from '@tanstack/react-query'
-import { loadImage, loadIcon, loadNpcModel, loadNpcPortrait, loadZoneMap, type ImageType } from './imageService'
+import {
+    loadImage,
+    loadIcon,
+    loadNpcModel,
+    loadNpcPortrait,
+    loadZoneMap,
+    type ImageType,
+} from './imageService'
 import { queryKeys } from '../hooks/queries/keys'
 
 /** Async-image hook state shared by every hook in this module. */
@@ -26,7 +33,11 @@ const imageState = (q: { data?: string | null; isLoading: boolean }): ImageState
 }
 
 /** Load a single image of the given type by name. */
-export const useImage = (imageType: ImageType, name?: string | null, remoteUrl: string | null = null): ImageState => {
+export const useImage = (
+    imageType: ImageType,
+    name?: string | null,
+    remoteUrl: string | null = null,
+): ImageState => {
     const q = useQuery({
         queryKey: queryKeys.image(imageType, name),
         queryFn: () => loadImage(imageType, name),
@@ -63,7 +74,12 @@ export const useNpcModel = (displayId: number, reloadKey = 0, creatureEntry = 0)
 }
 
 /** Load an NPC portrait (head shot) render, fully local. Mirrors useNpcModel. */
-export const useNpcPortrait = (displayId: number, reloadKey = 0, creatureEntry = 0, generate = true): ImageState => {
+export const useNpcPortrait = (
+    displayId: number,
+    reloadKey = 0,
+    creatureEntry = 0,
+    generate = true,
+): ImageState => {
     const q = useQuery({
         queryKey: queryKeys.npcPortrait(displayId, creatureEntry, generate, reloadKey),
         queryFn: () => loadNpcPortrait(displayId, creatureEntry, generate),

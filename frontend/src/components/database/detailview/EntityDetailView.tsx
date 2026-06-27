@@ -27,37 +27,64 @@ type Props = {
 
 export function EntityDetailView({ type, entry, onBack, onNavigate, tooltipHook }: Props) {
     return (
-        <div className="flex flex-col h-full flex-1 overflow-hidden">
+        <div className="flex h-full flex-1 flex-col overflow-hidden">
             {/* Detail header with breadcrumb */}
-            <div className="bg-bg-hover px-4 py-2 border-b border-border-dark flex items-center gap-4">
+            <div className="flex items-center gap-4 border-b border-border-dark bg-bg-hover px-4 py-2">
                 <button
                     onClick={onBack}
-                    className="bg-bg-panel border border-border-light text-gray-400 px-4 py-1.5 rounded hover:bg-bg-active hover:text-white transition-colors text-sm"
+                    className="rounded border border-border-light bg-bg-panel px-4 py-1.5 text-sm text-gray-400 transition-colors hover:bg-bg-active hover:text-white"
                 >
                     ← Back
                 </button>
-                <span className="text-gray-500 text-sm">
-                    Viewing: <b className="text-gray-300 uppercase">{type}</b>
-                    <span className="ml-2 font-mono bg-black/20 px-1.5 py-0.5 rounded">#{entry}</span>
+                <span className="text-sm text-gray-500">
+                    Viewing: <b className="uppercase text-gray-300">{type}</b>
+                    <span className="ml-2 rounded bg-black/20 px-1.5 py-0.5 font-mono">
+                        #{entry}
+                    </span>
                 </span>
             </div>
 
             {/* Detail content */}
             <div className="flex-1 overflow-auto">
                 {type === 'npc' && (
-                    <NPCDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} tooltipHook={tooltipHook} />
+                    <NPCDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        tooltipHook={tooltipHook}
+                    />
                 )}
                 {type === 'quest' && (
-                    <QuestDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} tooltipHook={tooltipHook} />
+                    <QuestDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        tooltipHook={tooltipHook}
+                    />
                 )}
                 {type === 'item' && (
-                    <ItemDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} tooltipHook={tooltipHook} />
+                    <ItemDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        tooltipHook={tooltipHook}
+                    />
                 )}
                 {type === 'spell' && (
-                    <SpellDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} tooltipHook={tooltipHook} />
+                    <SpellDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        tooltipHook={tooltipHook}
+                    />
                 )}
                 {type === 'object' && (
-                    <ObjectDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} tooltipHook={tooltipHook} />
+                    <ObjectDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        tooltipHook={tooltipHook}
+                    />
                 )}
                 {type === 'zone' && (
                     <ZoneDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} />

@@ -14,19 +14,18 @@ export function DataStatusBanner({ onGoToTools }) {
 
     // One-shot data-presence check, cached for the session.
     const { data: status } = useDataStatus()
-    const missing = [
-        status?.icons === 0 && 'icons',
-        status?.maps === 0 && 'zone maps',
-    ].filter(Boolean)
+    const missing = [status?.icons === 0 && 'icons', status?.maps === 0 && 'zone maps'].filter(
+        Boolean,
+    )
 
     if (dismissed || missing.length === 0) return null
 
     return (
-        <div className="flex items-center justify-between gap-4 px-5 py-2 text-sm bg-amber-500/15 border-b border-amber-500/40 text-amber-300">
+        <div className="flex items-center justify-between gap-4 border-b border-amber-500/40 bg-amber-500/15 px-5 py-2 text-sm text-amber-300">
             <span>
-                ⚠️ No <strong>{missing.join(' or ')}</strong> found — InkLab builds these
-                from your WoW client. Items will show placeholder icons and NPCs won't
-                show a zone map until you import them.
+                ⚠️ No <strong>{missing.join(' or ')}</strong> found — InkLab builds these from your
+                WoW client. Items will show placeholder icons and NPCs won't show a zone map until
+                you import them.
             </span>
             <div className="flex items-center gap-4">
                 <button
@@ -39,7 +38,7 @@ export function DataStatusBanner({ onGoToTools }) {
                     onClick={() => setDismissed(true)}
                     aria-label="Dismiss"
                     title="Dismiss for this session"
-                    className="text-amber-300/70 hover:text-amber-300 text-base leading-none"
+                    className="text-base leading-none text-amber-300/70 hover:text-amber-300"
                 >
                     ✕
                 </button>

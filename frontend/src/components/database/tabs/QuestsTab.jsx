@@ -1,8 +1,19 @@
 import { useMemo } from 'react'
 import { useStickyState } from '../../../hooks/useStickyState'
-import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
+import {
+    SidebarPanel,
+    ContentPanel,
+    ScrollList,
+    SectionHeader,
+    ListItem,
+    EntityIcon,
+} from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
-import { useQuestGroups, useQuestCategories, useQuestsByCategory } from '../../../hooks/queries/quests'
+import {
+    useQuestGroups,
+    useQuestCategories,
+    useQuestsByCategory,
+} from '../../../hooks/queries/quests'
 
 // Quest type badge colors
 const getQuestTypeInfo = (type) => {
@@ -44,20 +55,23 @@ function QuestsTab({ onNavigate }) {
     }
 
     const filteredGroups = useMemo(() => filterItems(groups, groupFilter), [groups, groupFilter])
-    const filteredCategories = useMemo(() => filterItems(categories, categoryFilter), [categories, categoryFilter])
+    const filteredCategories = useMemo(
+        () => filterItems(categories, categoryFilter),
+        [categories, categoryFilter],
+    )
     const filteredQuests = useMemo(() => filterItems(quests, questFilter), [quests, questFilter])
 
     return (
         <>
             {/* 1. Groups */}
             <SidebarPanel>
-                <SectionHeader 
+                <SectionHeader
                     title={`Quest Types (${filteredGroups.length})`}
                     placeholder="Filter groups..."
                     onFilterChange={setGroupFilter}
                 />
                 <ScrollList>
-                    {filteredGroups.map(group => (
+                    {filteredGroups.map((group) => (
                         <ListItem
                             key={group.id}
                             active={selectedGroup?.id === group.id}
@@ -71,21 +85,25 @@ function QuestsTab({ onNavigate }) {
 
             {/* 2. Categories */}
             <SidebarPanel>
-                <SectionHeader 
-                    title={selectedGroup ? `${selectedGroup.name} (${filteredCategories.length})` : 'Select Type'}
+                <SectionHeader
+                    title={
+                        selectedGroup
+                            ? `${selectedGroup.name} (${filteredCategories.length})`
+                            : 'Select Type'
+                    }
                     placeholder="Filter zones..."
                     onFilterChange={setCategoryFilter}
                 />
                 <ScrollList>
-                    {filteredCategories.map(cat => (
+                    {filteredCategories.map((cat) => (
                         <ListItem
                             key={cat.id}
                             active={selectedCategory?.id === cat.id}
                             onClick={() => pickCategory(cat)}
                         >
-                            <span className="flex justify-between w-full">
+                            <span className="flex w-full justify-between">
                                 <span>{cat.name}</span>
-                                <span className="text-gray-600 text-xs">({cat.questCount})</span>
+                                <span className="text-xs text-gray-600">({cat.questCount})</span>
                             </span>
                         </ListItem>
                     ))}
@@ -94,76 +112,83 @@ function QuestsTab({ onNavigate }) {
 
             {/* 3. Quests List (spans 2 columns) */}
             <ContentPanel className="col-span-2">
-                <SectionHeader 
-                    title={selectedCategory ? `${selectedCategory.name} (${filteredQuests.length})` : 'Select Category'}
+                <SectionHeader
+                    title={
+                        selectedCategory
+                            ? `${selectedCategory.name} (${filteredQuests.length})`
+                            : 'Select Category'
+                    }
                     placeholder="Filter quests..."
                     onFilterChange={setQuestFilter}
                     titleColor="#FFD100"
                 />
 
                 {questsQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
+                    <div className="flex flex-1 animate-pulse items-center justify-center italic text-wow-gold">
                         Loading quests...
                     </div>
                 )}
 
                 {!selectedCategory && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         Select a category to browse quests.
                     </div>
                 )}
 
                 {!questsQuery.isLoading && quests.length > 0 && (
-                    <ScrollList className="p-2 space-y-1">
-                        {filteredQuests.map(quest => {
+                    <ScrollList className="space-y-1 p-2">
+                        {filteredQuests.map((quest) => {
                             const typeInfo = getQuestTypeInfo(quest.type)
-                            
+
                             return (
-                                <div 
+                                <div
                                     key={quest.entry}
                                     onClick={() => onNavigate('quest', quest.entry)}
-                                    className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] border-wow-gold cursor-pointer transition-colors rounded-r group"
+                                    className="group flex cursor-pointer items-center gap-3 rounded-r border-l-[3px] border-wow-gold bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
                                 >
                                     {/* Level Badge */}
-                                    <EntityIcon 
+                                    <EntityIcon
                                         label={quest.questLevel > 0 ? quest.questLevel : '-'}
                                         color="#FFD100"
                                         size="md"
                                     />
-                                    
+
                                     {/* Entry ID */}
-                                    <span className="text-gray-600 text-[11px] font-mono min-w-[50px]">
+                                    <span className="min-w-[50px] font-mono text-[11px] text-gray-600">
                                         [{quest.entry}]
                                     </span>
-                                    
+
                                     {/* Title */}
-                                    <span className="text-wow-gold font-bold flex-1 group-hover:brightness-110 transition-all truncate">
+                                    <span className="flex-1 truncate font-bold text-wow-gold transition-all group-hover:brightness-110">
                                         {quest.title}
                                     </span>
-                                    
+
                                     {/* Min Level */}
                                     {quest.minLevel > 0 && (
-                                        <span className="text-gray-500 text-xs">
+                                        <span className="text-xs text-gray-500">
                                             Req Lvl {quest.minLevel}
                                         </span>
                                     )}
-                                    
+
                                     {/* Type Badge */}
                                     {typeInfo && (
-                                        <span 
-                                            className="px-1.5 py-0.5 rounded text-[10px] uppercase border"
-                                            style={{ 
-                                                color: typeInfo.color, 
-                                                borderColor: `${typeInfo.color}40` 
+                                        <span
+                                            className="rounded border px-1.5 py-0.5 text-[10px] uppercase"
+                                            style={{
+                                                color: typeInfo.color,
+                                                borderColor: `${typeInfo.color}40`,
                                             }}
                                         >
                                             {typeInfo.label}
                                         </span>
                                     )}
-                                    
+
                                     {/* XP */}
-                                    <span className="text-gray-500 text-xs font-mono">
-                                        XP: <b className="text-gray-400">{quest.rewardXp > 0 ? quest.rewardXp : '-'}</b>
+                                    <span className="font-mono text-xs text-gray-500">
+                                        XP:{' '}
+                                        <b className="text-gray-400">
+                                            {quest.rewardXp > 0 ? quest.rewardXp : '-'}
+                                        </b>
                                     </span>
                                 </div>
                             )

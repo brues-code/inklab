@@ -6,4 +6,8 @@ export const useZones = () =>
     useQuery({ queryKey: queryKeys.zones, queryFn: GetZones, staleTime: Infinity })
 
 export const useZoneDetail = (entry: number) =>
-    useQuery({ queryKey: queryKeys.zoneDetail(entry), queryFn: () => GetZoneDetail(entry), enabled: entry != null })
+    useQuery({
+        queryKey: queryKeys.zoneDetail(entry),
+        queryFn: () => GetZoneDetail(entry),
+        enabled: entry != null,
+    })

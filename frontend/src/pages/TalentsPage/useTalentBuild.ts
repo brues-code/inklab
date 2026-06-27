@@ -33,7 +33,7 @@ export function useTalentBuild(selected: string | null) {
             setOrder(next)
             if (selected) buildsByClass.set(selected, next)
         },
-        [selected]
+        [selected],
     )
 
     const setBuildFor = useCallback(
@@ -41,7 +41,7 @@ export function useTalentBuild(selected: string | null) {
             buildsByClass.set(classKey, next)
             if (classKey === selected) setOrder(next)
         },
-        [selected]
+        [selected],
     )
 
     return { order, applyOrder, setBuildFor }

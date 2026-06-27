@@ -14,7 +14,12 @@ export const useCreatureTypes = () =>
     useQuery({ queryKey: queryKeys.creatureTypes, queryFn: GetCreatureTypes, staleTime: Infinity })
 
 export const useBeastFamilies = (enabled: boolean) =>
-    useQuery({ queryKey: queryKeys.beastFamilies, queryFn: GetBeastFamilies, enabled, staleTime: Infinity })
+    useQuery({
+        queryKey: queryKeys.beastFamilies,
+        queryFn: GetBeastFamilies,
+        enabled,
+        staleTime: Infinity,
+    })
 
 type CreatureType = { type: number }
 type BeastFamily = { family: number }
@@ -22,10 +27,16 @@ type BeastFamily = { family: number }
 // Paginated creature browse for the active selection (a beast family when one is
 // picked, else the type), keyed by that selection. selectedType is non-null
 // whenever the query is enabled.
-export const useCreatures = (selectedType: CreatureType | null, selectedFamily: BeastFamily | null, isBeast: boolean) =>
+export const useCreatures = (
+    selectedType: CreatureType | null,
+    selectedFamily: BeastFamily | null,
+    isBeast: boolean,
+) =>
     useInfiniteQuery({
         queryKey: queryKeys.creatures(
-            isBeast && selectedFamily ? `family:${selectedFamily.family}` : `type:${selectedType?.type}`
+            isBeast && selectedFamily
+                ? `family:${selectedFamily.family}`
+                : `type:${selectedType?.type}`,
         ),
         queryFn: ({ pageParam }) =>
             isBeast && selectedFamily
@@ -38,4 +49,8 @@ export const useCreatures = (selectedType: CreatureType | null, selectedFamily: 
     })
 
 export const useNpcDetail = (entry: number) =>
-    useQuery({ queryKey: queryKeys.npcDetail(entry), queryFn: () => GetNpcFullDetails(entry), enabled: entry != null })
+    useQuery({
+        queryKey: queryKeys.npcDetail(entry),
+        queryFn: () => GetNpcFullDetails(entry),
+        enabled: entry != null,
+    })

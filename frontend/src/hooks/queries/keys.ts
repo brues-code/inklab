@@ -23,7 +23,8 @@ export const queryKeys = {
     // Items
     itemClasses: ['itemClasses'] as const,
     itemStatTypes: ['itemStatTypes'] as const,
-    items: (cls: unknown, subClass: unknown, slot: unknown) => ['items', cls, subClass, slot] as const,
+    items: (cls: unknown, subClass: unknown, slot: unknown) =>
+        ['items', cls, subClass, slot] as const,
     itemDetail: (entry: unknown) => ['itemDetail', entry] as const,
     itemFavorite: (entry: unknown) => ['itemFavorite', entry] as const,
     itemSets: ['itemSets'] as const,
@@ -61,7 +62,8 @@ export const queryKeys = {
     atlasCategories: ['atlasCategories'] as const,
     atlasModules: (category: unknown) => ['atlasModules', category] as const,
     atlasTables: (category: unknown, module: unknown) => ['atlasTables', category, module] as const,
-    atlasLoot: (category: unknown, module: unknown, table: unknown) => ['atlasLoot', category, module, table] as const,
+    atlasLoot: (category: unknown, module: unknown, table: unknown) =>
+        ['atlasLoot', category, module, table] as const,
 
     // Maps (flight network)
     flightContinents: ['flightContinents'] as const,
@@ -85,7 +87,11 @@ export const queryKeys = {
     icon: (name: unknown) => ['icon', name] as const,
     npcModel: (displayId: unknown, creatureEntry: unknown, reloadKey: unknown) =>
         ['npcModel', displayId, creatureEntry, reloadKey] as const,
-    npcPortrait: (displayId: unknown, creatureEntry: unknown, generate: unknown, reloadKey: unknown) =>
-        ['npcPortrait', displayId, creatureEntry, generate, reloadKey] as const,
+    npcPortrait: (
+        displayId: unknown,
+        creatureEntry: unknown,
+        generate: unknown,
+        reloadKey: unknown,
+    ) => ['npcPortrait', displayId, creatureEntry, generate, reloadKey] as const,
     zoneMap: (zoneName: unknown, reloadKey: unknown) => ['zoneMap', zoneName, reloadKey] as const,
 }

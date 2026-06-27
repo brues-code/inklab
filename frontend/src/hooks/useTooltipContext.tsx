@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type ReactNode,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouterState } from '@tanstack/react-router'
 import { useItemTooltip, type TooltipHook } from './useItemTooltip'
@@ -25,7 +33,13 @@ const TooltipContext = createContext<TooltipContextValue | null>(null)
 // Position is the cursor anchor clamped to the viewport using the tooltip's
 // MEASURED size (in useLayoutEffect, before paint) — so it can sit anywhere,
 // not just the top half.
-function HoveredTooltip({ hoveredItem, anchor }: { hoveredItem: number | null; anchor: { top: number; left: number } }) {
+function HoveredTooltip({
+    hoveredItem,
+    anchor,
+}: {
+    hoveredItem: number | null
+    anchor: { top: number; left: number }
+}) {
     const { data } = useQuery({ ...tooltipQuery(hoveredItem ?? 0), enabled: hoveredItem != null })
     const ref = useRef<HTMLDivElement>(null)
     const [pos, setPos] = useState(anchor)
@@ -42,7 +56,16 @@ function HoveredTooltip({ hoveredItem, anchor }: { hoveredItem: number | null; a
 
     if (hoveredItem == null || !data) return null
     return (
-        <div ref={ref} style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000, pointerEvents: 'none' }}>
+        <div
+            ref={ref}
+            style={{
+                position: 'fixed',
+                top: pos.top,
+                left: pos.left,
+                zIndex: 10000,
+                pointerEvents: 'none',
+            }}
+        >
             <ItemTooltip item={data} tooltip={data} style={{ position: 'static' }} />
         </div>
     )
@@ -51,8 +74,17 @@ function HoveredTooltip({ hoveredItem, anchor }: { hoveredItem: number | null; a
 // Floating tooltip for the currently-hovered spell. Mirrors HoveredTooltip: reads
 // the shared spell-detail cache (warmed on hover) and clamps to the viewport
 // using the tooltip's measured size.
-function HoveredSpellTooltip({ hoveredSpell, anchor }: { hoveredSpell: number | null; anchor: { top: number; left: number } }) {
-    const { data } = useQuery({ ...spellDetailQuery(hoveredSpell ?? 0), enabled: hoveredSpell != null })
+function HoveredSpellTooltip({
+    hoveredSpell,
+    anchor,
+}: {
+    hoveredSpell: number | null
+    anchor: { top: number; left: number }
+}) {
+    const { data } = useQuery({
+        ...spellDetailQuery(hoveredSpell ?? 0),
+        enabled: hoveredSpell != null,
+    })
     const ref = useRef<HTMLDivElement>(null)
     const [pos, setPos] = useState(anchor)
 
@@ -68,7 +100,16 @@ function HoveredSpellTooltip({ hoveredSpell, anchor }: { hoveredSpell: number | 
 
     if (hoveredSpell == null || !data) return null
     return (
-        <div ref={ref} style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000, pointerEvents: 'none' }}>
+        <div
+            ref={ref}
+            style={{
+                position: 'fixed',
+                top: pos.top,
+                left: pos.left,
+                zIndex: 10000,
+                pointerEvents: 'none',
+            }}
+        >
             <SpellTooltip spell={data} style={{ position: 'static' }} />
         </div>
     )
@@ -95,7 +136,10 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
         <TooltipContext.Provider value={value}>
             {children}
             <HoveredTooltip hoveredItem={hook.hoveredItem} anchor={hook.tooltipPos} />
-            <HoveredSpellTooltip hoveredSpell={spellHook.hoveredSpell} anchor={spellHook.spellPos} />
+            <HoveredSpellTooltip
+                hoveredSpell={spellHook.hoveredSpell}
+                anchor={spellHook.spellPos}
+            />
         </TooltipContext.Provider>
     )
 }

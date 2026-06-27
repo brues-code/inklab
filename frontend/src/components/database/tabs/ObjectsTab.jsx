@@ -1,13 +1,23 @@
 import { useMemo } from 'react'
 import { useStickyState } from '../../../hooks/useStickyState'
-import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
+import {
+    SidebarPanel,
+    ContentPanel,
+    ScrollList,
+    SectionHeader,
+    ListItem,
+    EntityIcon,
+} from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useObjectTypes, useObjectsByType } from '../../../hooks/queries/objects'
 
 const OBJECT_COLOR = '#00B4FF'
 
 function ObjectsTab({ onNavigate }) {
-    const [selectedObjectType, setSelectedObjectType] = useStickyState('objects.selectedObjectType', null)
+    const [selectedObjectType, setSelectedObjectType] = useStickyState(
+        'objects.selectedObjectType',
+        null,
+    )
 
     const [typeFilter, setTypeFilter] = useStickyState('objects.typeFilter', '')
     const [objectFilter, setObjectFilter] = useStickyState('objects.objectFilter', '')
@@ -23,31 +33,39 @@ function ObjectsTab({ onNavigate }) {
         setObjectFilter('')
     }
 
-    const filteredTypes = useMemo(() => filterItems(objectTypes, typeFilter), [objectTypes, typeFilter])
-    const filteredObjects = useMemo(() => filterItems(objects, objectFilter), [objects, objectFilter])
+    const filteredTypes = useMemo(
+        () => filterItems(objectTypes, typeFilter),
+        [objectTypes, typeFilter],
+    )
+    const filteredObjects = useMemo(
+        () => filterItems(objects, objectFilter),
+        [objects, objectFilter],
+    )
 
     return (
         <>
             {/* Object Types */}
             <SidebarPanel className="col-span-1">
-                <SectionHeader 
+                <SectionHeader
                     title={`Object Types (${filteredTypes.length})`}
                     placeholder="Filter types..."
                     onFilterChange={setTypeFilter}
                 />
                 <ScrollList>
                     {typesQuery.isLoading && (
-                        <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading types...</div>
+                        <div className="animate-pulse p-4 text-center italic text-wow-gold">
+                            Loading types...
+                        </div>
                     )}
-                    {filteredTypes.map(type => (
+                    {filteredTypes.map((type) => (
                         <ListItem
                             key={type.id}
                             active={selectedObjectType?.id === type.id}
                             onClick={() => pickType(type)}
                         >
-                            <span className="flex justify-between w-full">
+                            <span className="flex w-full justify-between">
                                 <span>{type.name}</span>
-                                <span className="text-gray-600 text-xs">({type.count})</span>
+                                <span className="text-xs text-gray-600">({type.count})</span>
                             </span>
                         </ListItem>
                     ))}
@@ -56,54 +74,54 @@ function ObjectsTab({ onNavigate }) {
 
             {/* Objects List */}
             <ContentPanel className="col-span-3">
-                <SectionHeader 
-                    title={selectedObjectType ? `${selectedObjectType.name} (${filteredObjects.length})` : 'Select a Type'}
+                <SectionHeader
+                    title={
+                        selectedObjectType
+                            ? `${selectedObjectType.name} (${filteredObjects.length})`
+                            : 'Select a Type'
+                    }
                     placeholder="Filter objects..."
                     onFilterChange={setObjectFilter}
                 />
-                
+
                 {objectsQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
+                    <div className="flex flex-1 animate-pulse items-center justify-center italic text-wow-gold">
                         Loading objects...
                     </div>
                 )}
 
                 {!objectsQuery.isLoading && objects.length > 0 && (
-                    <ScrollList className="p-2 space-y-1">
-                        {filteredObjects.map(obj => (
-                            <div 
+                    <ScrollList className="space-y-1 p-2">
+                        {filteredObjects.map((obj) => (
+                            <div
                                 key={obj.entry}
-                                className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] cursor-pointer transition-colors rounded-r"
+                                className="flex cursor-pointer items-center gap-3 rounded-r border-l-[3px] bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
                                 style={{ borderLeftColor: OBJECT_COLOR }}
                                 onClick={() => onNavigate?.('object', obj.entry)}
                             >
-                                <EntityIcon 
-                                    label="OBJ"
-                                    color={OBJECT_COLOR}
-                                    size="md"
-                                />
-                                
-                                <span className="text-gray-600 text-[11px] font-mono min-w-[50px]">
+                                <EntityIcon label="OBJ" color={OBJECT_COLOR} size="md" />
+
+                                <span className="min-w-[50px] font-mono text-[11px] text-gray-600">
                                     [{obj.entry}]
                                 </span>
-                                
-                                <span 
-                                    className="font-bold flex-1 truncate"
+
+                                <span
+                                    className="flex-1 truncate font-bold"
                                     style={{ color: OBJECT_COLOR }}
                                 >
                                     {obj.name}
                                 </span>
-                                
-                                <span className="text-gray-500 text-xs ml-auto">
+
+                                <span className="ml-auto text-xs text-gray-500">
                                     Type: {obj.typeName || obj.type} | Size: {obj.size.toFixed(1)}
                                 </span>
                             </div>
                         ))}
                     </ScrollList>
                 )}
-                
+
                 {!selectedObjectType && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         Select an object type to browse
                     </div>
                 )}

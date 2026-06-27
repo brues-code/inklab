@@ -1,6 +1,13 @@
 import { useMemo } from 'react'
 import { useStickyState } from '../../../hooks/useStickyState'
-import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
+import {
+    SidebarPanel,
+    ContentPanel,
+    ScrollList,
+    SectionHeader,
+    ListItem,
+    EntityIcon,
+} from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useZones } from '../../../hooks/queries/zones'
 
@@ -33,10 +40,13 @@ function ZonesTab({ onNavigate }) {
 
     const filteredGroups = useMemo(() => filterItems(groups, groupFilter), [groups, groupFilter])
     const zonesInGroup = useMemo(
-        () => zones.filter(z => effectiveGroup && z.groupId === effectiveGroup.id),
-        [zones, effectiveGroup]
+        () => zones.filter((z) => effectiveGroup && z.groupId === effectiveGroup.id),
+        [zones, effectiveGroup],
     )
-    const filteredZones = useMemo(() => filterItems(zonesInGroup, zoneFilter), [zonesInGroup, zoneFilter])
+    const filteredZones = useMemo(
+        () => filterItems(zonesInGroup, zoneFilter),
+        [zonesInGroup, zoneFilter],
+    )
 
     return (
         <>
@@ -49,9 +59,11 @@ function ZonesTab({ onNavigate }) {
                 />
                 <ScrollList>
                     {zonesQuery.isLoading && (
-                        <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading zones...</div>
+                        <div className="animate-pulse p-4 text-center italic text-wow-gold">
+                            Loading zones...
+                        </div>
                     )}
-                    {filteredGroups.map(group => (
+                    {filteredGroups.map((group) => (
                         <ListItem
                             key={group.id}
                             active={effectiveGroup?.id === group.id}
@@ -60,9 +72,9 @@ function ZonesTab({ onNavigate }) {
                                 setZoneFilter('')
                             }}
                         >
-                            <span className="flex justify-between w-full">
+                            <span className="flex w-full justify-between">
                                 <span>{group.name}</span>
-                                <span className="text-gray-600 text-xs">({group.count})</span>
+                                <span className="text-xs text-gray-600">({group.count})</span>
                             </span>
                         </ListItem>
                     ))}
@@ -72,31 +84,38 @@ function ZonesTab({ onNavigate }) {
             {/* Zone List */}
             <ContentPanel className="col-span-3">
                 <SectionHeader
-                    title={effectiveGroup ? `${effectiveGroup.name} (${filteredZones.length})` : 'Select a Region'}
+                    title={
+                        effectiveGroup
+                            ? `${effectiveGroup.name} (${filteredZones.length})`
+                            : 'Select a Region'
+                    }
                     placeholder="Filter zones..."
                     onFilterChange={setZoneFilter}
                 />
 
                 {!zonesQuery.isLoading && filteredZones.length > 0 && (
-                    <ScrollList className="p-2 space-y-1">
-                        {filteredZones.map(zone => (
+                    <ScrollList className="space-y-1 p-2">
+                        {filteredZones.map((zone) => (
                             <div
                                 key={zone.id}
-                                className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] cursor-pointer transition-colors rounded-r"
+                                className="flex cursor-pointer items-center gap-3 rounded-r border-l-[3px] bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
                                 style={{ borderLeftColor: ZONE_COLOR }}
                                 onClick={() => onNavigate?.('zone', zone.id)}
                             >
                                 <EntityIcon label="MAP" color={ZONE_COLOR} size="md" />
 
-                                <span className="text-gray-600 text-[11px] font-mono min-w-[50px]">
+                                <span className="min-w-[50px] font-mono text-[11px] text-gray-600">
                                     [{zone.id}]
                                 </span>
 
-                                <span className="font-bold flex-1 truncate" style={{ color: ZONE_COLOR }}>
+                                <span
+                                    className="flex-1 truncate font-bold"
+                                    style={{ color: ZONE_COLOR }}
+                                >
                                     {zone.name}
                                 </span>
 
-                                <span className="text-gray-500 text-xs ml-auto whitespace-nowrap">
+                                <span className="ml-auto whitespace-nowrap text-xs text-gray-500">
                                     {zone.npcCount} NPCs · {zone.questCount} quests
                                 </span>
                             </div>
@@ -105,13 +124,13 @@ function ZonesTab({ onNavigate }) {
                 )}
 
                 {!zonesQuery.isLoading && effectiveGroup && filteredZones.length === 0 && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         No zones match.
                     </div>
                 )}
 
                 {!effectiveGroup && !zonesQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         Select a region to browse its zones
                     </div>
                 )}

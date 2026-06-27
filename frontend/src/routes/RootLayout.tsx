@@ -19,7 +19,13 @@ type NavTabProps = {
 // so "Database" stays lit across all /database/* routes (tabs + detail).
 function NavTab({ to, params, children }: NavTabProps) {
     return (
-        <Link to={to} params={params} activeOptions={{ exact: false }} className={NAV_BASE} activeProps={{ className: NAV_ACTIVE }}>
+        <Link
+            to={to}
+            params={params}
+            activeOptions={{ exact: false }}
+            className={NAV_BASE}
+            activeProps={{ className: NAV_ACTIVE }}
+        >
             {children}
         </Link>
     )
@@ -34,15 +40,15 @@ export function RootLayout() {
     const navigate = useNavigate()
 
     return (
-        <div className="h-screen flex flex-col bg-bg-dark text-white">
+        <div className="flex h-screen flex-col bg-bg-dark text-white">
             <UpdateBanner />
             <DataStatusBanner onGoToTools={() => navigate({ to: '/tools' })} />
 
             {/* Header */}
-            <header className="bg-gradient-to-b from-[#2a2a3a] to-bg-main border-b-[3px] border-bg-dark px-5 py-3 flex items-center justify-between">
+            <header className="flex items-center justify-between border-b-[3px] border-bg-dark bg-gradient-to-b from-[#2a2a3a] to-bg-main px-5 py-3">
                 <div className="flex items-center gap-5">
-                    <h1 className="text-2xl text-wow-gold font-normal drop-shadow-md flex items-center gap-2.5">
-                        <img src="/logo.png" alt="InkLab" className="w-12 h-12" />
+                    <h1 className="flex items-center gap-2.5 text-2xl font-normal text-wow-gold drop-shadow-md">
+                        <img src="/logo.png" alt="InkLab" className="h-12 w-12" />
                         InkLab
                     </h1>
                     <nav className="flex gap-1">

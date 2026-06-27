@@ -27,8 +27,8 @@ function SetsTab({ tooltipHook, onNavigate }) {
     // Class filter: a set matches when its derived classMask has the bit set.
     // Unrestricted sets (classMask 0) only show under "All".
     const classFilteredSets = useMemo(
-        () => classBit === 0 ? itemSets : itemSets.filter(s => (s.classMask & classBit) !== 0),
-        [itemSets, classBit]
+        () => (classBit === 0 ? itemSets : itemSets.filter((s) => (s.classMask & classBit) !== 0)),
+        [itemSets, classBit],
     )
 
     // The set to show detail for: the explicit selection, else the first set of
@@ -41,13 +41,21 @@ function SetsTab({ tooltipHook, onNavigate }) {
     // Class options from game data (ChrClasses.dbc); bit = 1 << (classId - 1) to
     // match items' allowable_class.
     const classOptions = useMemo(
-        () => (classesQuery.data || [])
-            .map(c => ({ name: c.name || c.class, bit: 1 << (c.classId - 1), color: c.color }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        [classesQuery.data]
+        () =>
+            (classesQuery.data || [])
+                .map((c) => ({
+                    name: c.name || c.class,
+                    bit: 1 << (c.classId - 1),
+                    color: c.color,
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name)),
+        [classesQuery.data],
     )
 
-    const filteredItemSets = useMemo(() => filterItems(classFilteredSets, setFilter), [classFilteredSets, setFilter])
+    const filteredItemSets = useMemo(
+        () => filterItems(classFilteredSets, setFilter),
+        [classFilteredSets, setFilter],
+    )
     const filteredSetItems = useMemo(() => {
         if (!setDetail?.items) return []
         return filterItems(setDetail.items, itemFilter)
@@ -55,8 +63,11 @@ function SetsTab({ tooltipHook, onNavigate }) {
 
     // Per-class set counts for the first column.
     const countForBit = (bit) =>
-        bit === 0 ? itemSets.length : itemSets.filter(s => (s.classMask & bit) !== 0).length
-    const filteredClasses = useMemo(() => filterItems(classOptions, classFilter), [classOptions, classFilter])
+        bit === 0 ? itemSets.length : itemSets.filter((s) => (s.classMask & bit) !== 0).length
+    const filteredClasses = useMemo(
+        () => filterItems(classOptions, classFilter),
+        [classOptions, classFilter],
+    )
 
     // Selecting a class resets filters and clears the explicit set, so the detail
     // defaults to that class's first set (via effectiveSet).
@@ -78,16 +89,22 @@ function SetsTab({ tooltipHook, onNavigate }) {
                 />
                 <ScrollList>
                     <ListItem active={classBit === 0} onClick={() => selectClass(0)}>
-                        <span className="flex justify-between w-full">
+                        <span className="flex w-full justify-between">
                             <span>All Classes</span>
-                            <span className="text-gray-600 text-xs">({countForBit(0)})</span>
+                            <span className="text-xs text-gray-600">({countForBit(0)})</span>
                         </span>
                     </ListItem>
-                    {filteredClasses.map(c => (
-                        <ListItem key={c.bit} active={classBit === c.bit} onClick={() => selectClass(c.bit)}>
-                            <span className="flex justify-between w-full">
+                    {filteredClasses.map((c) => (
+                        <ListItem
+                            key={c.bit}
+                            active={classBit === c.bit}
+                            onClick={() => selectClass(c.bit)}
+                        >
+                            <span className="flex w-full justify-between">
                                 <span style={{ color: c.color || undefined }}>{c.name}</span>
-                                <span className="text-gray-600 text-xs">({countForBit(c.bit)})</span>
+                                <span className="text-xs text-gray-600">
+                                    ({countForBit(c.bit)})
+                                </span>
                             </span>
                         </ListItem>
                     ))}
@@ -103,9 +120,11 @@ function SetsTab({ tooltipHook, onNavigate }) {
                 />
                 <ScrollList>
                     {itemSetsQuery.isLoading && (
-                        <div className="p-4 text-center text-wow-gold italic animate-pulse">Loading sets...</div>
+                        <div className="animate-pulse p-4 text-center italic text-wow-gold">
+                            Loading sets...
+                        </div>
                     )}
-                    {filteredItemSets.map(set => (
+                    {filteredItemSets.map((set) => (
                         <ListItem
                             key={set.itemsetId}
                             active={effectiveSet?.itemsetId === set.itemsetId}
@@ -114,9 +133,13 @@ function SetsTab({ tooltipHook, onNavigate }) {
                                 setItemFilter('')
                             }}
                         >
-                            <span className="flex justify-between w-full items-start gap-2">
-                                <span className="whitespace-normal break-words text-left">{set.name}</span>
-                                <span className="text-gray-600 text-xs shrink-0 mt-0.5">({set.itemCount})</span>
+                            <span className="flex w-full items-start justify-between gap-2">
+                                <span className="whitespace-normal break-words text-left">
+                                    {set.name}
+                                </span>
+                                <span className="mt-0.5 shrink-0 text-xs text-gray-600">
+                                    ({set.itemCount})
+                                </span>
                             </span>
                         </ListItem>
                     ))}
@@ -126,28 +149,32 @@ function SetsTab({ tooltipHook, onNavigate }) {
             {/* Set Details */}
             <ContentPanel>
                 <SectionHeader
-                    title={effectiveSet ? `${effectiveSet.name} (${filteredSetItems.length})` : 'Select a Set'}
+                    title={
+                        effectiveSet
+                            ? `${effectiveSet.name} (${filteredSetItems.length})`
+                            : 'Select a Set'
+                    }
                     placeholder="Filter items..."
                     onFilterChange={setItemFilter}
                 />
 
                 {setDetailQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center text-wow-gold italic animate-pulse">
+                    <div className="flex flex-1 animate-pulse items-center justify-center italic text-wow-gold">
                         Loading set details...
                     </div>
                 )}
 
                 {setDetail && !setDetailQuery.isLoading && (
-                    <ScrollList className="p-2 space-y-2">
+                    <ScrollList className="space-y-2 p-2">
                         {/* Set Items */}
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-1">
+                        <div className="grid grid-cols-1 gap-1 xl:grid-cols-2">
                             {filteredSetItems.map((item, idx) => {
                                 const handlers = tooltipHook.getItemHandlers?.(item.entry) || {
                                     onMouseEnter: () => handleItemEnter(item.entry),
                                     onMouseMove: (e) => handleMouseMove(e, item.entry),
                                     onMouseLeave: () => setHoveredItem(null),
                                 }
-                                
+
                                 return (
                                     <LootItem
                                         key={item.entry || idx}
@@ -158,23 +185,25 @@ function SetsTab({ tooltipHook, onNavigate }) {
                                 )
                             })}
                         </div>
-                        
+
                         {/* Set Bonuses */}
                         {setDetail.bonuses?.length > 0 && (
-                            <div className="mt-4 p-4 bg-bg-main rounded-lg border border-border-dark">
-                                <h3 className="text-wow-gold font-bold mb-3 text-sm uppercase tracking-wider">
+                            <div className="mt-4 rounded-lg border border-border-dark bg-bg-main p-4">
+                                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-wow-gold">
                                     Set Bonuses
                                 </h3>
                                 <div className="space-y-2">
                                     {setDetail.bonuses.map((bonus, idx) => (
-                                        <div 
-                                            key={idx} 
-                                            className="text-wow-uncommon text-sm flex items-center gap-2"
+                                        <div
+                                            key={idx}
+                                            className="flex items-center gap-2 text-sm text-wow-uncommon"
                                         >
-                                            <span className="bg-wow-uncommon/10 text-wow-uncommon px-2 py-0.5 rounded text-xs font-mono">
+                                            <span className="rounded bg-wow-uncommon/10 px-2 py-0.5 font-mono text-xs text-wow-uncommon">
                                                 {bonus.threshold}pc
                                             </span>
-                                            <span>{bonus.description || `Spell ID: ${bonus.spellId}`}</span>
+                                            <span>
+                                                {bonus.description || `Spell ID: ${bonus.spellId}`}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
@@ -182,9 +211,9 @@ function SetsTab({ tooltipHook, onNavigate }) {
                         )}
                     </ScrollList>
                 )}
-                
+
                 {!effectiveSet && !itemSetsQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         Select an item set to view its items
                     </div>
                 )}

@@ -11,21 +11,22 @@ const SpellTooltip = ({ spell, style }) => {
     if (!spell) {
         return (
             <div
-                className="flex flex-col gap-1 p-2.5 bg-[#070707] border border-border-light rounded pointer-events-none min-w-[220px] shadow-xl"
+                className="pointer-events-none flex min-w-[220px] flex-col gap-1 rounded border border-border-light bg-[#070707] p-2.5 shadow-xl"
                 style={style}
             >
-                <div className="font-bold text-sm text-wow-gold">Loading…</div>
+                <div className="text-sm font-bold text-wow-gold">Loading…</div>
             </div>
         )
     }
 
     const schoolName = spell.schoolName || getSchoolName(spell.school)
     const schoolColor = getSchoolColor(spell.school)
-    const cost = spell.manaCost > 0 ? `${spell.manaCost} ${POWER_TYPES[spell.powerType] || 'Power'}` : ''
+    const cost =
+        spell.manaCost > 0 ? `${spell.manaCost} ${POWER_TYPES[spell.powerType] || 'Power'}` : ''
     // A line with an optional left/right pair; renders only if either side exists.
     const Row = ({ left, right }) =>
-        (left || right) ? (
-            <div className="flex justify-between gap-4 text-white leading-tight">
+        left || right ? (
+            <div className="flex justify-between gap-4 leading-tight text-white">
                 <span>{left || ''}</span>
                 <span className="text-gray-300">{right || ''}</span>
             </div>
@@ -33,12 +34,14 @@ const SpellTooltip = ({ spell, style }) => {
 
     return (
         <div
-            className="flex flex-col gap-0.5 p-2.5 bg-[#070707] border border-border-light rounded pointer-events-none select-none min-w-[220px] max-w-[320px] shadow-2xl font-sans text-xs"
+            className="pointer-events-none flex min-w-[220px] max-w-[320px] select-none flex-col gap-0.5 rounded border border-border-light bg-[#070707] p-2.5 font-sans text-xs shadow-2xl"
             style={style}
         >
             {/* Name + rank */}
-            <div className="font-bold text-[14px] leading-tight text-wow-gold">{spell.name}</div>
-            {spell.nameSubtext && <div className="text-gray-400 leading-tight">{spell.nameSubtext}</div>}
+            <div className="text-[14px] font-bold leading-tight text-wow-gold">{spell.name}</div>
+            {spell.nameSubtext && (
+                <div className="leading-tight text-gray-400">{spell.nameSubtext}</div>
+            )}
 
             {/* Cost / cast time, range / duration */}
             <div className="mt-1 flex flex-col gap-0.5">
@@ -48,14 +51,14 @@ const SpellTooltip = ({ spell, style }) => {
 
             {/* School */}
             {schoolName && (
-                <div className="leading-tight font-medium" style={{ color: schoolColor }}>
+                <div className="font-medium leading-tight" style={{ color: schoolColor }}>
                     {schoolName}
                 </div>
             )}
 
             {/* Description (spellbook gold) */}
             {(spell.description || spell.toolTip) && (
-                <div className="mt-1 text-[#ffd100] leading-snug whitespace-pre-wrap">
+                <div className="mt-1 whitespace-pre-wrap leading-snug text-[#ffd100]">
                     {spell.description || spell.toolTip}
                 </div>
             )}

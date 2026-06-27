@@ -3,7 +3,9 @@ import { queryKeys } from './keys'
 import { GetTalentClasses } from '../../utils/databaseApi'
 
 const GetTalentTrees = (cls: string) =>
-    window?.go?.main?.App?.GetTalentTrees ? window.go.main.App.GetTalentTrees(cls) : Promise.resolve(null)
+    window?.go?.main?.App?.GetTalentTrees
+        ? window.go.main.App.GetTalentTrees(cls)
+        : Promise.resolve(null)
 
 // Class list is shared with the Sets-tab class filter; both static for a session.
 

@@ -7,7 +7,15 @@ export const useObjectTypes = () =>
     useQuery({ queryKey: queryKeys.objectTypes, queryFn: GetObjectTypes, staleTime: Infinity })
 
 export const useObjectsByType = (typeId: number | undefined, enabled: boolean) =>
-    useQuery({ queryKey: queryKeys.objectsByType(typeId), queryFn: () => GetObjectsByType(typeId!, ''), enabled })
+    useQuery({
+        queryKey: queryKeys.objectsByType(typeId),
+        queryFn: () => GetObjectsByType(typeId!, ''),
+        enabled,
+    })
 
 export const useObjectDetail = (entry: number) =>
-    useQuery({ queryKey: queryKeys.objectDetail(entry), queryFn: () => GetObjectDetail(entry), enabled: entry != null })
+    useQuery({
+        queryKey: queryKeys.objectDetail(entry),
+        queryFn: () => GetObjectDetail(entry),
+        enabled: entry != null,
+    })

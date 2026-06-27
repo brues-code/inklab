@@ -4,16 +4,17 @@ import React from 'react'
  * WoW-styled button component
  * @param {string} variant - 'primary' | 'secondary' | 'back' | 'tab'
  */
-export const WowButton = ({ 
-    children, 
-    onClick, 
-    variant = 'primary', 
+export const WowButton = ({
+    children,
+    onClick,
+    variant = 'primary',
     active = false,
     className = '',
-    ...props 
+    ...props
 }) => {
-    const baseClasses = 'px-4 py-2 font-bold text-sm cursor-pointer transition-all duration-200 border'
-    
+    const baseClasses =
+        'px-4 py-2 font-bold text-sm cursor-pointer transition-all duration-200 border'
+
     const variants = {
         primary: `bg-wow-rare border-wow-rare/30 text-white rounded hover:brightness-110 active:scale-95`,
         secondary: `bg-bg-hover border-border-light text-white rounded hover:bg-bg-active`,
@@ -22,9 +23,9 @@ export const WowButton = ({
             active ? '!bg-bg-active !text-white !border-border-light' : ''
         }`,
     }
-    
+
     return (
-        <button 
+        <button
             onClick={onClick}
             className={`${baseClasses} ${variants[variant]} ${className}`}
             {...props}
@@ -37,22 +38,14 @@ export const WowButton = ({
 /**
  * Clickable list item for sidebars
  */
-export const ListItem = ({ 
-    children, 
-    onClick, 
-    active = false,
-    className = '' 
-}) => (
+export const ListItem = ({ children, onClick, active = false, className = '' }) => (
     <div
         onClick={onClick}
-        className={`
-            px-3 py-2 text-[13px] cursor-pointer transition-colors
-            ${active 
-                ? 'bg-bg-hover text-white border-l-2 border-wow-gold' 
-                : 'text-gray-400 hover:bg-bg-panel border-l-2 border-transparent'
-            }
-            ${className}
-        `}
+        className={`cursor-pointer px-3 py-2 text-[13px] transition-colors ${
+            active
+                ? 'border-l-2 border-wow-gold bg-bg-hover text-white'
+                : 'border-l-2 border-transparent text-gray-400 hover:bg-bg-panel'
+        } ${className} `}
     >
         {children}
     </div>
@@ -71,7 +64,7 @@ export const TabButton = ({ children, onClick, active = false }) => (
  * Tab container
  */
 export const TabBar = ({ children, className = '' }) => (
-    <div className={`flex gap-0 px-2.5 bg-bg-main border-b border-border-light ${className}`}>
+    <div className={`flex gap-0 border-b border-border-light bg-bg-main px-2.5 ${className}`}>
         {children}
     </div>
 )

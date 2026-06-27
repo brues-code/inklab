@@ -35,8 +35,8 @@ const tierOpen = (tree, points, t) => cumPointsBelow(tree, points, t.row) >= 5 *
 const buildValid = (trees, points) =>
     trees.every((tree) =>
         tree.talents.every(
-            (t) => !(points[t.id] > 0) || (tierOpen(tree, points, t) && prereqMet(points, t))
-        )
+            (t) => !(points[t.id] > 0) || (tierOpen(tree, points, t) && prereqMet(points, t)),
+        ),
     )
 
 const reqTextFor = (tree, points, t) => {
@@ -107,7 +107,10 @@ function decodeTurtlePoints(points) {
         const all = turtleBits(points)
         return [all.slice(0, 28), all.slice(28, 56), all.slice(56, 84)]
     }
-    return points.split('-').slice(0, 3).map((seg) => [...turtleBits(seg.padEnd(14, 'A')), 0])
+    return points
+        .split('-')
+        .slice(0, 3)
+        .map((seg) => [...turtleBits(seg.padEnd(14, 'A')), 0])
 }
 
 // Encode our build as a TurtleWoW ?points= URL (inverse of the decoder above):
@@ -120,7 +123,9 @@ function encodeTurtleURL(classKey, trees, points) {
         tr.talents.forEach((t) => (arr[t.row * 4 + t.col] = points[t.id] || 0))
         const bits = arr.map((r) => r.toString(2).padStart(3, '0')).join('')
         const bytes = (bits.match(/.{1,8}/g) ?? []).map((b) => parseInt(b, 2))
-        return btoa(String.fromCharCode(...bytes)).slice(0, -1).replace(/A+$/, '')
+        return btoa(String.fromCharCode(...bytes))
+            .slice(0, -1)
+            .replace(/A+$/, '')
     })
     return `https://talents.turtlecraft.gg/${classKey.toLowerCase()}?points=${segs.join('-')}`
 }
@@ -133,7 +138,10 @@ function parseTurtle(raw) {
     const cm = raw.match(/\/([a-zA-Z]+)\s*\?/) || raw.match(/turtlecraft\.gg\/([a-zA-Z]+)/i)
     if (!cm) return null
     try {
-        return { classKey: cm[1].toUpperCase(), ranks: decodeTurtlePoints(decodeURIComponent(pm[1])) }
+        return {
+            classKey: cm[1].toUpperCase(),
+            ranks: decodeTurtlePoints(decodeURIComponent(pm[1])),
+        }
     } catch {
         return null
     }
@@ -164,7 +172,10 @@ function orderFromRanks(trees, treeRanks) {
                 if ((cur[t.id] || 0) >= (target[t.id] || 0)) continue
                 const tierOpen = sp >= 5 * t.row
                 const prereqOk = !t.reqTalent || (cur[t.reqTalent] || 0) >= t.reqRank + 1
-                if (tierOpen && prereqOk) { pick = t; break }
+                if (tierOpen && prereqOk) {
+                    pick = t
+                    break
+                }
             }
             if (pick) break
         }
@@ -181,7 +192,7 @@ function TalentIcon({ icon }) {
     const { src } = useIcon(icon)
     return (
         <div
-            className="w-full h-full bg-cover bg-center"
+            className="h-full w-full bg-cover bg-center"
             style={{ backgroundImage: src ? `url(${src})` : 'none', backgroundColor: '#111' }}
         />
     )
@@ -201,23 +212,27 @@ function TalentTooltip({ talent, rank, reqText, available, x, y }) {
     }
     return (
         <div
-            className="fixed z-50 w-[300px] rounded border border-zinc-600 bg-black/95 p-2.5 text-sm shadow-xl pointer-events-none"
+            className="pointer-events-none fixed z-50 w-[300px] rounded border border-zinc-600 bg-black/95 p-2.5 text-sm shadow-xl"
             style={style}
         >
-            <div className="text-wow-gold font-semibold leading-tight">{talent.name || `Talent ${talent.id}`}</div>
-            <div className="text-zinc-400 text-xs mb-1">
+            <div className="font-semibold leading-tight text-wow-gold">
+                {talent.name || `Talent ${talent.id}`}
+            </div>
+            <div className="mb-1 text-xs text-zinc-400">
                 Rank {rank}/{talent.maxRank}
             </div>
-            {rankDesc && <div className="text-[#ffd100] whitespace-pre-wrap leading-snug">{rankDesc}</div>}
+            {rankDesc && (
+                <div className="whitespace-pre-wrap leading-snug text-[#ffd100]">{rankDesc}</div>
+            )}
             {nextDesc && (
                 <div className="mt-1.5 border-t border-zinc-700 pt-1.5">
-                    <div className="text-zinc-400 text-xs">Next rank:</div>
-                    <div className="text-zinc-300 whitespace-pre-wrap leading-snug">{nextDesc}</div>
+                    <div className="text-xs text-zinc-400">Next rank:</div>
+                    <div className="whitespace-pre-wrap leading-snug text-zinc-300">{nextDesc}</div>
                 </div>
             )}
-            {reqText && <div className="mt-1.5 text-red-400 whitespace-pre-line">{reqText}</div>}
+            {reqText && <div className="mt-1.5 whitespace-pre-line text-red-400">{reqText}</div>}
             {!reqText && rank < talent.maxRank && available && (
-                <div className="mt-1.5 text-emerald-400/80 text-xs">Click to learn</div>
+                <div className="mt-1.5 text-xs text-emerald-400/80">Click to learn</div>
             )}
         </div>
     )
@@ -274,28 +289,45 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
 
     return (
         <div className="flex flex-col">
-            <div className="flex items-baseline justify-between px-1 mb-1">
-                <span className="text-wow-gold font-semibold">{tree.name}</span>
-                <span className="text-zinc-300 text-sm tabular-nums">{treeSpent}</span>
+            <div className="mb-1 flex items-baseline justify-between px-1">
+                <span className="font-semibold text-wow-gold">{tree.name}</span>
+                <span className="text-sm tabular-nums text-zinc-300">{treeSpent}</span>
             </div>
             <div
-                className="relative rounded-md border-2 border-[#6b5a2e] overflow-hidden"
+                className="relative overflow-hidden rounded-md border-2 border-[#6b5a2e]"
                 style={{ width: GRID_W, height: GRID_H }}
             >
                 {/* parchment backdrop */}
                 <div
                     className="absolute inset-0 bg-cover bg-center"
-                    style={{ backgroundImage: bg ? `url(${bg})` : 'none', backgroundColor: '#16130c' }}
+                    style={{
+                        backgroundImage: bg ? `url(${bg})` : 'none',
+                        backgroundColor: '#16130c',
+                    }}
                 />
                 <div className="absolute inset-0 bg-black/35" />
 
                 {/* prerequisite arrows */}
                 <svg className="absolute inset-0" width={GRID_W} height={GRID_H}>
                     <defs>
-                        <marker id={`ah-on-${tree.id}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                        <marker
+                            id={`ah-on-${tree.id}`}
+                            markerWidth="6"
+                            markerHeight="6"
+                            refX="3"
+                            refY="3"
+                            orient="auto"
+                        >
                             <path d="M0,0 L6,3 L0,6 Z" fill="#ffd100" />
                         </marker>
-                        <marker id={`ah-off-${tree.id}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                        <marker
+                            id={`ah-off-${tree.id}`}
+                            markerWidth="6"
+                            markerHeight="6"
+                            refX="3"
+                            refY="3"
+                            orient="auto"
+                        >
                             <path d="M0,0 L6,3 L0,6 Z" fill="#555" />
                         </marker>
                     </defs>
@@ -334,7 +366,12 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
                         <div
                             key={t.id}
                             className="absolute"
-                            style={{ left: cellLeft(t.col), top: cellTop(t.row), width: CELL, height: CELL }}
+                            style={{
+                                left: cellLeft(t.col),
+                                top: cellTop(t.row),
+                                width: CELL,
+                                height: CELL,
+                            }}
                             onMouseEnter={(e) => onHover(t, tree, e)}
                             onMouseMove={(e) => onHover(t, tree, e)}
                             onMouseLeave={onLeave}
@@ -345,7 +382,7 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
                             }}
                         >
                             <div
-                                className={`w-full h-full rounded-sm border-2 ${NODE_BORDER[st.color]} overflow-hidden cursor-pointer transition-shadow ${
+                                className={`h-full w-full rounded-sm border-2 ${NODE_BORDER[st.color]} cursor-pointer overflow-hidden transition-shadow ${
                                     st.dim ? 'opacity-50 grayscale' : ''
                                 }`}
                             >
@@ -353,7 +390,7 @@ function TalentTree({ tree, points, treeSpent, totalSpent, onChange, onHover, on
                             </div>
                             {st.showNumbers && (
                                 <div
-                                    className={`absolute -bottom-1 -right-1 px-1 rounded-sm text-[11px] font-bold leading-tight border border-black/70 tabular-nums bg-black ${BADGE_TEXT[st.color]}`}
+                                    className={`absolute -bottom-1 -right-1 rounded-sm border border-black/70 bg-black px-1 text-[11px] font-bold tabular-nums leading-tight ${BADGE_TEXT[st.color]}`}
                                 >
                                     {st.rank}/{t.maxRank}
                                 </div>
@@ -395,8 +432,11 @@ function TalentsPage() {
 
     // {class, classId, name, color}, sorted alphabetically by name.
     const classes = useMemo(
-        () => [...(classesQuery.data || [])].sort((a, b) => (a.name || a.class).localeCompare(b.name || b.class)),
-        [classesQuery.data]
+        () =>
+            [...(classesQuery.data || [])].sort((a, b) =>
+                (a.name || a.class).localeCompare(b.name || b.class),
+            ),
+        [classesQuery.data],
     )
     // class token <-> WoW class id, sourced from the backend (not hardcoded)
     const classMap = useMemo(() => {
@@ -435,7 +475,7 @@ function TalentsPage() {
     }, [data, points])
     const totalSpent = useMemo(
         () => Object.values(treeSpent).reduce((s, n) => s + n, 0),
-        [treeSpent]
+        [treeSpent],
     )
 
     // Flat talent lookup, and the leveling order: one row per point spent, with
@@ -456,25 +496,28 @@ function TalentsPage() {
         })
     }, [order, talentById])
 
-    const change = useCallback((talentId, delta) => {
-        if (delta > 0) {
-            applyOrder([...order, talentId])
-            return
-        }
-        // Remove the most recent point spent on this talent…
-        const i = order.lastIndexOf(talentId)
-        if (i === -1) return
-        const next = order.slice()
-        next.splice(i, 1)
-        // …but only if the build stays valid. Otherwise a higher tier would lose
-        // the points it depends on (you must remove those first).
-        if (data?.trees) {
-            const pts = {}
-            for (const id of next) pts[id] = (pts[id] || 0) + 1
-            if (!buildValid(data.trees, pts)) return
-        }
-        applyOrder(next)
-    }, [order, applyOrder, data])
+    const change = useCallback(
+        (talentId, delta) => {
+            if (delta > 0) {
+                applyOrder([...order, talentId])
+                return
+            }
+            // Remove the most recent point spent on this talent…
+            const i = order.lastIndexOf(talentId)
+            if (i === -1) return
+            const next = order.slice()
+            next.splice(i, 1)
+            // …but only if the build stays valid. Otherwise a higher tier would lose
+            // the points it depends on (you must remove those first).
+            if (data?.trees) {
+                const pts = {}
+                for (const id of next) pts[id] = (pts[id] || 0) + 1
+                if (!buildValid(data.trees, pts)) return
+            }
+            applyOrder(next)
+        },
+        [order, applyOrder, data],
+    )
 
     // Live shareable build code (class id + ordered allocations).
     const code = useMemo(() => {
@@ -487,7 +530,7 @@ function TalentsPage() {
     // Equivalent build as a TurtleWoW link (final ranks; order isn't expressible).
     const turtleUrl = useMemo(
         () => (selected && data?.trees ? encodeTurtleURL(selected, data.trees, points) : ''),
-        [selected, data, points]
+        [selected, data, points],
     )
 
     const copy = useCallback(async (text, tag) => {
@@ -574,15 +617,17 @@ function TalentsPage() {
     return (
         <div className="h-full overflow-auto bg-bg-dark">
             {/* class selector */}
-            <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-border-dark bg-bg-main sticky top-0 z-20">
+            <div className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-border-dark bg-bg-main px-5 py-3">
                 {classes.map((c) => {
                     const active = c.class === selected
                     return (
                         <button
                             key={c.class}
                             onClick={() => selectClass(c.class)}
-                            className={`px-3 py-1.5 rounded font-semibold text-sm border transition-colors ${
-                                active ? 'bg-bg-active border-border-highlight' : 'bg-bg-panel border-border-dark hover:bg-bg-hover'
+                            className={`rounded border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                                active
+                                    ? 'border-border-highlight bg-bg-active'
+                                    : 'border-border-dark bg-bg-panel hover:bg-bg-hover'
                             }`}
                             style={{ color: c.color || '#ccc' }}
                         >
@@ -600,19 +645,23 @@ function TalentsPage() {
                 <div className="flex items-center gap-4">
                     <span className="text-zinc-300">
                         Points:{' '}
-                        <span className={totalSpent >= MAX_POINTS ? 'text-emerald-400' : 'text-wow-gold'}>
+                        <span
+                            className={
+                                totalSpent >= MAX_POINTS ? 'text-emerald-400' : 'text-wow-gold'
+                            }
+                        >
                             {totalSpent}
                         </span>
                         <span className="text-zinc-500"> / {MAX_POINTS}</span>
                     </span>
                     {data?.trees && (
-                        <span className="text-zinc-500 text-sm tabular-nums">
+                        <span className="text-sm tabular-nums text-zinc-500">
                             {data.trees.map((tr) => treeSpent[tr.id] || 0).join(' / ')}
                         </span>
                     )}
                     <button
                         onClick={() => applyOrder([])}
-                        className="px-3 py-1.5 rounded text-sm bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
+                        className="rounded border border-border-dark bg-bg-panel px-3 py-1.5 text-sm text-zinc-300 hover:bg-bg-hover"
                     >
                         Reset
                     </button>
@@ -621,24 +670,24 @@ function TalentsPage() {
 
             {/* share / import build code */}
             {data?.trees && (
-                <div className="flex items-center justify-center gap-2 px-5 pb-3 flex-wrap">
+                <div className="flex flex-wrap items-center justify-center gap-2 px-5 pb-3">
                     <span className="text-xs text-zinc-500">Build:</span>
                     <input
                         readOnly
                         value={code}
                         onFocus={(e) => e.target.select()}
-                        className="font-mono text-xs bg-bg-panel border border-border-dark rounded px-2 py-1 text-zinc-300 w-[240px]"
+                        className="w-[240px] rounded border border-border-dark bg-bg-panel px-2 py-1 font-mono text-xs text-zinc-300"
                     />
                     <button
                         onClick={() => copy(code, 'mine')}
-                        className="px-2.5 py-1 rounded text-xs bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
+                        className="rounded border border-border-dark bg-bg-panel px-2.5 py-1 text-xs text-zinc-300 hover:bg-bg-hover"
                     >
                         {copied === 'mine' ? 'Copied!' : 'Copy'}
                     </button>
                     <button
                         onClick={() => copy(turtleUrl, 'turtle')}
                         title="Copy as a TurtleWoW calculator link"
-                        className="px-2.5 py-1 rounded text-xs bg-bg-panel border border-border-dark hover:bg-bg-hover text-zinc-300"
+                        className="rounded border border-border-dark bg-bg-panel px-2.5 py-1 text-xs text-zinc-300 hover:bg-bg-hover"
                     >
                         {copied === 'turtle' ? 'Copied!' : 'Turtle link'}
                     </button>
@@ -651,11 +700,11 @@ function TalentsPage() {
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && doImport()}
                         placeholder="Paste a build code or TurtleWoW link…"
-                        className="font-mono text-xs bg-bg-main border border-border-dark rounded px-2 py-1 text-white w-[240px] outline-none focus:border-wow-rare"
+                        className="w-[240px] rounded border border-border-dark bg-bg-main px-2 py-1 font-mono text-xs text-white outline-none focus:border-wow-rare"
                     />
                     <button
                         onClick={doImport}
-                        className="px-2.5 py-1 rounded text-xs bg-wow-rare/80 hover:bg-wow-rare text-white font-semibold"
+                        className="rounded bg-wow-rare/80 px-2.5 py-1 text-xs font-semibold text-white hover:bg-wow-rare"
                     >
                         Import
                     </button>
@@ -667,7 +716,7 @@ function TalentsPage() {
             {loading ? (
                 <div className="px-5 py-10 text-zinc-500">Loading talents…</div>
             ) : data?.trees ? (
-                <div className="flex gap-6 px-5 pb-8 justify-center flex-wrap">
+                <div className="flex flex-wrap justify-center gap-6 px-5 pb-8">
                     {data.trees
                         .slice()
                         .sort((a, b) => a.order - b.order)
@@ -690,30 +739,34 @@ function TalentsPage() {
 
             {/* leveling order: the sequence points were spent in */}
             {data?.trees && leveling.length > 0 && (
-                <div className="px-5 pb-12 flex justify-center">
+                <div className="flex justify-center px-5 pb-12">
                     <div className="w-full max-w-md">
-                        <h3 className="text-wow-gold font-semibold uppercase text-sm mb-2 text-center">
+                        <h3 className="mb-2 text-center text-sm font-semibold uppercase text-wow-gold">
                             Leveling Order
                         </h3>
-                        <table className="w-full text-sm border-collapse">
+                        <table className="w-full border-collapse text-sm">
                             <thead>
-                                <tr className="text-zinc-500 text-[11px] uppercase tracking-wide">
-                                    <th className="text-left font-medium px-2 py-1 w-12">Lvl</th>
-                                    <th className="text-left font-medium px-2 py-1" colSpan={2}>Talent</th>
+                                <tr className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                    <th className="w-12 px-2 py-1 text-left font-medium">Lvl</th>
+                                    <th className="px-2 py-1 text-left font-medium" colSpan={2}>
+                                        Talent
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {leveling.map((row, i) => (
                                     <tr key={i} className="border-t border-border-dark/40">
-                                        <td className="px-2 py-1 font-mono text-zinc-400 tabular-nums">{row.level}</td>
-                                        <td className="px-2 py-1 w-7">
-                                            <div className="w-6 h-6 rounded-sm overflow-hidden border border-black/50">
+                                        <td className="px-2 py-1 font-mono tabular-nums text-zinc-400">
+                                            {row.level}
+                                        </td>
+                                        <td className="w-7 px-2 py-1">
+                                            <div className="h-6 w-6 overflow-hidden rounded-sm border border-black/50">
                                                 <TalentIcon icon={row.icon} />
                                             </div>
                                         </td>
                                         <td className="px-2 py-1">
                                             <span className="text-zinc-200">{row.name}</span>
-                                            <span className="ml-2 text-zinc-500 text-xs tabular-nums">
+                                            <span className="ml-2 text-xs tabular-nums text-zinc-500">
                                                 {row.rank}/{row.maxRank}
                                             </span>
                                         </td>

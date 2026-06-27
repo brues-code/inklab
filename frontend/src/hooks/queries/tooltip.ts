@@ -2,7 +2,9 @@ import { queryKeys } from './keys'
 
 /** Fetch one item's tooltip payload from the backend. */
 const fetchTooltip = (itemId: number) =>
-    window?.go?.main?.App?.GetTooltipData ? window.go.main.App.GetTooltipData(itemId) : Promise.resolve(null)
+    window?.go?.main?.App?.GetTooltipData
+        ? window.go.main.App.GetTooltipData(itemId)
+        : Promise.resolve(null)
 
 /**
  * Shared Query options for an item tooltip. Spread into a useQuery call so every

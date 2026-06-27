@@ -4,9 +4,7 @@ import React from 'react'
  * Main page layout container - full height flex column
  */
 export const PageLayout = ({ children, className = '' }) => (
-    <div className={`h-full flex flex-col bg-bg-dark ${className}`}>
-        {children}
-    </div>
+    <div className={`flex h-full flex-col bg-bg-dark ${className}`}>{children}</div>
 )
 
 /**
@@ -14,8 +12,8 @@ export const PageLayout = ({ children, className = '' }) => (
  * grid-template-columns value (e.g. "180px 1fr").
  */
 export const ContentGrid = ({ children, columns, className = '' }) => (
-    <div 
-        className={`flex-1 grid gap-0 overflow-hidden ${className}`}
+    <div
+        className={`grid flex-1 gap-0 overflow-hidden ${className}`}
         style={columns ? { gridTemplateColumns: columns } : undefined}
     >
         {children}
@@ -26,7 +24,9 @@ export const ContentGrid = ({ children, columns, className = '' }) => (
  * Sidebar panel - left column with dark bg and border
  */
 export const SidebarPanel = ({ children, className = '' }) => (
-    <aside className={`flex flex-col h-full bg-bg-main border-r border-border-dark overflow-hidden ${className}`}>
+    <aside
+        className={`flex h-full flex-col overflow-hidden border-r border-border-dark bg-bg-main ${className}`}
+    >
         {children}
     </aside>
 )
@@ -35,7 +35,7 @@ export const SidebarPanel = ({ children, className = '' }) => (
  * Main content panel - flexible content area
  */
 export const ContentPanel = ({ children, className = '' }) => (
-    <section className={`flex flex-col h-full bg-bg-panel overflow-hidden flex-1 ${className}`}>
+    <section className={`flex h-full flex-1 flex-col overflow-hidden bg-bg-panel ${className}`}>
         {children}
     </section>
 )
@@ -44,11 +44,7 @@ export const ContentPanel = ({ children, className = '' }) => (
  * Scrollable list container inside panels
  */
 export const ScrollList = React.forwardRef(({ children, className = '', ...props }, ref) => (
-    <div 
-        ref={ref}
-        className={`flex-1 overflow-y-auto p-1 space-y-px ${className}`}
-        {...props}
-    >
+    <div ref={ref} className={`flex-1 space-y-px overflow-y-auto p-1 ${className}`} {...props}>
         {children}
     </div>
 ))

@@ -1,6 +1,13 @@
 import { useMemo } from 'react'
 import { useStickyState } from '../../../hooks/useStickyState'
-import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
+import {
+    SidebarPanel,
+    ContentPanel,
+    ScrollList,
+    SectionHeader,
+    ListItem,
+    EntityIcon,
+} from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import {
     useSpellCategories,
@@ -10,23 +17,23 @@ import {
     useSpellsBySkill,
 } from '../../../hooks/queries/spells'
 import { useIcon } from '../../../services/useImage'
-import { QUESTION_MARK_ICON } from "../../../utils/wow.ts";
+import { QUESTION_MARK_ICON } from '../../../utils/wow'
 
 const SpellListItemIcon = ({ iconName, spellColor }) => {
     const icon = useIcon(iconName)
 
     return (
         <div
-            className="w-8 h-8 rounded border flex-shrink-0 bg-black/40 flex items-center justify-center overflow-hidden"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded border bg-black/40"
             style={{ borderColor: spellColor }}
         >
             {icon.loading ? (
-                <div className="w-full h-full bg-white/5 animate-pulse" />
+                <div className="h-full w-full animate-pulse bg-white/5" />
             ) : (
                 <img
                     src={icon.src || QUESTION_MARK_ICON}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                 />
             )}
         </div>
@@ -56,7 +63,10 @@ function SpellsTab({ onNavigate, tooltipHook }) {
     // the cached entry. Downstream selection is reset in the click handlers.
     const categoriesQuery = useSpellCategories()
     const classesQuery = useSpellClasses(isClassCategory)
-    const categorySkillsQuery = useSpellSkillsByCategory(selectedCategory?.id, !!selectedCategory && !isClassCategory)
+    const categorySkillsQuery = useSpellSkillsByCategory(
+        selectedCategory?.id,
+        !!selectedCategory && !isClassCategory,
+    )
     const classSkillsQuery = useSpellSkillsByClass(selectedClass?.id, !!selectedClass)
     const spellsQuery = useSpellsBySkill(selectedSkill?.id, !!selectedSkill)
 
@@ -89,7 +99,10 @@ function SpellsTab({ onNavigate, tooltipHook }) {
         setSkillFilter('')
     }
 
-    const filteredCategories = useMemo(() => filterItems(categories, categoryFilter), [categories, categoryFilter])
+    const filteredCategories = useMemo(
+        () => filterItems(categories, categoryFilter),
+        [categories, categoryFilter],
+    )
     const filteredClasses = useMemo(() => filterItems(classes, skillFilter), [classes, skillFilter])
     const filteredSkills = useMemo(() => filterItems(skills, skillFilter), [skills, skillFilter])
     const filteredSpells = useMemo(() => filterItems(spells, spellFilter), [spells, spellFilter])
@@ -100,7 +113,8 @@ function SpellsTab({ onNavigate, tooltipHook }) {
     let middleTitle = 'Select Category'
     if (selectedCategory) {
         if (showingClassPicker) middleTitle = `${selectedCategory.name} (${filteredClasses.length})`
-        else if (isClassCategory && selectedClass) middleTitle = `${selectedClass.name} (${filteredSkills.length})`
+        else if (isClassCategory && selectedClass)
+            middleTitle = `${selectedClass.name} (${filteredSkills.length})`
         else middleTitle = `${selectedCategory.name} (${filteredSkills.length})`
     }
 
@@ -114,7 +128,7 @@ function SpellsTab({ onNavigate, tooltipHook }) {
                     onFilterChange={setCategoryFilter}
                 />
                 <ScrollList>
-                    {filteredCategories.map(cat => (
+                    {filteredCategories.map((cat) => (
                         <ListItem
                             key={cat.id}
                             active={selectedCategory?.id === cat.id}
@@ -130,22 +144,24 @@ function SpellsTab({ onNavigate, tooltipHook }) {
             <SidebarPanel>
                 <SectionHeader
                     title={middleTitle}
-                    placeholder={showingClassPicker ? "Filter classes..." : "Filter skills..."}
+                    placeholder={showingClassPicker ? 'Filter classes...' : 'Filter skills...'}
                     onFilterChange={setSkillFilter}
                 />
                 <ScrollList>
                     {/* Class picker (Class Skills only) */}
-                    {showingClassPicker && filteredClasses.map(cls => (
-                        <ListItem
-                            key={cls.id}
-                            onClick={() => pickClass(cls)}
-                        >
-                            <span className="flex justify-between w-full">
-                                <span style={{ color: cls.color || undefined }}>{cls.name}</span>
-                                <span className="text-gray-600 text-xs">({cls.skillCount})</span>
-                            </span>
-                        </ListItem>
-                    ))}
+                    {showingClassPicker &&
+                        filteredClasses.map((cls) => (
+                            <ListItem key={cls.id} onClick={() => pickClass(cls)}>
+                                <span className="flex w-full justify-between">
+                                    <span style={{ color: cls.color || undefined }}>
+                                        {cls.name}
+                                    </span>
+                                    <span className="text-xs text-gray-600">
+                                        ({cls.skillCount})
+                                    </span>
+                                </span>
+                            </ListItem>
+                        ))}
 
                     {/* Back to classes */}
                     {isClassCategory && selectedClass && (
@@ -155,69 +171,78 @@ function SpellsTab({ onNavigate, tooltipHook }) {
                     )}
 
                     {/* Skill lines */}
-                    {!showingClassPicker && filteredSkills.map(skill => (
-                        <ListItem
-                            key={skill.id}
-                            active={selectedSkill?.id === skill.id}
-                            onClick={() => pickSkill(skill)}
-                        >
-                            <span className="flex justify-between w-full">
-                                <span>{skill.name}</span>
-                                <span className="text-gray-600 text-xs">({skill.spellCount})</span>
-                            </span>
-                        </ListItem>
-                    ))}
+                    {!showingClassPicker &&
+                        filteredSkills.map((skill) => (
+                            <ListItem
+                                key={skill.id}
+                                active={selectedSkill?.id === skill.id}
+                                onClick={() => pickSkill(skill)}
+                            >
+                                <span className="flex w-full justify-between">
+                                    <span>{skill.name}</span>
+                                    <span className="text-xs text-gray-600">
+                                        ({skill.spellCount})
+                                    </span>
+                                </span>
+                            </ListItem>
+                        ))}
                 </ScrollList>
             </SidebarPanel>
 
             {/* 3. Spells List */}
             <ContentPanel className="col-span-2">
                 <SectionHeader
-                    title={selectedSkill ? `${selectedSkill.name} (${filteredSpells.length})` : 'Select Skill'}
+                    title={
+                        selectedSkill
+                            ? `${selectedSkill.name} (${filteredSpells.length})`
+                            : 'Select Skill'
+                    }
                     placeholder="Filter spells..."
                     onFilterChange={setSpellFilter}
                     titleColor={SPELL_COLOR}
                 />
 
                 {spellsQuery.isLoading && (
-                    <div className="flex-1 flex items-center justify-center italic animate-pulse" style={{ color: SPELL_COLOR }}>
+                    <div
+                        className="flex flex-1 animate-pulse items-center justify-center italic"
+                        style={{ color: SPELL_COLOR }}
+                    >
                         Loading spells...
                     </div>
                 )}
 
                 {!selectedSkill && (
-                    <div className="flex-1 flex items-center justify-center text-gray-600 italic">
+                    <div className="flex flex-1 items-center justify-center italic text-gray-600">
                         Select a skill to browse spells.
                     </div>
                 )}
 
                 {!spellsQuery.isLoading && spells.length > 0 && (
-                    <ScrollList className="p-2 space-y-1">
-                        {filteredSpells.map(spell => (
+                    <ScrollList className="space-y-1 p-2">
+                        {filteredSpells.map((spell) => (
                             <div
                                 key={spell.entry}
-                                className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] transition-colors rounded-r cursor-pointer"
+                                className="flex cursor-pointer items-center gap-3 rounded-r border-l-[3px] bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
                                 style={{ borderLeftColor: SPELL_COLOR }}
                                 onClick={() => onNavigate && onNavigate('spell', spell.entry)}
                                 {...(tooltipHook?.getSpellHandlers?.(spell.entry) || {})}
                             >
                                 {spell.icon ? (
-                                    <SpellListItemIcon iconName={spell.icon} spellColor={SPELL_COLOR} />
-                                ) : (
-                                    <EntityIcon
-                                        label="SPL"
-                                        color={SPELL_COLOR}
-                                        size="md"
+                                    <SpellListItemIcon
+                                        iconName={spell.icon}
+                                        spellColor={SPELL_COLOR}
                                     />
+                                ) : (
+                                    <EntityIcon label="SPL" color={SPELL_COLOR} size="md" />
                                 )}
 
-                                <span className="text-gray-600 text-[11px] font-mono min-w-[50px]">
+                                <span className="min-w-[50px] font-mono text-[11px] text-gray-600">
                                     [{spell.entry}]
                                 </span>
 
-                                <div className="flex flex-col flex-1 min-w-0">
+                                <div className="flex min-w-0 flex-1 flex-col">
                                     <span
-                                        className="font-bold truncate"
+                                        className="truncate font-bold"
                                         style={{ color: SPELL_COLOR }}
                                     >
                                         {spell.name}
@@ -228,7 +253,7 @@ function SpellsTab({ onNavigate, tooltipHook }) {
                                         )}
                                     </span>
                                     {spell.description && (
-                                        <span className="text-gray-500 text-xs truncate mt-0.5">
+                                        <span className="mt-0.5 truncate text-xs text-gray-500">
                                             {spell.description.length > 100
                                                 ? spell.description.substring(0, 100) + '...'
                                                 : spell.description}

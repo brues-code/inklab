@@ -33,7 +33,7 @@ export function useSpellTooltip() {
             onMouseMove: (e: MouseEvent<HTMLElement>) => handleSpellMove(e, spellId),
             onMouseLeave: handleSpellLeave,
         }),
-        [handleSpellEnter, handleSpellMove, handleSpellLeave]
+        [handleSpellEnter, handleSpellMove, handleSpellLeave],
     )
 
     return { hoveredSpell, setHoveredSpell, spellPos, getSpellHandlers }

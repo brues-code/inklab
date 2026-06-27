@@ -16,8 +16,8 @@ type SetState<T> = (value: T | ((prev: T) => T)) => void
 export function useStickyState<T>(key: string, initial: T): [T, SetState<T>] {
     const [state, setState] = useState<T>(() => (store.has(key) ? (store.get(key) as T) : initial))
 
-    const set: SetState<T> = value => {
-        setState(prev => {
+    const set: SetState<T> = (value) => {
+        setState((prev) => {
             const next = typeof value === 'function' ? (value as (prev: T) => T)(prev) : value
             store.set(key, next)
             return next

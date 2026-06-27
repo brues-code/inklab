@@ -3,50 +3,60 @@
 
 // Detail APIs (consolidated from services/api.js)
 export const GetQuestDetail = (entry: number) => {
-    console.log(`[API] Fetching Quest Detail for: ${entry}`);
+    console.log(`[API] Fetching Quest Detail for: ${entry}`)
     if (window?.go?.main?.App?.GetQuestDetail) {
         return window.go.main.App.GetQuestDetail(entry)
-            .then(res => {
-                console.log(`[API] Received Quest Detail for ${entry}:`, res);
-                return res;
+            .then((res) => {
+                console.log(`[API] Received Quest Detail for ${entry}:`, res)
+                return res
             })
-            .catch(err => {
-                console.error(`[API] Failed to get Quest Detail for ${entry}:`, err);
-                throw err;
-            });
+            .catch((err) => {
+                console.error(`[API] Failed to get Quest Detail for ${entry}:`, err)
+                throw err
+            })
     }
-    console.warn(`[API] GetQuestDetail not found in Wails App!`);
+    console.warn(`[API] GetQuestDetail not found in Wails App!`)
     return Promise.resolve(null)
 }
 
 export const GetCreatureDetail = (entry: number) => {
-    console.log(`[API] Fetching Creature Detail for: ${entry}`);
+    console.log(`[API] Fetching Creature Detail for: ${entry}`)
     if (window?.go?.main?.App?.GetCreatureDetail) {
-        return window.go.main.App.GetCreatureDetail(entry);
+        return window.go.main.App.GetCreatureDetail(entry)
     }
     return Promise.resolve(null)
 }
 
 export const GetItemDetail = (entry: number) => {
-    console.log(`[API] Fetching Item Detail for: ${entry}`);
+    console.log(`[API] Fetching Item Detail for: ${entry}`)
     if (window?.go?.main?.App?.GetItemDetail) {
-        return window.go.main.App.GetItemDetail(entry);
+        return window.go.main.App.GetItemDetail(entry)
     }
     return Promise.resolve(null)
 }
 
 export const GetSpellDetail = (entry: number) => {
-    console.log(`[API] Fetching Spell Detail for: ${entry}`);
+    console.log(`[API] Fetching Spell Detail for: ${entry}`)
     if (window?.go?.main?.App?.GetSpellDetail) {
-        return window.go.main.App.GetSpellDetail(entry);
+        return window.go.main.App.GetSpellDetail(entry)
     }
     return Promise.resolve(null)
 }
 
 // Items APIs
-export const BrowseItemsByClassAndSlot = (classId: number, subClass: number, inventoryType: number, nameFilter = '') => {
+export const BrowseItemsByClassAndSlot = (
+    classId: number,
+    subClass: number,
+    inventoryType: number,
+    nameFilter = '',
+) => {
     if (window?.go?.main?.App?.BrowseItemsByClassAndSlot) {
-        return window.go.main.App.BrowseItemsByClassAndSlot(classId, subClass, inventoryType, nameFilter)
+        return window.go.main.App.BrowseItemsByClassAndSlot(
+            classId,
+            subClass,
+            inventoryType,
+            nameFilter,
+        )
     }
     return Promise.resolve([])
 }
@@ -89,9 +99,19 @@ export const BrowseCreaturesByType = (creatureType: number, nameFilter = '') => 
 }
 
 // Paginated version of BrowseCreaturesByType
-export const BrowseCreaturesByTypePaged = (creatureType: number, nameFilter = '', limit = 100, offset = 0) => {
+export const BrowseCreaturesByTypePaged = (
+    creatureType: number,
+    nameFilter = '',
+    limit = 100,
+    offset = 0,
+) => {
     if (window?.go?.main?.App?.BrowseCreaturesByTypePaged) {
-        return window.go.main.App.BrowseCreaturesByTypePaged(creatureType, nameFilter, limit, offset)
+        return window.go.main.App.BrowseCreaturesByTypePaged(
+            creatureType,
+            nameFilter,
+            limit,
+            offset,
+        )
     }
     return Promise.resolve({ creatures: [], total: 0, hasMore: false })
 }
@@ -111,7 +131,12 @@ export const GetBeastFamilies = () => {
     return Promise.resolve([])
 }
 
-export const BrowseCreaturesByFamilyPaged = (family: number, nameFilter = '', limit = 100, offset = 0) => {
+export const BrowseCreaturesByFamilyPaged = (
+    family: number,
+    nameFilter = '',
+    limit = 100,
+    offset = 0,
+) => {
     if (window?.go?.main?.App?.BrowseCreaturesByFamilyPaged) {
         return window.go.main.App.BrowseCreaturesByFamilyPaged(family, nameFilter, limit, offset)
     }
@@ -259,7 +284,7 @@ export const filterItems = (items: any[], filter: string) => {
     const searchNum = parseInt(filter)
     const isNumericSearch = !isNaN(searchNum)
 
-    return (items || []).filter(item => {
+    return (items || []).filter((item) => {
         if (isNumericSearch) {
             if (item.entry === searchNum || item.id === searchNum || item.itemsetId === searchNum) {
                 return true

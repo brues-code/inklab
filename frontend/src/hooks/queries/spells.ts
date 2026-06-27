@@ -15,10 +15,19 @@ import { GetSpellDetail } from '../../services/api'
 // selection exists.
 
 export const useSpellCategories = () =>
-    useQuery({ queryKey: queryKeys.spellCategories, queryFn: GetSpellSkillCategories, staleTime: Infinity })
+    useQuery({
+        queryKey: queryKeys.spellCategories,
+        queryFn: GetSpellSkillCategories,
+        staleTime: Infinity,
+    })
 
 export const useSpellClasses = (enabled: boolean) =>
-    useQuery({ queryKey: queryKeys.spellClasses, queryFn: GetSpellClasses, enabled, staleTime: Infinity })
+    useQuery({
+        queryKey: queryKeys.spellClasses,
+        queryFn: GetSpellClasses,
+        enabled,
+        staleTime: Infinity,
+    })
 
 export const useSpellSkillsByCategory = (categoryId: number | undefined, enabled: boolean) =>
     useQuery({

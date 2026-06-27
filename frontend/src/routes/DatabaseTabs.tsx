@@ -49,51 +49,61 @@ export function DatabaseTabs() {
 
     return (
         <PageLayout>
-            <div className="relative flex-1 flex flex-col overflow-hidden">
-            {/* Tab list — always displayed (never display:none) so its scroll
+            <div className="relative flex flex-1 flex-col overflow-hidden">
+                {/* Tab list — always displayed (never display:none) so its scroll
                 position and filters survive a detail visit; the detail covers it. */}
-            <div className="flex flex-col h-full flex-1 overflow-hidden">
-                <TabBar>
-                    {TABS.map(label => {
-                        const key = label.toLowerCase()
-                        return (
-                            <Link
-                                key={key}
-                                to="/database/$tab"
-                                params={{ tab: key }}
-                                activeOptions={{ exact: false }}
-                                className={TAB_BASE}
-                                activeProps={{ className: TAB_ACTIVE }}
-                            >
-                                {label}
-                            </Link>
-                        )
-                    })}
-                </TabBar>
+                <div className="flex h-full flex-1 flex-col overflow-hidden">
+                    <TabBar>
+                        {TABS.map((label) => {
+                            const key = label.toLowerCase()
+                            return (
+                                <Link
+                                    key={key}
+                                    to="/database/$tab"
+                                    params={{ tab: key }}
+                                    activeOptions={{ exact: false }}
+                                    className={TAB_BASE}
+                                    activeProps={{ className: TAB_ACTIVE }}
+                                >
+                                    {label}
+                                </Link>
+                            )
+                        })}
+                    </TabBar>
 
-                {/* Content area */}
-                {activeTab === 'items' ? (
-                    <ItemsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />
-                ) : (
-                    <ContentGrid columns={activeTab === 'sets' ? SETS_LAYOUT : GRID_LAYOUT}>
-                        {activeTab === 'sets' && <SetsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />}
-                        {activeTab === 'npcs' && <NPCsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
-                        {activeTab === 'quests' && <QuestsTab onNavigate={onNavigate} />}
-                        {activeTab === 'objects' && <ObjectsTab onNavigate={onNavigate} />}
-                        {activeTab === 'zones' && <ZonesTab onNavigate={onNavigate} />}
-                        {activeTab === 'spells' && <SpellsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
-                        {activeTab === 'factions' && <FactionsTab onNavigate={onNavigate} />}
-                        {activeTab === 'races' && <RacesTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
-                    </ContentGrid>
-                )}
-            </div>
+                    {/* Content area */}
+                    {activeTab === 'items' ? (
+                        <ItemsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />
+                    ) : (
+                        <ContentGrid columns={activeTab === 'sets' ? SETS_LAYOUT : GRID_LAYOUT}>
+                            {activeTab === 'sets' && (
+                                <SetsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />
+                            )}
+                            {activeTab === 'npcs' && (
+                                <NPCsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />
+                            )}
+                            {activeTab === 'quests' && <QuestsTab onNavigate={onNavigate} />}
+                            {activeTab === 'objects' && <ObjectsTab onNavigate={onNavigate} />}
+                            {activeTab === 'zones' && <ZonesTab onNavigate={onNavigate} />}
+                            {activeTab === 'spells' && (
+                                <SpellsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />
+                            )}
+                            {activeTab === 'factions' && <FactionsTab onNavigate={onNavigate} />}
+                            {activeTab === 'races' && (
+                                <RacesTab onNavigate={onNavigate} tooltipHook={tooltipHook} />
+                            )}
+                        </ContentGrid>
+                    )}
+                </div>
 
-            {/* Detail overlay: covers the list (opaque) while preserving its
+                {/* Detail overlay: covers the list (opaque) while preserving its
                 scroll. Only the overlay is display:none'd when inactive — never
                 the list — so the detail's own scroll reset on exit is harmless. */}
-            <div className={`absolute inset-0 z-20 flex flex-col bg-bg-dark overflow-hidden ${detailActive ? '' : 'hidden'}`}>
-                <Outlet />
-            </div>
+                <div
+                    className={`absolute inset-0 z-20 flex flex-col overflow-hidden bg-bg-dark ${detailActive ? '' : 'hidden'}`}
+                >
+                    <Outlet />
+                </div>
             </div>
         </PageLayout>
     )

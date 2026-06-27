@@ -8,7 +8,11 @@ import { useTooltipCtx } from '../hooks/useTooltipContext'
  * trail unwinds to the tab list; Back uses real browser history.
  */
 export function DatabaseDetail() {
-    const { tab, type, id } = useParams({ strict: false }) as { tab: string; type: string; id: string }
+    const { tab, type, id } = useParams({ strict: false }) as {
+        tab: string
+        type: string
+        id: string
+    }
     const navigate = useNavigate()
     const router = useRouter()
     const tooltipHook = useTooltipCtx()

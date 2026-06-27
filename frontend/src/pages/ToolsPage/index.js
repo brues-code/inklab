@@ -1,1 +1,1 @@
-export { default } from "./ToolsPage";
+export { default } from './ToolsPage'

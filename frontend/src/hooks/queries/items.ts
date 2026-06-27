@@ -24,21 +24,38 @@ export const useItems = (
     selectedClass: ItemClass | null,
     selectedSubClass: ItemSubClass | null,
     selectedSlot: ItemSlot | null,
-    enabled: boolean
+    enabled: boolean,
 ) => {
     const useSlot = selectedSlot !== null && selectedSlot.inventoryType !== -1
     return useQuery({
-        queryKey: queryKeys.items(selectedClass?.class, selectedSubClass?.subClass, useSlot ? selectedSlot!.inventoryType : 'all'),
+        queryKey: queryKeys.items(
+            selectedClass?.class,
+            selectedSubClass?.subClass,
+            useSlot ? selectedSlot!.inventoryType : 'all',
+        ),
         queryFn: () =>
             useSlot
-                ? BrowseItemsByClassAndSlot(selectedClass!.class, selectedSubClass!.subClass, selectedSlot!.inventoryType, '')
+                ? BrowseItemsByClassAndSlot(
+                      selectedClass!.class,
+                      selectedSubClass!.subClass,
+                      selectedSlot!.inventoryType,
+                      '',
+                  )
                 : BrowseItemsByClass(selectedClass!.class, selectedSubClass!.subClass, ''),
         enabled,
     })
 }
 
 export const useItemDetail = (entry: number) =>
-    useQuery({ queryKey: queryKeys.itemDetail(entry), queryFn: () => GetItemDetail(entry), enabled: !!entry })
+    useQuery({
+        queryKey: queryKeys.itemDetail(entry),
+        queryFn: () => GetItemDetail(entry),
+        enabled: !!entry,
+    })
 
 export const useItemFavorite = (entry: number) =>
-    useQuery({ queryKey: queryKeys.itemFavorite(entry), queryFn: () => IsFavorite(entry), enabled: !!entry })
+    useQuery({
+        queryKey: queryKeys.itemFavorite(entry),
+        queryFn: () => IsFavorite(entry),
+        enabled: !!entry,
+    })
