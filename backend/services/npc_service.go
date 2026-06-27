@@ -534,8 +534,8 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 		// resolve instead of defaulting to the continent. metaX/metaY are then the
 		// continent percentages we can invert.
 		zoneName, mapX, mapY := metaZone, metaX, metaY
-		if metaZone == "Azeroth" || metaZone == "Kalimdor" {
-			if zn, zx, zy, ok := s.resolveContinentSpawn(metaX, metaY); ok {
+		if mapID, isContinent := continentMapID(metaZone); isContinent {
+			if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, metaX, metaY); ok {
 				zoneName, mapX, mapY = zn, zx, zy
 			}
 		}
@@ -672,33 +672,17 @@ func (s *NpcService) continentBound(mapID int) *zoneBound {
 	return best
 }
 
-// resolveContinentSpawn converts a continent-map percentage — what octowow
-// reports (under zone 0) for spawns it can't pin to a subzone — back to world
-// coordinates and finds the specific zone containing it. It tries both
-// continents and keeps the most specific (smallest-area) match, which recovers
-// custom octo zones (e.g. ThalassianHighlands) that aowow lumps into "Azeroth".
-// Returns the zone's folder name and local 0-100 coords, or ok=false if no
-// subzone contains the point on either continent.
-func (s *NpcService) resolveContinentSpawn(cx, cy float64) (zoneName string, x, y float64, ok bool) {
-	s.loadZoneBounds()
-	bestArea := math.MaxFloat64
-	for _, mapID := range []int{0, 1} {
-		c := s.continentBound(mapID)
-		if c == nil {
-			continue
-		}
-		// Invert the continent projection (note the WoW axis swap: map X comes
-		// from world Y and vice-versa).
-		worldY := c.YMax - (cx/100)*(c.YMax-c.YMin)
-		worldX := c.XMax - (cy/100)*(c.XMax-c.XMin)
-		name, mx, my, area, found := s.zoneFromJSON(mapID, worldX, worldY)
-		// Reject matches that resolve to the continent itself (no real subzone).
-		if found && name != c.Name && area < bestArea {
-			bestArea = area
-			zoneName, x, y, ok = name, mx, my, true
-		}
+// continentMapID maps a scraped continent label to its map id, or ok=false when
+// the name isn't a continent. octowow buckets unzoned spawns under the continent
+// name — "Azeroth" is Eastern Kingdoms (map 0), "Kalimdor" is map 1.
+func continentMapID(name string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "azeroth", "eastern kingdoms":
+		return 0, true
+	case "kalimdor":
+		return 1, true
 	}
-	return zoneName, x, y, ok
+	return 0, false
 }
 
 func clampPct(v float64) float64 {
@@ -1036,10 +1020,13 @@ func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) i
 		zoneName := s.zoneNameByID(p.ZoneID)
 		x, y := p.X, p.Y
 		// octowow buckets spawns it can't map to a subzone under zone 0 (the
-		// continent) with continent-level coords. Recover the real zone + local
-		// coords from the geometry — aowow lacks the custom octo zones, we don't.
+		// continent) with continent-level coords. Zone 0 is always "Azeroth"
+		// (Eastern Kingdoms / map 0) — Kalimdor spawns always carry a real zone id
+		// — so recover the real subzone on that continent. Resolving only map 0
+		// (not guessing both continents) stops EK points being claimed by a small
+		// Kalimdor zone like Durotar/Orgrimmar.
 		if p.ZoneID == 0 {
-			if zn, zx, zy, ok := s.resolveContinentSpawn(p.X, p.Y); ok {
+			if zn, zx, zy, ok := s.ResolveContinentPoint(0, p.X, p.Y); ok {
 				zoneName, x, y = zn, zx, zy
 			}
 		}
@@ -1383,11 +1370,15 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 		// octowow buckets continent-level spawns under zone 0 with continent-map
 		// percentages; recover the specific subzone — including custom octo zones
 		// like Northwind — from geometry, the same way the gameobject sync does.
+		// Resolve on the continent octowow named (zone 0 is "Azeroth"/Eastern
+		// Kingdoms unless labelled "Kalimdor"), so an EK point isn't mis-claimed by
+		// a smaller Kalimdor zone.
 		if sp.ZoneID == 0 {
+			mapID, _ := continentMapID(sp.ZoneName)
 			if zoneName == "" {
 				zoneName = s.zoneNameByID(0)
 			}
-			if zn, zx, zy, ok := s.resolveContinentSpawn(sp.X, sp.Y); ok {
+			if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, sp.X, sp.Y); ok {
 				zoneName, x, y = zn, zx, zy
 			}
 		}
