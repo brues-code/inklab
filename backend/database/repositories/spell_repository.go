@@ -349,7 +349,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	var durationStr string = "Instant"
 	if s.Durationindex > 0 {
 		var durationBase int
-		r.db.QueryRow("SELECT DurationBase FROM spell_duration WHERE ID = ?", s.Durationindex).Scan(&durationBase)
+		r.db.QueryRow("SELECT duration_base FROM spell_durations WHERE id = ?", s.Durationindex).Scan(&durationBase)
 		if durationBase > 0 {
 			if durationBase >= 60000 {
 				durationStr = fmt.Sprintf("%dm", durationBase/60000)
@@ -363,7 +363,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	// Fetch Range
 	if s.Rangeindex > 0 {
 		var rangeMax float64
-		r.db.QueryRow("SELECT rangeMax FROM spell_range WHERE ID = ?", s.Rangeindex).Scan(&rangeMax)
+		r.db.QueryRow("SELECT range_max FROM spell_range WHERE id = ?", s.Rangeindex).Scan(&rangeMax)
 		if rangeMax > 0 {
 			detail.Range = fmt.Sprintf("%.0f yd", rangeMax)
 		} else {
