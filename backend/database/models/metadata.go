@@ -26,9 +26,10 @@ type SkillEntry struct {
 
 // SkillLineAbilityEntry represents a skill-spell relationship for JSON import
 type SkillLineAbilityEntry struct {
-	SkillID   int `json:"skillID"`
-	SpellID   int `json:"spellID"`
-	ClassMask int `json:"classmask"`
+	SkillID       int `json:"skillID"`
+	SpellID       int `json:"spellID"`
+	ClassMask     int `json:"classmask"`
+	ReqSkillValue int `json:"req_skill_value"`
 }
 
 // SearchFilter defines criteria for advanced item search

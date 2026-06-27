@@ -70,6 +70,76 @@ const ItemIconHeader = ({
   );
 };
 
+// Small icon image resolved through the cached icon service.
+const IconImg = ({ name, className }) => {
+  const icon = useIcon(name);
+  return (
+    <img
+      src={icon.src || "/local-icons/inv_misc_questionmark.jpg"}
+      className={className}
+      alt=""
+    />
+  );
+};
+
+// A crafting reagent chip: icon + count badge + quality-colored name, linking to
+// the reagent's item page with a hover tooltip.
+const Reagent = ({ reagent, onNavigate, tooltipHook }) => {
+  const handlers = tooltipHook?.getItemHandlers?.(reagent.entry) || {};
+  return (
+    <div
+      className="flex items-center gap-1.5 pl-1 pr-2 py-1 bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 rounded cursor-pointer transition-colors"
+      onClick={() => onNavigate?.("item", reagent.entry)}
+      {...handlers}
+    >
+      <div className="relative w-7 h-7 shrink-0">
+        <IconImg name={reagent.iconPath} className="w-full h-full object-cover rounded border border-black/40" />
+        {reagent.count > 1 && (
+          <span className="absolute -bottom-0.5 -right-0.5 text-[10px] font-bold text-white bg-black/80 rounded px-0.5 leading-none py-0.5">
+            {reagent.count}
+          </span>
+        )}
+      </div>
+      <span className="text-xs" style={{ color: getQualityColor(reagent.quality) }}>
+        {reagent.name || `Item #${reagent.entry}`}
+      </span>
+    </div>
+  );
+};
+
+// One recipe that produces this item: the craft spell (link + tooltip), its
+// profession requirement and produced count, and the reagents consumed.
+const CreatedBySource = ({ source, onNavigate, tooltipHook }) => (
+  <div className="p-2.5 bg-white/[0.02] border border-white/5 rounded">
+    <div className="flex items-center gap-2">
+      <IconImg name={source.spellIcon} className="w-8 h-8 rounded border border-black/40 object-cover" />
+      <span
+        className="text-wow-rare font-bold cursor-pointer hover:underline"
+        onClick={() => onNavigate?.("spell", source.spellId)}
+        {...(tooltipHook?.getSpellHandlers?.(source.spellId) || {})}
+      >
+        {source.spellName}
+      </span>
+      {source.producedCount > 1 && (
+        <span className="text-xs text-gray-500">creates {source.producedCount}</span>
+      )}
+      {source.skillName && (
+        <span className="ml-auto text-xs text-gray-400 whitespace-nowrap">
+          Requires {source.skillName}
+          {source.reqSkill > 0 ? ` (${source.reqSkill})` : ""}
+        </span>
+      )}
+    </div>
+    {source.reagents?.length > 0 && (
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {source.reagents.map((rg) => (
+          <Reagent key={rg.entry} reagent={rg} onNavigate={onNavigate} tooltipHook={tooltipHook} />
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
   // The item's tooltip payload, from the shared Query cache (warmed by hover
   // elsewhere). The blanket invalidate in reloadData refetches this too.
@@ -308,6 +378,22 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
         {/* Relations */}
         <div className="flex-1 min-w-[300px] space-y-8">
+          {/* Created By */}
+          {detail.createdBy?.length > 0 && (
+            <DetailSection title="Created By">
+              <div className="space-y-2">
+                {detail.createdBy.map((source) => (
+                  <CreatedBySource
+                    key={source.spellId}
+                    source={source}
+                    onNavigate={onNavigate}
+                    tooltipHook={tooltipHook}
+                  />
+                ))}
+              </div>
+            </DetailSection>
+          )}
+
           {/* Dropped By */}
           {detail.droppedBy?.length > 0 && (
             <DetailSection title="Dropped By">

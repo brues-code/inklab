@@ -259,6 +259,28 @@ type ItemDetail struct {
 	RewardFrom []*QuestReward  `json:"rewardFrom"`
 	Contains   []*ItemDrop     `json:"contains"`
 	SoldBy     []*ItemVendor   `json:"soldBy"`
+	CreatedBy  []*ItemCraftSource `json:"createdBy"`
+}
+
+// ItemCraftSource is a recipe/spell that creates this item (a tradeskill spell
+// with a Create Item effect), including its profession requirement and reagents.
+type ItemCraftSource struct {
+	SpellID       int             `json:"spellId"`
+	SpellName     string          `json:"spellName"`
+	SpellIcon     string          `json:"spellIcon"`
+	SkillName     string          `json:"skillName,omitempty"`
+	ReqSkill      int             `json:"reqSkill,omitempty"`
+	ProducedCount int             `json:"producedCount,omitempty"`
+	Reagents      []*CraftReagent `json:"reagents,omitempty"`
+}
+
+// CraftReagent is one material consumed by a crafting spell.
+type CraftReagent struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	Quality  int    `json:"quality"`
+	IconPath string `json:"iconPath"`
+	Count    int    `json:"count"`
 }
 
 // ItemVendor represents an NPC that sells an item (from the item page's

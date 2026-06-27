@@ -1465,7 +1465,133 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 		}
 	}
 
+	// Get crafting recipes that create this item ("Created By").
+	detail.CreatedBy = r.getCreatedBy(entry)
+
 	return detail, nil
+}
+
+// getCreatedBy returns the tradeskill spells whose Create Item effect (effect
+// type 24) produces this item, with the produced count, profession requirement,
+// and reagents. Empty for items that aren't crafted.
+func (r *ItemRepository) getCreatedBy(entry int) []*models.ItemCraftSource {
+	const createItemEffect = 24 // SPELL_EFFECT_CREATE_ITEM
+	rows, err := r.db.Query(`
+		SELECT st.entry, st.name, COALESCE(NULLIF(si.icon_name, ''), st.iconName, ''),
+		       st.effect1, st.effect2, st.effect3,
+		       st.effectItemType1, st.effectItemType2, st.effectItemType3,
+		       st.effectBasePoints1, st.effectBasePoints2, st.effectBasePoints3,
+		       st.reagent1, st.reagent2, st.reagent3, st.reagent4,
+		       st.reagent5, st.reagent6, st.reagent7, st.reagent8,
+		       st.reagentCount1, st.reagentCount2, st.reagentCount3, st.reagentCount4,
+		       st.reagentCount5, st.reagentCount6, st.reagentCount7, st.reagentCount8
+		FROM spell_template st
+		LEFT JOIN spell_icons si ON st.spellIconId = si.id
+		WHERE (st.effect1 = ? AND st.effectItemType1 = ?)
+		   OR (st.effect2 = ? AND st.effectItemType2 = ?)
+		   OR (st.effect3 = ? AND st.effectItemType3 = ?)
+	`, createItemEffect, entry, createItemEffect, entry, createItemEffect, entry)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var sources []*models.ItemCraftSource
+	for rows.Next() {
+		var spellID int
+		var name, icon string
+		var eff [3]int
+		var effItem [3]int
+		var effBase [3]int
+		var reagent [8]int
+		var reagentCount [8]int
+		if rows.Scan(&spellID, &name, &icon,
+			&eff[0], &eff[1], &eff[2],
+			&effItem[0], &effItem[1], &effItem[2],
+			&effBase[0], &effBase[1], &effBase[2],
+			&reagent[0], &reagent[1], &reagent[2], &reagent[3],
+			&reagent[4], &reagent[5], &reagent[6], &reagent[7],
+			&reagentCount[0], &reagentCount[1], &reagentCount[2], &reagentCount[3],
+			&reagentCount[4], &reagentCount[5], &reagentCount[6], &reagentCount[7]) != nil {
+			continue
+		}
+
+		src := &models.ItemCraftSource{SpellID: spellID, SpellName: name, SpellIcon: icon, ProducedCount: 1}
+		// The Create Item effect slot for this item gives the produced count
+		// (basePoints is amount-1, so +1).
+		for i := 0; i < 3; i++ {
+			if eff[i] == createItemEffect && effItem[i] == entry {
+				if c := effBase[i] + 1; c > 0 {
+					src.ProducedCount = c
+				}
+				break
+			}
+		}
+
+		for i := 0; i < 8; i++ {
+			if reagent[i] > 0 {
+				src.Reagents = append(src.Reagents, &models.CraftReagent{Entry: reagent[i], Count: reagentCount[i]})
+			}
+		}
+		r.fillReagentInfo(src.Reagents)
+		src.SkillName, src.ReqSkill = r.craftSkillRequirement(spellID)
+
+		sources = append(sources, src)
+	}
+	return sources
+}
+
+// craftSkillRequirement returns the profession name and required skill rank for
+// a crafting spell. The authoritative requirement lives on the recipe item
+// (pattern/plans/...) that teaches the craft via a learn-spell (effect 36): its
+// required_skill/required_skill_rank. Trainer-taught crafts have no recipe item,
+// so we fall back to the SkillLineAbility min rank for the skill name (and rank
+// where it's meaningful).
+func (r *ItemRepository) craftSkillRequirement(spellID int) (string, int) {
+	const learnSpellEffect = 36 // SPELL_EFFECT_LEARN_SPELL
+
+	var skillID, rank int
+	err := r.db.QueryRow(`
+		SELECT it.required_skill, it.required_skill_rank
+		FROM spell_template ls
+		JOIN item_template it ON it.spellid_1 = ls.entry OR it.spellid_2 = ls.entry
+			OR it.spellid_3 = ls.entry OR it.spellid_4 = ls.entry OR it.spellid_5 = ls.entry
+		WHERE (ls.effect1 = ? AND ls.effectTriggerSpell1 = ?)
+		   OR (ls.effect2 = ? AND ls.effectTriggerSpell2 = ?)
+		   OR (ls.effect3 = ? AND ls.effectTriggerSpell3 = ?)
+		ORDER BY it.required_skill_rank DESC
+		LIMIT 1
+	`, learnSpellEffect, spellID, learnSpellEffect, spellID, learnSpellEffect, spellID).Scan(&skillID, &rank)
+	if err == nil && skillID > 0 {
+		var name string
+		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", skillID).Scan(&name)
+		return name, rank
+	}
+
+	// Fallback: trainer-taught crafts — skill line + min rank from SkillLineAbility.
+	var name string
+	var req int
+	r.db.QueryRow(`
+		SELECT ss.name, sss.req_skill_value
+		FROM spell_skill_spells sss
+		JOIN spell_skills ss ON sss.skill_id = ss.id
+		WHERE sss.spell_id = ?
+		ORDER BY sss.req_skill_value DESC
+		LIMIT 1
+	`, spellID).Scan(&name, &req)
+	return name, req
+}
+
+// fillReagentInfo resolves each reagent's name/quality/icon from item_template.
+func (r *ItemRepository) fillReagentInfo(reagents []*models.CraftReagent) {
+	for _, rg := range reagents {
+		r.db.QueryRow(`
+			SELECT i.name, i.quality, COALESCE(idi.icon, '')
+			FROM item_template i
+			LEFT JOIN item_display_info idi ON i.display_id = idi.ID
+			WHERE i.entry = ?
+		`, rg.Entry).Scan(&rg.Name, &rg.Quality, &rg.IconPath)
+	}
 }
 
 // formatStat returns a formatted stat string. The display name comes from the

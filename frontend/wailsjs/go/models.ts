@@ -798,6 +798,26 @@ export namespace models {
 	        this.sortOrder = source["sortOrder"];
 	    }
 	}
+	export class CraftReagent {
+	    entry: number;
+	    name: string;
+	    quality: number;
+	    iconPath: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CraftReagent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.quality = source["quality"];
+	        this.iconPath = source["iconPath"];
+	        this.count = source["count"];
+	    }
+	}
 	export class Creature {
 	    entry: number;
 	    name: string;
@@ -1532,6 +1552,48 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class ItemCraftSource {
+	    spellId: number;
+	    spellName: string;
+	    spellIcon: string;
+	    skillName?: string;
+	    reqSkill?: number;
+	    producedCount?: number;
+	    reagents?: CraftReagent[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemCraftSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.spellName = source["spellName"];
+	        this.spellIcon = source["spellIcon"];
+	        this.skillName = source["skillName"];
+	        this.reqSkill = source["reqSkill"];
+	        this.producedCount = source["producedCount"];
+	        this.reagents = this.convertValues(source["reagents"], CraftReagent);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ItemVendor {
 	    entry: number;
 	    name: string;
@@ -1666,6 +1728,7 @@ export namespace models {
 	    rewardFrom: QuestReward[];
 	    contains: ItemDrop[];
 	    soldBy: ItemVendor[];
+	    createdBy: ItemCraftSource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemDetail(source);
@@ -1742,6 +1805,7 @@ export namespace models {
 	        this.rewardFrom = this.convertValues(source["rewardFrom"], QuestReward);
 	        this.contains = this.convertValues(source["contains"], ItemDrop);
 	        this.soldBy = this.convertValues(source["soldBy"], ItemVendor);
+	        this.createdBy = this.convertValues(source["createdBy"], ItemCraftSource);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
