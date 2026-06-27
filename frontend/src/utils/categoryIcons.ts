@@ -24,13 +24,15 @@ export const categoryIcons: Record<string, string> = {
     "Miscellaneous": "inv_misc_bone_orcskull_01",
 }
 
+/**
+ * Resolve a category (Class/SubClass/Slot) name to its icon NAME (no path or
+ * extension). Callers pass this to useIcon(), which loads the icon from the
+ * client icon set (data/icons) and falls back to the questionmark placeholder
+ * when it's absent — e.g. before a client import. Returns null for unmapped
+ * names.
+ */
 export const getCategoryIcon = (name?: string | null): string | null => {
     if (!name) return null;
-    const icon = categoryIcons[name] || categoryIcons[name.split(' (')[0]] // Handle "Mace (2H)" if needed
-    // Assuming UI icons are in /items/ (not items/icons/) and are PNGs. 
-    // Adjust path based on actual file location.
-    if (icon) {
-        return `/items/${icon}.png`
-    }
-    return null
+    // Handle suffixed names like "Mace (2H)".
+    return categoryIcons[name] || categoryIcons[name.split(' (')[0]] || null;
 }

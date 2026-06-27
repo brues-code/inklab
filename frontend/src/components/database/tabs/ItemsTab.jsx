@@ -4,6 +4,21 @@ import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootIt
 import { filterItems } from '../../../utils/databaseApi'
 import { useItemClasses, useItems } from '../../../hooks/queries/items'
 import { getCategoryIcon } from '../../../utils/categoryIcons'
+import { useIcon } from '../../../services/useImage'
+
+// A category (item class) icon, loaded from the client icon set (data/icons)
+// via the shared icon service, falling back to the questionmark placeholder when
+// the icon isn't present locally (e.g. before a client import).
+const CategoryIcon = ({ name }) => {
+    const icon = useIcon(getCategoryIcon(name))
+    return (
+        <img
+            src={icon.src || '/local-icons/inv_misc_questionmark.jpg'}
+            alt=""
+            className="w-5 h-5 object-contain opacity-80"
+        />
+    )
+}
 import { 
     GRID_LAYOUT, ITEMS_LAYOUT, 
     GRID_LAYOUT_NO_FILTER, ITEMS_LAYOUT_NO_FILTER 
@@ -346,29 +361,26 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                     onFilterChange={setClassFilter}
                 />
                 <ScrollList>
-                    {filteredClasses.map(cls => {
-                        const icon = getCategoryIcon(cls.name)
-                        return (
-                            <ListItem
-                                key={cls.class}
-                                active={selectedClass?.class === cls.class}
-                                onClick={() => {
-                                    setSelectedClass(cls)
-                                    setSelectedSubClass(null)
-                                    setSelectedSlot(null)
-                                    setSubClassFilter('')
-                                    setSlotFilter('')
-                                    setItemFilter('')
-                                    // Keep advanced filters? Usually yes.
-                                }}
-                            >
-                                <div className="flex items-center gap-2">
-                                    {icon && <img src={icon} alt="" className="w-5 h-5 object-contain opacity-80" />}
-                                    <span>{cls.name}</span>
-                                </div>
-                            </ListItem>
-                        )
-                    })}
+                    {filteredClasses.map(cls => (
+                        <ListItem
+                            key={cls.class}
+                            active={selectedClass?.class === cls.class}
+                            onClick={() => {
+                                setSelectedClass(cls)
+                                setSelectedSubClass(null)
+                                setSelectedSlot(null)
+                                setSubClassFilter('')
+                                setSlotFilter('')
+                                setItemFilter('')
+                                // Keep advanced filters? Usually yes.
+                            }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <CategoryIcon name={cls.name} />
+                                <span>{cls.name}</span>
+                            </div>
+                        </ListItem>
+                    ))}
                 </ScrollList>
             </SidebarPanel>
 
