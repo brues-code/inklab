@@ -10,7 +10,7 @@ import {
     DetailError
 } from '../../ui'
 import { useIcon } from '../../../services/useImage'
-import { getQualityColor, getSchoolName, getSchoolColor } from '../../../utils/wow'
+import { getQualityColor, getSchoolName, getSchoolColor, getDispelColor } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 
 // Helper component for Spell Icon
@@ -234,7 +234,7 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             <PropRow label="Duration" value={detail.duration} />
                             <PropRow label="School" value={schoolName} color={schoolColor} />
                             <PropRow label="Mechanic" value={detail.mechanicName} capitalize />
-                            <PropRow label="Dispel type" value={detail.dispelType} />
+                            <PropRow label="Dispel type" value={detail.dispelType} color={getDispelColor(detail.dispelType)} />
                             {/* Real proc rate (PPM / %) from the world DB proc tables; "" when none. */}
                             <PropRow label="Proc" value={detail.proc} />
                             <PropRow label="Max targets" value={detail.maxAffectedTargets > 0 ? detail.maxAffectedTargets : ''} />

@@ -24,6 +24,17 @@ export const SPELL_SCHOOL_COLORS: Record<number, string> = {
 export const getSchoolName = (school: number): string => SPELL_SCHOOLS[school] || 'Unknown'
 export const getSchoolColor = (school: number): string | undefined => SPELL_SCHOOL_COLORS[school]
 
+// Debuff dispel-type colors — the client's DebuffTypeColor (FrameXML), used for
+// debuff borders. Keyed by the dispel-type name (from SpellDispelType.dbc).
+export const DISPEL_COLORS: Record<string, string> = {
+    Magic: '#3399ff',
+    Curse: '#9900ff',
+    Disease: '#996600',
+    Poison: '#009900',
+}
+export const getDispelColor = (name?: string | null): string | undefined =>
+    name ? DISPEL_COLORS[name] : undefined
+
 export const getQualityColor = (quality: number): string => {
     const colors: Record<number, string> = {
         0: '#9d9d9d', // Poor
