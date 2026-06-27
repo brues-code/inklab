@@ -41,9 +41,13 @@ export const useSpellsBySkill = (skillId: number | undefined, enabled: boolean) 
         enabled,
     })
 
+// Shared Query options for a spell's full detail. Spread into useQuery so every
+// reader — the detail view and the global spell tooltip layer — keys the same
+// cache entry and reuses an already-fetched spell.
+export const spellDetailQuery = (entry: number) => ({
+    queryKey: queryKeys.spellDetail(entry),
+    queryFn: () => GetSpellDetail(Number(entry)),
+})
+
 export const useSpellDetail = (entry: number) =>
-    useQuery({
-        queryKey: queryKeys.spellDetail(entry),
-        queryFn: () => GetSpellDetail(parseInt(entry as unknown as string)),
-        enabled: entry != null,
-    })
+    useQuery({ ...spellDetailQuery(entry), enabled: entry != null })

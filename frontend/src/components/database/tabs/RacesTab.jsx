@@ -8,12 +8,14 @@ const FALLBACK_ICON = '/local-icons/inv_misc_questionmark.jpg'
 const FACTION_COLOR = { Alliance: '#3b82f6', Horde: '#e0294a' }
 const factionColor = (f) => FACTION_COLOR[f] || '#FFD100'
 
-// One racial ability resolved to a real spell — clickable through to its page.
-function RacialSpell({ spell, onNavigate }) {
+// One racial ability resolved to a real spell — clickable through to its page,
+// with a spell tooltip on hover.
+function RacialSpell({ spell, onNavigate, tooltipHook }) {
     const icon = useIcon(spell.icon)
     return (
         <button
             onClick={() => onNavigate?.('spell', spell.id)}
+            {...(tooltipHook?.getSpellHandlers?.(spell.id) || {})}
             className="flex items-center gap-2 p-2 bg-white/[0.02] hover:bg-white/5 border border-border-dark/50 rounded text-left transition-colors"
         >
             <div className="w-8 h-8 shrink-0 bg-black rounded overflow-hidden border border-gray-700/50">
@@ -25,7 +27,7 @@ function RacialSpell({ spell, onNavigate }) {
     )
 }
 
-function RacesTab({ onNavigate }) {
+function RacesTab({ onNavigate, tooltipHook }) {
     const { data: races = [], isLoading } = useRaces()
     const [selectedId, setSelectedId] = useState(null)
     const [filter, setFilter] = useState('')
@@ -129,7 +131,7 @@ function RacesTab({ onNavigate }) {
                             {selected.racials?.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                     {selected.racials.map((s) => (
-                                        <RacialSpell key={s.id} spell={s} onNavigate={onNavigate} />
+                                        <RacialSpell key={s.id} spell={s} onNavigate={onNavigate} tooltipHook={tooltipHook} />
                                     ))}
                                 </div>
                             ) : (

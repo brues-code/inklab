@@ -76,9 +76,9 @@ export function DatabaseTabs() {
                         {activeTab === 'quests' && <QuestsTab onNavigate={onNavigate} />}
                         {activeTab === 'objects' && <ObjectsTab onNavigate={onNavigate} />}
                         {activeTab === 'zones' && <ZonesTab onNavigate={onNavigate} />}
-                        {activeTab === 'spells' && <SpellsTab onNavigate={onNavigate} />}
+                        {activeTab === 'spells' && <SpellsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
                         {activeTab === 'factions' && <FactionsTab onNavigate={onNavigate} />}
-                        {activeTab === 'races' && <RacesTab onNavigate={onNavigate} />}
+                        {activeTab === 'races' && <RacesTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
                     </ContentGrid>
                 )}
             </div>

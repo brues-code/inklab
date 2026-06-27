@@ -40,7 +40,7 @@ const SpellListItemIcon = ({ iconName, spellColor }) => {
 
 const SPELL_COLOR = '#772ce8'
 
-function SpellsTab({ onNavigate }) {
+function SpellsTab({ onNavigate, tooltipHook }) {
     const [selectedCategory, setSelectedCategory] = useState(null)
     const [selectedClass, setSelectedClass] = useState(null)
     const [selectedSkill, setSelectedSkill] = useState(null)
@@ -200,6 +200,7 @@ function SpellsTab({ onNavigate }) {
                                 className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-l-[3px] transition-colors rounded-r cursor-pointer"
                                 style={{ borderLeftColor: SPELL_COLOR }}
                                 onClick={() => onNavigate && onNavigate('spell', spell.entry)}
+                                {...(tooltipHook?.getSpellHandlers?.(spell.entry) || {})}
                             >
                                 {spell.icon ? (
                                     <SpellListItemIcon iconName={spell.icon} spellColor={SPELL_COLOR} />
