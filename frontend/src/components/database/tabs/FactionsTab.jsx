@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useFactions } from '../../../hooks/queries/factions'
@@ -13,10 +14,10 @@ const getSideInfo = (side) => {
 }
 
 function FactionsTab({ onNavigate }) {
-    const [selectedGroup, setSelectedGroup] = useState(null)
+    const [selectedGroup, setSelectedGroup] = useStickyState('factions.selectedGroup', null)
 
-    const [groupFilter, setGroupFilter] = useState('')
-    const [factionFilter, setFactionFilter] = useState('')
+    const [groupFilter, setGroupFilter] = useStickyState('factions.groupFilter', '')
+    const [factionFilter, setFactionFilter] = useStickyState('factions.factionFilter', '')
 
     // All factions load once (static for a session); groups + filtering derive.
     const { data: factions = [], isLoading } = useFactions()

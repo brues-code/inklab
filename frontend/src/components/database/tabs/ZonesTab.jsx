@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useZones } from '../../../hooks/queries/zones'
@@ -6,10 +7,10 @@ import { useZones } from '../../../hooks/queries/zones'
 const ZONE_COLOR = '#4ADE80'
 
 function ZonesTab({ onNavigate }) {
-    const [selectedGroup, setSelectedGroup] = useState(null)
+    const [selectedGroup, setSelectedGroup] = useStickyState('zones.selectedGroup', null)
 
-    const [groupFilter, setGroupFilter] = useState('')
-    const [zoneFilter, setZoneFilter] = useState('')
+    const [groupFilter, setGroupFilter] = useStickyState('zones.groupFilter', '')
+    const [zoneFilter, setZoneFilter] = useStickyState('zones.zoneFilter', '')
 
     const zonesQuery = useZones()
     const zones = zonesQuery.data || []

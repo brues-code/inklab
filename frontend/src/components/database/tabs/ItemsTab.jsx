@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem, ContentGrid } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useItemClasses, useItems } from '../../../hooks/queries/items'
@@ -20,18 +21,20 @@ const RESISTANCE_FIELDS = {
 }
 
 function ItemsTab({ tooltipHook, onNavigate }) {
-    const [selectedClass, setSelectedClass] = useState(null)
-    const [selectedSubClass, setSelectedSubClass] = useState(null)
-    const [selectedSlot, setSelectedSlot] = useState(null)
+    // Selection + filter state is sticky (module-scoped) so it survives leaving
+    // the Database route and coming Back — e.g. Armor → Mail → Waist stays put.
+    const [selectedClass, setSelectedClass] = useStickyState('items.selectedClass', null)
+    const [selectedSubClass, setSelectedSubClass] = useStickyState('items.selectedSubClass', null)
+    const [selectedSlot, setSelectedSlot] = useStickyState('items.selectedSlot', null)
 
     // Independent filter states for each column
-    const [classFilter, setClassFilter] = useState('')
-    const [subClassFilter, setSubClassFilter] = useState('')
-    const [slotFilter, setSlotFilter] = useState('')
-    const [itemFilter, setItemFilter] = useState('')
+    const [classFilter, setClassFilter] = useStickyState('items.classFilter', '')
+    const [subClassFilter, setSubClassFilter] = useStickyState('items.subClassFilter', '')
+    const [slotFilter, setSlotFilter] = useStickyState('items.slotFilter', '')
+    const [itemFilter, setItemFilter] = useStickyState('items.itemFilter', '')
 
     // Advanced Filters
-    const [advancedFilters, setAdvancedFilters] = useState({})
+    const [advancedFilters, setAdvancedFilters] = useStickyState('items.advancedFilters', {})
     
     // Track filter changes with detailed logging
     useEffect(() => {
@@ -295,7 +298,7 @@ function ItemsTab({ tooltipHook, onNavigate }) {
     }, [advancedFilters])
 
     // Layout and Filter visibility
-    const [showFilters, setShowFilters] = useState(false)
+    const [showFilters, setShowFilters] = useStickyState('items.showFilters', false)
     
     // Determine current layout based on Armor class and Filter visibility
     const currentLayout = useMemo(() => {

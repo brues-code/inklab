@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useQuestGroups, useQuestCategories, useQuestsByCategory } from '../../../hooks/queries/quests'
@@ -15,12 +16,12 @@ const getQuestTypeInfo = (type) => {
 }
 
 function QuestsTab({ onNavigate }) {
-    const [selectedGroup, setSelectedGroup] = useState(null)
-    const [selectedCategory, setSelectedCategory] = useState(null)
+    const [selectedGroup, setSelectedGroup] = useStickyState('quests.selectedGroup', null)
+    const [selectedCategory, setSelectedCategory] = useStickyState('quests.selectedCategory', null)
 
-    const [groupFilter, setGroupFilter] = useState('')
-    const [categoryFilter, setCategoryFilter] = useState('')
-    const [questFilter, setQuestFilter] = useState('')
+    const [groupFilter, setGroupFilter] = useStickyState('quests.groupFilter', '')
+    const [categoryFilter, setCategoryFilter] = useStickyState('quests.categoryFilter', '')
+    const [questFilter, setQuestFilter] = useStickyState('quests.questFilter', '')
 
     // Cascading queries keyed by selection; resets are handler-driven (no effects).
     const groupsQuery = useQuestGroups()

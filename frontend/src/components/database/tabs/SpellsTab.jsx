@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import {
@@ -41,13 +42,13 @@ const SpellListItemIcon = ({ iconName, spellColor }) => {
 const SPELL_COLOR = '#772ce8'
 
 function SpellsTab({ onNavigate, tooltipHook }) {
-    const [selectedCategory, setSelectedCategory] = useState(null)
-    const [selectedClass, setSelectedClass] = useState(null)
-    const [selectedSkill, setSelectedSkill] = useState(null)
+    const [selectedCategory, setSelectedCategory] = useStickyState('spells.selectedCategory', null)
+    const [selectedClass, setSelectedClass] = useStickyState('spells.selectedClass', null)
+    const [selectedSkill, setSelectedSkill] = useStickyState('spells.selectedSkill', null)
 
-    const [categoryFilter, setCategoryFilter] = useState('')
-    const [skillFilter, setSkillFilter] = useState('')
-    const [spellFilter, setSpellFilter] = useState('')
+    const [categoryFilter, setCategoryFilter] = useStickyState('spells.categoryFilter', '')
+    const [skillFilter, setSkillFilter] = useStickyState('spells.skillFilter', '')
+    const [spellFilter, setSpellFilter] = useStickyState('spells.spellFilter', '')
 
     // "Class Skills" gets an extra Class tier: Class Skills -> Warlock -> Affliction
     const isClassCategory = selectedCategory?.name === 'Class Skills'

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useObjectTypes, useObjectsByType } from '../../../hooks/queries/objects'
@@ -6,10 +7,10 @@ import { useObjectTypes, useObjectsByType } from '../../../hooks/queries/objects
 const OBJECT_COLOR = '#00B4FF'
 
 function ObjectsTab({ onNavigate }) {
-    const [selectedObjectType, setSelectedObjectType] = useState(null)
+    const [selectedObjectType, setSelectedObjectType] = useStickyState('objects.selectedObjectType', null)
 
-    const [typeFilter, setTypeFilter] = useState('')
-    const [objectFilter, setObjectFilter] = useState('')
+    const [typeFilter, setTypeFilter] = useStickyState('objects.typeFilter', '')
+    const [objectFilter, setObjectFilter] = useStickyState('objects.objectFilter', '')
 
     const typesQuery = useObjectTypes()
     const objectsQuery = useObjectsByType(selectedObjectType?.id, selectedObjectType != null)

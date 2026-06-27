@@ -1,18 +1,19 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, LootItem } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useItemSets, useItemSetDetail } from '../../../hooks/queries/sets'
 import { useTalentClasses } from '../../../hooks/queries/talents'
 
 function SetsTab({ tooltipHook }) {
-    const [selectedSet, setSelectedSet] = useState(null)
+    const [selectedSet, setSelectedSet] = useStickyState('sets.selectedSet', null)
     // First column: playable classes, each with its allowable_class bit
     // (1<<(id-1)). bit 0 = "All Classes".
-    const [classBit, setClassBit] = useState(0)
+    const [classBit, setClassBit] = useStickyState('sets.classBit', 0)
 
-    const [classFilter, setClassFilter] = useState('')
-    const [setFilter, setSetFilter] = useState('')
-    const [itemFilter, setItemFilter] = useState('')
+    const [classFilter, setClassFilter] = useStickyState('sets.classFilter', '')
+    const [setFilter, setSetFilter] = useStickyState('sets.setFilter', '')
+    const [itemFilter, setItemFilter] = useStickyState('sets.itemFilter', '')
 
     const { setHoveredItem, handleItemEnter, handleMouseMove } = tooltipHook
 

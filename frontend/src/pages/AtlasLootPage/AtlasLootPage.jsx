@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { useStickyState } from "../../hooks/useStickyState";
 import { Outlet, useNavigate, useChildMatches } from "@tanstack/react-router";
 import {
   PageLayout,
@@ -18,15 +19,15 @@ import { useAtlasCategories, useAtlasModules, useAtlasTables, useAtlasLoot } fro
 const THREE_LEVEL_CATEGORIES = ["Dungeons", "Raids", "Collections", "Sets", "Crafting", "PvP", "PvP Rewards"];
 
 function AtlasLootPage() {
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedModule, setSelectedModule] = useState("");
-  const [selectedTable, setSelectedTable] = useState("");
+  const [selectedCategory, setSelectedCategory] = useStickyState("atlas.selectedCategory", "");
+  const [selectedModule, setSelectedModule] = useStickyState("atlas.selectedModule", "");
+  const [selectedTable, setSelectedTable] = useStickyState("atlas.selectedTable", "");
 
   // Filter states for each column
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [moduleFilter, setModuleFilter] = useState("");
-  const [tableFilter, setTableFilter] = useState("");
-  const [itemFilter, setItemFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useStickyState("atlas.categoryFilter", "");
+  const [moduleFilter, setModuleFilter] = useStickyState("atlas.moduleFilter", "");
+  const [tableFilter, setTableFilter] = useStickyState("atlas.tableFilter", "");
+  const [itemFilter, setItemFilter] = useStickyState("atlas.itemFilter", "");
 
   // Detail view navigation — routed; Back uses browser history. The loot
   // selection state is preserved across detail visits because this route stays

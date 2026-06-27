@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useMemo, useRef, useCallback } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem, EntityIcon } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useCreatureTypes, useBeastFamilies, useCreatures } from '../../../hooks/queries/npcs'
@@ -30,12 +31,12 @@ const NpcPortraitThumb = ({ displayId, rankColor }) => {
 }
 
 function NPCsTab({ onNavigate, tooltipHook }) {
-    const [selectedCreatureType, setSelectedCreatureType] = useState(null)
-    const [selectedFamily, setSelectedFamily] = useState(null)
+    const [selectedCreatureType, setSelectedCreatureType] = useStickyState('npcs.selectedCreatureType', null)
+    const [selectedFamily, setSelectedFamily] = useStickyState('npcs.selectedFamily', null)
 
-    const [typeFilter, setTypeFilter] = useState('')
-    const [creatureFilter, setCreatureFilter] = useState('')
-    const [familyFilter, setFamilyFilter] = useState('')
+    const [typeFilter, setTypeFilter] = useStickyState('npcs.typeFilter', '')
+    const [creatureFilter, setCreatureFilter] = useStickyState('npcs.creatureFilter', '')
+    const [familyFilter, setFamilyFilter] = useStickyState('npcs.familyFilter', '')
 
     const isBeast = selectedCreatureType?.type === BEAST_TYPE
 

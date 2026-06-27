@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useStickyState } from '../../../hooks/useStickyState'
 import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem } from '../../ui'
 import { filterItems } from '../../../utils/databaseApi'
 import { useRaces } from '../../../hooks/queries/races'
@@ -45,8 +46,8 @@ function RacialSpell({ spell, onNavigate, tooltipHook }) {
 
 function RacesTab({ onNavigate, tooltipHook }) {
     const { data: races = [], isLoading } = useRaces()
-    const [selectedId, setSelectedId] = useState(null)
-    const [filter, setFilter] = useState('')
+    const [selectedId, setSelectedId] = useStickyState('races.selectedId', null)
+    const [filter, setFilter] = useStickyState('races.filter', '')
 
     const filtered = useMemo(() => filterItems(races, filter), [races, filter])
     // Default to the first race (derived, no effect).
