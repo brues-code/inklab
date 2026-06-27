@@ -1503,17 +1503,29 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	return detail, nil
 }
 
-// gatheringSkills decides which required skill puts an object under "Gathered
-// From" (a node you harvest) vs "Contained In" (a chest you open). This is the
-// only fixed bit of domain knowledge — nothing in the data distinguishes a
-// gathering profession from Lockpicking/Disarm Trap. The skill NAME and required
-// level themselves are resolved dynamically from lock_types for every lock, so
-// any skill (Lockpicking, Disarm Trap, …) shows its requirement.
-var gatheringSkills = map[string]bool{
-	"Herbalism": true,
-	"Mining":    true,
-	"Survival":  true,
-	"Fishing":   true,
+// loadGatheringSkillNames returns the lowercased names of every Profession (11)
+// or Secondary (9) skill from the client's own skill taxonomy. A lock requiring
+// one of these (Herbalism, Mining, Survival, Fishing, …) marks a gathering node
+// ("Gathered From"); a Class Skill like Lockpicking (category 7) or any lock with
+// no matching skill is a chest ("Contained In"). This replaces a hardcoded skill
+// list — new gathering/secondary skills classify automatically.
+func loadGatheringSkillNames(db interface {
+	Query(string, ...interface{}) (*sql.Rows, error)
+}) map[string]bool {
+	out := map[string]bool{}
+	// 11 = Professions, 9 = Secondary Skills (the gathering/secondary categories).
+	rows, err := db.Query("SELECT LOWER(name) FROM spell_skills WHERE category_id IN (9, 11)")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil && name != "" {
+			out[name] = true
+		}
+	}
+	return out
 }
 
 // lockSkillRequirement resolves a lock's required skill to (name, level) from
@@ -1573,11 +1585,13 @@ func loadLockTypeNames(db interface {
 // container items).
 func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*models.ItemContainer) {
 	lockNames := loadLockTypeNames(r.db)
+	gatherSkill := loadGatheringSkillNames(r.db)
 
 	// Gameobject chests/nodes (type 3): data1 is the loot template entry, data0
 	// the Lock id. The lock's required skill (name from lock_types, level from req)
-	// is shown on every entry; a gathering skill routes the object to "Gathered
-	// From", anything else (Lockpicking, Disarm Trap, no lock) stays "Contained In".
+	// is shown on every entry; a gathering/secondary skill routes the object to
+	// "Gathered From", anything else (Lockpicking, Disarm Trap, no lock) stays
+	// "Contained In".
 	goRows, err := r.db.Query(`
 		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance,
 		       l.type1, l.type2, l.type3, l.type4, l.type5,
@@ -1610,7 +1624,7 @@ func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*model
 					break
 				}
 			}
-			if gatheringSkills[c.Skill] {
+			if c.Skill != "" && gatherSkill[strings.ToLower(c.Skill)] {
 				gathered = append(gathered, c)
 			} else {
 				contained = append(contained, c)
