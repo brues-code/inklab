@@ -106,6 +106,8 @@ export function GetQuestsByCategory(arg1:number):Promise<Array<models.Quest>>;
 
 export function GetQuestsByEnhancedCategory(arg1:number,arg2:string):Promise<Array<models.Quest>>;
 
+export function GetRaces():Promise<Array<models.Race>>;
+
 export function GetRootCategories():Promise<Array<models.Category>>;
 
 export function GetSpellClasses():Promise<Array<models.SpellClass>>;

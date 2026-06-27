@@ -24,6 +24,9 @@ type ItemClass = models.ItemClass
 type ItemSubClass = models.ItemSubClass
 type InventorySlot = models.InventorySlot
 type StatType = models.StatType
+type Race = models.Race
+type RaceClass = models.RaceClass
+type RacialSpell = models.RacialSpell
 type ItemDetail = models.ItemDetail
 type CreatureDrop = models.CreatureDrop
 type QuestReward = models.QuestReward
@@ -112,11 +115,16 @@ type CategoryRepository = repositories.CategoryRepository
 type AtlasLootRepository = repositories.AtlasLootRepository
 type LocaleRepository = repositories.LocaleRepository
 type FavoriteRepository = repositories.FavoriteRepository
+type RaceRepository = repositories.RaceRepository
 
 // === Factory Functions ===
 
 func NewItemRepository(db *SQLiteDB) *ItemRepository {
 	return repositories.NewItemRepository(db.DB())
+}
+
+func NewRaceRepository(db *SQLiteDB) *RaceRepository {
+	return repositories.NewRaceRepository(db.DB())
 }
 
 func NewCreatureRepository(db *SQLiteDB) *CreatureRepository {

@@ -10,10 +10,11 @@ import {
     ZonesTab,
     SpellsTab,
     FactionsTab,
+    RacesTab,
 } from '../components/database/tabs'
 import { useTooltipCtx } from '../hooks/useTooltipContext'
 
-const TABS = ['Items', 'Sets', 'NPCs', 'Quests', 'Objects', 'Zones', 'Spells', 'Factions']
+const TABS = ['Items', 'Sets', 'NPCs', 'Quests', 'Objects', 'Zones', 'Spells', 'Factions', 'Races']
 
 const TAB_BASE =
     'px-4 py-2 font-bold text-sm cursor-pointer transition-all duration-200 border ' +
@@ -77,6 +78,7 @@ export function DatabaseTabs() {
                         {activeTab === 'zones' && <ZonesTab onNavigate={onNavigate} />}
                         {activeTab === 'spells' && <SpellsTab onNavigate={onNavigate} />}
                         {activeTab === 'factions' && <FactionsTab onNavigate={onNavigate} />}
+                        {activeTab === 'races' && <RacesTab onNavigate={onNavigate} />}
                     </ContentGrid>
                 )}
             </div>

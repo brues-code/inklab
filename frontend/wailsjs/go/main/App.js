@@ -206,6 +206,10 @@ export function GetQuestsByEnhancedCategory(arg1, arg2) {
   return window['go']['main']['App']['GetQuestsByEnhancedCategory'](arg1, arg2);
 }
 
+export function GetRaces() {
+  return window['go']['main']['App']['GetRaces']();
+}
+
 export function GetRootCategories() {
   return window['go']['main']['App']['GetRootCategories']();
 }

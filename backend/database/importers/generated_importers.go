@@ -465,6 +465,72 @@ func (i *GeneratedImporter) ImportStatNames(jsonPath string) error {
 	return nil
 }
 
+// raceJSON mirrors an entry in data/races.json (ChrRaces + glue strings +
+// CharBaseInfo + racial skill lines).
+type raceJSON struct {
+	ID             int      `json:"id"`
+	Name           string   `json:"name"`
+	FileString     string   `json:"fileString"`
+	Prefix         string   `json:"prefix"`
+	Faction        string   `json:"faction"`
+	Info           string   `json:"info"`
+	Abilities      []string `json:"abilities"`
+	ClassIDs       []int    `json:"classIds"`
+	RacialSpellIDs []int    `json:"racialSpellIds"`
+}
+
+// ImportRaces loads the client-derived race data (races + racial blurbs +
+// available classes + racial spell ids) into the race tables. Optional: a
+// missing file (no client import yet) is a no-op.
+func (i *GeneratedImporter) ImportRaces(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil
+	}
+	var races []raceJSON
+	if err := json.Unmarshal(data, &races); err != nil {
+		fmt.Printf("  ERROR parsing races.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, t := range []string{"races", "race_abilities", "race_classes", "race_spells"} {
+		tx.Exec("DELETE FROM " + t)
+	}
+	raceStmt, _ := tx.Prepare("INSERT OR REPLACE INTO races (id, name, file_string, prefix, faction, info) VALUES (?,?,?,?,?,?)")
+	abilStmt, _ := tx.Prepare("INSERT OR REPLACE INTO race_abilities (race_id, idx, text) VALUES (?,?,?)")
+	classStmt, _ := tx.Prepare("INSERT OR REPLACE INTO race_classes (race_id, class_id) VALUES (?,?)")
+	spellStmt, _ := tx.Prepare("INSERT OR REPLACE INTO race_spells (race_id, spell_id) VALUES (?,?)")
+	defer raceStmt.Close()
+	defer abilStmt.Close()
+	defer classStmt.Close()
+	defer spellStmt.Close()
+
+	for _, r := range races {
+		if r.Name == "" {
+			continue
+		}
+		raceStmt.Exec(r.ID, r.Name, r.FileString, r.Prefix, r.Faction, r.Info)
+		for idx, text := range r.Abilities {
+			abilStmt.Exec(r.ID, idx, text)
+		}
+		for _, c := range r.ClassIDs {
+			classStmt.Exec(r.ID, c)
+		}
+		for _, s := range r.RacialSpellIDs {
+			spellStmt.Exec(r.ID, s)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d races\n", len(races))
+	return nil
+}
+
 // lockJSON mirrors an entry in data/locks.json (Lock.dbc, first 5 slots).
 type lockJSON struct {
 	ID    int `json:"id"`

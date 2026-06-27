@@ -66,6 +66,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"creatureFamilies", "Creature families", "CreatureFamily.dbc", "table", a.countRows("creature_family")},
 		{"locks", "Locks", "Lock.dbc", "table", a.countRows("locks")},
 		{"classes", "Classes", "ChrClasses.dbc", "table", a.countRows("class_info")},
+		{"races", "Races", "ChrRaces.dbc + CharBaseInfo.dbc + glue strings", "table", a.countRows("races")},
 		{"spellSchools", "Spell school names", "GlobalStrings.lua", "table", a.countRows("spell_schools")},
 		{"statTypes", "Item stat names", "GlobalStrings.lua", "table", a.countRows("stat_types")},
 	}
@@ -306,6 +307,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportClasses(filepath.Join(a.DataDir, "classes.json"))
 	_ = gen.ImportSpellSchools(filepath.Join(a.DataDir, "spell_schools.json"))
 	_ = gen.ImportStatNames(filepath.Join(a.DataDir, "stat_names.json"))
+	_ = gen.ImportRaces(filepath.Join(a.DataDir, "races.json"))
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}

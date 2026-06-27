@@ -288,6 +288,37 @@ func CoreSchema() string {
 		name TEXT NOT NULL
 	);
 
+	-- Playable races, assembled entirely from client data: ChrRaces.dbc (name,
+	-- prefix, base language → faction), the glue character-create strings (flavor
+	-- text), CharBaseInfo.dbc (available classes) and the racial skill lines.
+	CREATE TABLE IF NOT EXISTS races (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		file_string TEXT DEFAULT '',
+		prefix TEXT DEFAULT '',
+		faction TEXT DEFAULT '',
+		info TEXT DEFAULT ''
+	);
+	-- Racial trait blurbs (the character-create ABILITY_INFO_ lines), ordered.
+	CREATE TABLE IF NOT EXISTS race_abilities (
+		race_id INTEGER NOT NULL,
+		idx INTEGER NOT NULL,
+		text TEXT NOT NULL,
+		PRIMARY KEY (race_id, idx)
+	);
+	-- Race → available class ids (CharBaseInfo.dbc).
+	CREATE TABLE IF NOT EXISTS race_classes (
+		race_id INTEGER NOT NULL,
+		class_id INTEGER NOT NULL,
+		PRIMARY KEY (race_id, class_id)
+	);
+	-- Race → racial spell ids (racial skill lines, by race bitmask).
+	CREATE TABLE IF NOT EXISTS race_spells (
+		race_id INTEGER NOT NULL,
+		spell_id INTEGER NOT NULL,
+		PRIMARY KEY (race_id, spell_id)
+	);
+
 	-- Flight (taxi) network, DBC-derived and projected onto continent maps.
 	-- px/py are 0-100 percentages on the node's continent overview map.
 	CREATE TABLE IF NOT EXISTS taxi_node (

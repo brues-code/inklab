@@ -33,6 +33,7 @@ type App struct {
 	categoryRepo  *database.CategoryRepository
 	atlasLootRepo *database.AtlasLootRepository
 	favoriteRepo  *database.FavoriteRepository
+	raceRepo      *database.RaceRepository
 
 	// Cache for category lookups
 	categoryCache      map[int]*database.Category
@@ -121,6 +122,7 @@ func (a *App) startup(ctx context.Context) {
 	a.categoryRepo = database.NewCategoryRepository(db)
 	a.atlasLootRepo = database.NewAtlasLootRepository(db)
 	a.favoriteRepo = database.NewFavoriteRepository(db)
+	a.raceRepo = database.NewRaceRepository(db)
 
 	// Initialize favorites schema
 	if err := a.favoriteRepo.InitSchema(); err != nil {
@@ -303,6 +305,9 @@ func (a *App) importFullTables(dataDir string) {
 	}
 	if err := gen.ImportStatNames(filepath.Join(dataDir, "stat_names.json")); err != nil {
 		fmt.Printf("⚠️ Stat name import failed: %v\n", err)
+	}
+	if err := gen.ImportRaces(filepath.Join(dataDir, "races.json")); err != nil {
+		fmt.Printf("⚠️ Race import failed: %v\n", err)
 	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)

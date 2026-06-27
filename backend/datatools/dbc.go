@@ -70,6 +70,16 @@ func (d *DBC) U32(rec, field int) uint32 {
 }
 func (d *DBC) I32(rec, field int) int32     { return int32(d.U32(rec, field)) }
 func (d *DBC) F32(rec, field int) float32   { return math.Float32frombits(d.U32(rec, field)) }
+// U8 reads a single byte at byteOff within the record. Used for byte-packed
+// DBCs like CharBaseInfo.dbc (recordSize 2: raceID, classID) where the 4-byte
+// field accessors don't apply.
+func (d *DBC) U8(rec, byteOff int) byte {
+	o := d.recordsOff + rec*d.RecordSize + byteOff
+	if o >= len(d.data) {
+		return 0
+	}
+	return d.data[o]
+}
 func (d *DBC) Str(rec, field int) string {
 	start := d.stringsOff + int(d.U32(rec, field))
 	if start < d.stringsOff || start >= len(d.data) {
@@ -115,6 +125,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"classes", "classes.json"},
 		{"spellschools", "spell_schools.json"},
 		{"itemmods", "stat_names.json"},
+		{"races", "races.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -156,6 +167,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genSpellSchools(cf)
 	case "itemmods":
 		v, err = genItemMods(cf)
+	case "races":
+		v, err = genRaces(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -371,6 +384,161 @@ func genItemMods(cf ClientFiles) (interface{}, error) {
 			continue
 		}
 		out = append(out, map[string]interface{}{"id": spellStatToItemMod[idx], "name": m[2]})
+	}
+	return out, nil
+}
+
+// Race flavor/ability text comes from the glue (character-create) strings, not
+// the in-game GlobalStrings. RACE_INFO_<FILESTRING> is the select-screen
+// paragraph; ABILITY_INFO_<FILESTRING><n> are the racial trait blurbs.
+var raceInfoRe = regexp.MustCompile(`RACE_INFO_([A-Z]+)\s*=\s*"([^"]*)"`)
+var raceAbilityRe = regexp.MustCompile(`ABILITY_INFO_([A-Z]+)(\d+)\s*=\s*"([^"]*)"`)
+
+// raceGen is one race assembled entirely from client data for races.json.
+type raceGen struct {
+	ID             int      `json:"id"`
+	Name           string   `json:"name"`
+	FileString     string   `json:"fileString"`
+	Prefix         string   `json:"prefix"`
+	Faction        string   `json:"faction"`
+	Info           string   `json:"info"`
+	Abilities      []string `json:"abilities"`
+	ClassIDs       []int    `json:"classIds"`
+	RacialSpellIDs []int    `json:"racialSpellIds"`
+}
+
+// readGlueStrings returns the client's GlueXML/GlueStrings.lua (character-create
+// UI strings), or "" if not present.
+func readGlueStrings(cf ClientFiles) string {
+	for _, p := range []string{`BlizzardInterfaceCode\GlueXML\GlueStrings.lua`, `Interface\GlueXML\GlueStrings.lua`} {
+		if b, err := cf.ReadFile(p); err == nil {
+			return string(b)
+		}
+	}
+	return ""
+}
+
+// readCharBaseInfo maps each race id to its available class ids from the
+// byte-packed CharBaseInfo.dbc (each record is raceID, classID).
+func readCharBaseInfo(cf ClientFiles) map[int][]int {
+	out := map[int][]int{}
+	d, err := openDBCFrom(cf, "CharBaseInfo.dbc")
+	if err != nil {
+		fmt.Printf("[dbc] CharBaseInfo skipped: %v\n", err)
+		return out
+	}
+	for r := 0; r < d.RecordCount; r++ {
+		race := int(d.U8(r, 0))
+		cls := int(d.U8(r, 1))
+		if race == 0 || cls == 0 {
+			continue
+		}
+		out[race] = append(out[race], cls)
+	}
+	return out
+}
+
+// readRacialSpells maps each race id to its racial spell ids by scanning the
+// racial skill lines (SkillLine names containing "Racial") and assigning each
+// SkillLineAbility spell to the races in its race bitmask.
+func readRacialSpells(cf ClientFiles) map[int][]int {
+	out := map[int][]int{}
+	skills, err := openDBCFrom(cf, "SkillLine.dbc")
+	if err != nil {
+		fmt.Printf("[dbc] SkillLine skipped for racials: %v\n", err)
+		return out
+	}
+	racial := map[uint32]bool{}
+	for r := 0; r < skills.RecordCount; r++ {
+		if strings.Contains(skills.Str(r, 3), "Racial") {
+			racial[skills.U32(r, 0)] = true
+		}
+	}
+	sla, err := openDBCFrom(cf, "SkillLineAbility.dbc")
+	if err != nil {
+		fmt.Printf("[dbc] SkillLineAbility skipped for racials: %v\n", err)
+		return out
+	}
+	seen := map[[2]int]bool{}
+	for r := 0; r < sla.RecordCount; r++ {
+		if !racial[sla.U32(r, 1)] {
+			continue
+		}
+		spell := int(sla.U32(r, 2))
+		racemask := sla.U32(r, 3)
+		if racemask == 0 {
+			continue // would apply to every race; skip rather than over-assign
+		}
+		for race := 1; race <= 32; race++ {
+			if racemask&(1<<uint(race-1)) == 0 {
+				continue
+			}
+			key := [2]int{race, spell}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out[race] = append(out[race], spell)
+		}
+	}
+	return out
+}
+
+// genRaces assembles the playable races entirely from client data: ChrRaces.dbc
+// (id, name, client prefix, base language → faction), CharBaseInfo.dbc (available
+// classes), the glue strings (select-screen flavor + racial blurbs), and the
+// racial skill lines (clickable racial spell ids).
+func genRaces(cf ClientFiles) (interface{}, error) {
+	races, err := openDBCFrom(cf, "ChrRaces.dbc")
+	if err != nil {
+		return nil, err
+	}
+	glue := readGlueStrings(cf)
+	info := map[string]string{}
+	for _, m := range raceInfoRe.FindAllStringSubmatch(glue, -1) {
+		info[m[1]] = strings.TrimSpace(m[2])
+	}
+	abilities := map[string]map[int]string{}
+	for _, m := range raceAbilityRe.FindAllStringSubmatch(glue, -1) {
+		idx, _ := strconv.Atoi(m[2])
+		if abilities[m[1]] == nil {
+			abilities[m[1]] = map[int]string{}
+		}
+		abilities[m[1]][idx] = strings.TrimSpace(m[3])
+	}
+	classByRace := readCharBaseInfo(cf)
+	spellByRace := readRacialSpells(cf)
+
+	out := make([]raceGen, 0, races.RecordCount)
+	for r := 0; r < races.RecordCount; r++ {
+		id := int(races.U32(r, 0))
+		fileStr := races.Str(r, 15)
+		up := strings.ToUpper(fileStr)
+		faction := ""
+		switch races.U32(r, 8) { // base language: 7 Common, 1 Orcish
+		case 7:
+			faction = "Alliance"
+		case 1:
+			faction = "Horde"
+		}
+		// Racial ability blurbs in index order.
+		var abil []string
+		for i := 1; i <= 12; i++ {
+			if t, ok := abilities[up][i]; ok {
+				abil = append(abil, t)
+			}
+		}
+		out = append(out, raceGen{
+			ID:             id,
+			Name:           races.Str(r, 17),
+			FileString:     fileStr,
+			Prefix:         races.Str(r, 6),
+			Faction:        faction,
+			Info:           info[up],
+			Abilities:      abil,
+			ClassIDs:       classByRace[id],
+			RacialSpellIDs: spellByRace[id],
+		})
 	}
 	return out, nil
 }
