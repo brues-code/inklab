@@ -168,87 +168,117 @@ type SyncQuestResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// FetchAndImportQuest fetches a single quest and imports it to local database
+// FetchAndImportQuest scrapes a quest and fills the fields the WDB quest cache
+// can't carry — start/end NPCs, Race/Class masks, reputation rewards, and the
+// prev/next chain — WITHOUT overwriting the WDB/world-dump data. Text and core
+// numeric fields are only backfilled when they're empty locally, so the
+// authoritative cached values always win.
 func (s *SyncService) FetchAndImportQuest(questID int) *SyncQuestResult {
 	fmt.Printf("[SyncService] FetchAndImportQuest called for quest %d\n", questID)
 
-	// Fetch quest details from remote
-	quest, err := s.FetchQuestDetails(questID)
+	url := fmt.Sprintf("%s/?quest=%d", s.baseURL, questID)
+	resp, err := s.httpClient.Get(url)
 	if err != nil {
-		return &SyncQuestResult{
-			Success: false,
-			QuestID: questID,
-			Error:   err.Error(),
-		}
+		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return &SyncQuestResult{Success: false, QuestID: questID, Error: fmt.Sprintf("quest not found: %d", questID)}
+	}
+	data, err := parsers.ParseQuestDataTurtlecraft(resp.Body, questID)
+	if err != nil {
+		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
+	}
+	if data.Title == "" {
+		return &SyncQuestResult{Success: false, QuestID: questID, Error: "no quest data"}
 	}
 
-	// Insert or update in database
-	// Start transaction
 	tx, err := s.db.Begin()
 	if err != nil {
 		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
 	}
+	defer tx.Rollback()
 
-	// Upsert ONLY the columns the scraper actually parses. INSERT OR REPLACE
-	// would delete + re-insert the row, resetting every unlisted column to its
-	// default (0/'') — that's what wiped RewRepFaction*/RewRepValue* (and the
-	// other structured reward fields) imported from MySQL. ON CONFLICT updates
-	// just these columns and preserves the rest.
-	_, err = tx.Exec(`
-		INSERT INTO quest_template
-		(entry, Title, QuestLevel, MinLevel, Type, Details, Objectives, OfferRewardText, EndText, RewXP, RewOrReqMoney, RequiredRaces)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(entry) DO UPDATE SET
-			Title = excluded.Title,
-			QuestLevel = excluded.QuestLevel,
-			MinLevel = excluded.MinLevel,
-			Type = excluded.Type,
-			Details = excluded.Details,
-			Objectives = excluded.Objectives,
-			OfferRewardText = excluded.OfferRewardText,
-			EndText = excluded.EndText,
-			RewXP = excluded.RewXP,
-			RewOrReqMoney = excluded.RewOrReqMoney,
-			RequiredRaces = excluded.RequiredRaces
-	`, quest.Entry, quest.Title, quest.QuestLevel, quest.MinLevel, quest.Type, quest.Details, quest.Objectives, quest.OfferRewardText, quest.EndText, quest.RewardXP, quest.RewardMoney, quest.RequiredRaces)
+	// Ensure the row exists (custom quests not yet imported from WDB/world dump).
+	tx.Exec("INSERT OR IGNORE INTO quest_template (entry, Title) VALUES (?, ?)", questID, data.Title)
 
-	if err != nil {
-		tx.Rollback()
-		return &SyncQuestResult{
-			Success: false,
-			QuestID: questID,
-			Error:   fmt.Sprintf("DB Error quest_template: %v", err),
+	// fill* writes a scraped value only into an empty/zero column — used for the
+	// fields the WDB quest cache carries, so we never clobber authoritative cached
+	// (or world-dump) data.
+	fillText := func(col, val string) {
+		if val == "" {
+			return
 		}
+		tx.Exec(fmt.Sprintf("UPDATE quest_template SET %s = ? WHERE entry = ? AND (%s IS NULL OR %s = '')", col, col, col), val, questID)
+	}
+	fillInt := func(col string, val int) {
+		if val == 0 {
+			return
+		}
+		tx.Exec(fmt.Sprintf("UPDATE quest_template SET %s = ? WHERE entry = ? AND (%s IS NULL OR %s = 0)", col, col, col), val, questID)
+	}
+	// set* overwrites unconditionally — used for the fields the WDB can't carry,
+	// where the scrape is the authoritative source. Still guarded against wiping a
+	// good value with a failed-parse 0/"".
+	setText := func(col, val string) {
+		if val == "" {
+			return
+		}
+		tx.Exec(fmt.Sprintf("UPDATE quest_template SET %s = ? WHERE entry = ?", col), val, questID)
+	}
+	setInt := func(col string, val int) {
+		if val == 0 {
+			return
+		}
+		tx.Exec(fmt.Sprintf("UPDATE quest_template SET %s = ? WHERE entry = ?", col), val, questID)
 	}
 
-	// Insert Reward Items
-	if len(quest.RewardItems) > 0 {
-		// Update quest_template fields for rewards (Up to 4)
-		// Basic implementation just supports rewItemId1-4
-		for i, item := range quest.RewardItems {
-			if i >= 4 {
-				break
-			}
-			colItem := fmt.Sprintf("RewItemId%d", i+1)
-			colCount := fmt.Sprintf("RewItemCount%d", i+1)
+	// WDB-provided fields: backfill only when empty (cache/world-dump wins).
+	fillText("Title", data.Title)
+	fillText("Details", data.Details)
+	fillText("EndText", data.EndText)
+	fillInt("QuestLevel", data.QuestLevel)
+	fillInt("ZoneOrSort", data.ZoneOrSort)
 
-			// We need to update the row we just inserted
-			query := fmt.Sprintf("UPDATE quest_template SET %s = ?, %s = ? WHERE entry = ?", colItem, colCount)
-			if _, err := tx.Exec(query, item.Entry, item.Count, quest.Entry); err != nil {
-				fmt.Printf("Error updating reward item: %v\n", err)
+	// Fields the WDB cache doesn't carry: the scrape is authoritative.
+	setText("OfferRewardText", data.OfferRewardText)
+	setInt("MinLevel", data.MinLevel)
+	setInt("RewXP", data.RewXP)
+	setInt("RequiredRaces", data.RaceMask)
+	setInt("RequiredClasses", data.ClassMask)
+	setInt("PrevQuestId", data.PrevQuestID)
+	setInt("NextQuestId", data.NextQuestID)
+
+	// Start/End NPC relations (additive; PK(id,quest) dedupes).
+	for _, npc := range data.Starters {
+		tx.Exec("INSERT OR IGNORE INTO creature_questrelation (id, quest) VALUES (?, ?)", npc, questID)
+	}
+	for _, npc := range data.Enders {
+		tx.Exec("INSERT OR IGNORE INTO creature_involvedrelation (id, quest) VALUES (?, ?)", npc, questID)
+	}
+
+	// Reputation rewards aren't in the WDB, so the scrape is authoritative: when it
+	// finds any, replace the slots. (When it finds none we leave existing data
+	// alone — absence may just be a parse miss.) Faction id comes from the link.
+	if len(data.RepRewards) > 0 {
+		tx.Exec(`UPDATE quest_template SET
+			RewRepFaction1=0, RewRepValue1=0, RewRepFaction2=0, RewRepValue2=0,
+			RewRepFaction3=0, RewRepValue3=0, RewRepFaction4=0, RewRepValue4=0,
+			RewRepFaction5=0, RewRepValue5=0 WHERE entry = ?`, questID)
+		slot := 1
+		for _, rr := range data.RepRewards {
+			if slot > 5 || rr.FactionID == 0 {
+				continue
 			}
+			tx.Exec(fmt.Sprintf("UPDATE quest_template SET RewRepFaction%d = ?, RewRepValue%d = ? WHERE entry = ?", slot, slot), rr.FactionID, rr.Value, questID)
+			slot++
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
 	}
-
-	return &SyncQuestResult{
-		Success: true,
-		QuestID: questID,
-		Title:   quest.Title,
-	}
+	return &SyncQuestResult{Success: true, QuestID: questID, Title: data.Title}
 }
 
 // FullSyncQuests re-syncs all quests in the database
