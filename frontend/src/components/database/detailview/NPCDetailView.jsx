@@ -5,7 +5,7 @@ import { useNpcDetail } from "../../../hooks/queries/npcs";
 import { queryKeys } from "../../../hooks/queries/keys";
 import { useNpcModel, useNpcPortrait, useZoneMap, useIcon } from "../../../services/useImage";
 import { evictImage } from "../../../services/imageService";
-import { getQualityColor, formatMoney } from "../../../utils/wow";
+import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import {
   DetailPageLayout,
@@ -28,7 +28,7 @@ const AbilityIcon = ({ iconName }) => {
   if (!iconName) return null;
   return (
     <img
-      src={icon.src || "/local-icons/inv_misc_questionmark.jpg"}
+      src={icon.src || QUESTION_MARK_ICON}
       alt=""
       className="w-10 h-10 rounded border border-gray-600 bg-black/40"
     />

@@ -10,7 +10,7 @@ import {
     DetailError
 } from '../../ui'
 import { useIcon } from '../../../services/useImage'
-import { getQualityColor, getSchoolName, getSchoolColor, getDispelColor } from '../../../utils/wow'
+import { getQualityColor, getSchoolName, getSchoolColor, getDispelColor, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 
 // Helper component for Spell Icon
@@ -23,7 +23,7 @@ const SpellIcon = ({ iconName }) => {
 
     return (
         <img 
-            src={icon.src || '/local-icons/inv_misc_questionmark.jpg'} 
+            src={icon.src || QUESTION_MARK_ICON} 
             className="w-full h-full object-cover" 
             alt=""
             onError={(e) => { e.target.style.display = 'none' }}
@@ -41,7 +41,7 @@ const ItemIcon = ({ iconName }) => {
 
     return (
         <img 
-            src={icon.src || '/local-icons/inv_misc_questionmark.jpg'} 
+            src={icon.src || QUESTION_MARK_ICON} 
             className="w-full h-full object-cover" 
             alt=""
         />

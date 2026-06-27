@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { getQualityColor } from '../../utils/wow'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../utils/wow'
 import { useIcon } from '../../services/useImage'
 import { SyncSingleItem } from '../../../wailsjs/go/main/App'
 
@@ -72,7 +72,7 @@ export const LootItem = ({
                     <div className="w-full h-full bg-white/5 animate-pulse" />
                 ) : (
                     <img 
-                        src={icon.src || '/local-icons/inv_misc_questionmark.jpg'} // Fallback only for display
+                        src={icon.src || QUESTION_MARK_ICON} // Fallback only for display
                         alt=""
                         className="w-full h-full object-cover"
                     />

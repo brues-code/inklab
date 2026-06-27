@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useIcon, useNpcPortrait } from '../../services/useImage'
-import { getQualityColor } from '../../utils/wow'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../utils/wow'
 import { useEntityNavigate } from '../../utils/entityNav'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useGlobalSearch } from '../../hooks/queries/search'
@@ -20,8 +20,7 @@ const ResultIcon = ({ iconName, type, displayId }) => {
     const icon = useIcon(iconName)
     // NPCs prefer the head-shot portrait; bounded result set, so generate=true is safe.
     const portrait = useNpcPortrait(type === 'npc' ? displayId : 0, 0, 0, true)
-    const fallback = '/local-icons/inv_misc_questionmark.jpg'
-    const src = (type === 'npc' && portrait.src) ? portrait.src : (icon.src || fallback)
+    const src = (type === 'npc' && portrait.src) ? portrait.src : (icon.src || QUESTION_MARK_ICON)
 
     return (
         <div className="w-7 h-7 mr-2 bg-black rounded overflow-hidden flex-shrink-0 relative">

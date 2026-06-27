@@ -10,12 +10,10 @@ import {
     useSpellsBySkill,
 } from '../../../hooks/queries/spells'
 import { useIcon } from '../../../services/useImage'
+import { QUESTION_MARK_ICON } from "../../../utils/wow.ts";
 
 const SpellListItemIcon = ({ iconName, spellColor }) => {
     const icon = useIcon(iconName)
-
-    // Fallback based on type
-    let fallback = '/local-icons/inv_misc_questionmark.jpg'
 
     return (
         <div
@@ -26,7 +24,7 @@ const SpellListItemIcon = ({ iconName, spellColor }) => {
                 <div className="w-full h-full bg-white/5 animate-pulse" />
             ) : (
                 <img
-                    src={icon.src || fallback}
+                    src={icon.src || QUESTION_MARK_ICON}
                     alt=""
                     className="w-full h-full object-cover"
                 />

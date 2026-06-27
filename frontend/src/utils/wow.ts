@@ -48,17 +48,7 @@ export const getQualityColor = (quality: number): string => {
     return colors[quality] || '#ffffff'
 }
 
-// Get icon path - default to JPG
-export const getIconPath = (icon?: string | null): string => {
-    if (!icon) return '/local-icons/inv_misc_questionmark.jpg';
-    return `/local-icons/${icon.toLowerCase()}.jpg`;
-}
-
-// Get PNG variant of icon path
-export const getIconPathPng = (icon?: string | null): string => {
-    if (!icon) return '/local-icons/inv_misc_questionmark.jpg';
-    return `/local-icons/${icon.toLowerCase()}.png`;
-}
+export const QUESTION_MARK_ICON = '/local-icons/inv_misc_questionmark.jpg'
 
 export interface Money { g: number; s: number; c: number }
 

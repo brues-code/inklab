@@ -4,8 +4,8 @@ import { SidebarPanel, ContentPanel, ScrollList, SectionHeader, ListItem } from 
 import { filterItems } from '../../../utils/databaseApi'
 import { useRaces } from '../../../hooks/queries/races'
 import { useIcon, useImage } from '../../../services/useImage'
+import { QUESTION_MARK_ICON } from "../../../utils/wow.ts";
 
-const FALLBACK_ICON = '/local-icons/inv_misc_questionmark.jpg'
 const FACTION_COLOR = { Alliance: '#3b82f6', Horde: '#e0294a' }
 const factionColor = (f) => FACTION_COLOR[f] || '#FFD100'
 
@@ -36,7 +36,7 @@ function RacialSpell({ spell, onNavigate, tooltipHook }) {
             className="flex items-center gap-2 p-2 bg-white/[0.02] hover:bg-white/5 border border-border-dark/50 rounded text-left transition-colors"
         >
             <div className="w-8 h-8 shrink-0 bg-black rounded overflow-hidden border border-gray-700/50">
-                <img src={icon.src || FALLBACK_ICON} alt="" className="w-full h-full object-cover" />
+                <img src={icon.src || QUESTION_MARK_ICON} alt="" className="w-full h-full object-cover" />
             </div>
             <span className="text-sm text-wow-rare font-semibold truncate">{spell.name}</span>
             <span className="ml-auto text-[11px] font-mono text-gray-600">#{spell.id}</span>

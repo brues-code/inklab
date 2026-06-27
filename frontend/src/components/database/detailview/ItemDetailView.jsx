@@ -8,7 +8,7 @@ import {
   FixSingleItemIcon,
   SyncSingleItem,
 } from "../../../../wailsjs/go/main/App";
-import { getQualityColor, formatMoney } from "../../../utils/wow";
+import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from "../../../utils/wow";
 import { DATABASE_BASE_URL } from "../../../utils/constants";
 import { useIcon } from "../../../services/useImage";
 import {
@@ -61,7 +61,7 @@ const ItemIconHeader = ({
         <div className="w-full h-full bg-white/5 animate-pulse" />
       ) : (
         <img
-          src={icon.src || "/local-icons/inv_misc_questionmark.jpg"}
+          src={icon.src || QUESTION_MARK_ICON}
           className="w-full h-full object-cover"
           alt=""
         />
@@ -75,7 +75,7 @@ const IconImg = ({ name, className }) => {
   const icon = useIcon(name);
   return (
     <img
-      src={icon.src || "/local-icons/inv_misc_questionmark.jpg"}
+      src={icon.src || QUESTION_MARK_ICON}
       className={className}
       alt=""
     />

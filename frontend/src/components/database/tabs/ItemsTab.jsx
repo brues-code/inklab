@@ -5,6 +5,12 @@ import { filterItems } from '../../../utils/databaseApi'
 import { useItemClasses, useItems } from '../../../hooks/queries/items'
 import { getCategoryIcon } from '../../../utils/categoryIcons'
 import { useIcon } from '../../../services/useImage'
+import {
+    GRID_LAYOUT, ITEMS_LAYOUT,
+    GRID_LAYOUT_NO_FILTER, ITEMS_LAYOUT_NO_FILTER
+} from '../../common/layout'
+import ItemFilters from './ItemFilters'
+import { QUESTION_MARK_ICON } from "../../../utils/wow.ts"
 
 // A category (item class) icon, loaded from the client icon set (data/icons)
 // via the shared icon service, falling back to the questionmark placeholder when
@@ -13,17 +19,12 @@ const CategoryIcon = ({ name }) => {
     const icon = useIcon(getCategoryIcon(name))
     return (
         <img
-            src={icon.src || '/local-icons/inv_misc_questionmark.jpg'}
+            src={icon.src || QUESTION_MARK_ICON}
             alt=""
             className="w-5 h-5 object-contain opacity-80"
         />
     )
 }
-import { 
-    GRID_LAYOUT, ITEMS_LAYOUT, 
-    GRID_LAYOUT_NO_FILTER, ITEMS_LAYOUT_NO_FILTER 
-} from '../../common/layout'
-import ItemFilters from './ItemFilters'
 
 // Resistance Fields
 const RESISTANCE_FIELDS = {
