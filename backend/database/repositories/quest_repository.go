@@ -275,12 +275,58 @@ func (r *QuestRepository) GetQuestCount() (int, error) {
 }
 
 // GetQuestDetail returns full quest information
+// resolveQuestRewardSpell determines the spell a quest teaches on completion.
+// RewSpell is the dedicated learned-spell reward (always shown). RewSpellCast is
+// the broad "cast on completion" field — buffs, summons and teleports also live
+// there — so it only counts when it's an actual learn-spell (effect 36). A
+// learn-spell is followed through to the ability it teaches. Returns nil when
+// there's nothing learnable to show.
+func (r *QuestRepository) resolveQuestRewardSpell(rewSpell, rewSpellCast int) *models.QuestRewardSpell {
+	fromCast := false
+	spellID := rewSpell
+	if spellID == 0 {
+		spellID, fromCast = rewSpellCast, true
+	}
+	if spellID <= 0 {
+		return nil
+	}
+
+	var eff, trig [3]int
+	err := r.db.QueryRow(`
+		SELECT effect1, effect2, effect3, effectTriggerSpell1, effectTriggerSpell2, effectTriggerSpell3
+		FROM spell_template WHERE entry = ?
+	`, spellID).Scan(&eff[0], &eff[1], &eff[2], &trig[0], &trig[1], &trig[2])
+	isLearn := false
+	if err == nil {
+		for i := 0; i < 3; i++ {
+			if eff[i] == 36 && trig[i] > 0 { // SPELL_EFFECT_LEARN_SPELL
+				spellID, isLearn = trig[i], true
+				break
+			}
+		}
+	}
+	// A RewSpellCast that isn't a learn-spell is a completion effect, not a
+	// learned reward — don't surface it.
+	if fromCast && !isLearn {
+		return nil
+	}
+
+	out := &models.QuestRewardSpell{SpellID: spellID}
+	r.db.QueryRow(`
+		SELECT COALESCE(st.name, ''), COALESCE(NULLIF(si.icon_name, ''), st.iconName, '')
+		FROM spell_template st
+		LEFT JOIN spell_icons si ON st.spellIconId = si.id
+		WHERE st.entry = ?
+	`, spellID).Scan(&out.Name, &out.IconName)
+	return out
+}
+
 func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error) {
 	row := r.db.QueryRow(`
 		SELECT entry, Title, Details, Objectives, OfferRewardText, EndText,
 			QuestLevel, MinLevel, Type, ZoneOrSort,
 			RequiredRaces, RequiredClasses,
-			RewXP, RewOrReqMoney, RewSpell,
+			RewXP, RewOrReqMoney, RewSpell, RewSpellCast,
 			RewItemId1, RewItemId2, RewItemId3, RewItemId4,
 			RewItemCount1, RewItemCount2, RewItemCount3, RewItemCount4,
 			RewChoiceItemId1, RewChoiceItemId2, RewChoiceItemId3, RewChoiceItemId4, RewChoiceItemId5, RewChoiceItemId6,
@@ -303,6 +349,7 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 	var rewChoiceItemCounts [6]int
 	var repFactions [5]int
 	var repValues [5]int
+	var rewSpellCast int
 	var prevQuestID, nextQuestID, exclusiveGroup, nextQuestInChain int
 	var reqItems [4]int
 	var reqItemCounts [4]int
@@ -313,7 +360,7 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 		&q.Entry, &q.Title, &details, &objectives, &offerReward, &endText,
 		&q.QuestLevel, &q.MinLevel, &q.Type, &q.ZoneOrSort,
 		&q.RequiredRaces, &q.RequiredClasses,
-		&q.RewardXP, &q.RewardMoney, &q.RewardSpell,
+		&q.RewardXP, &q.RewardMoney, &q.RewardSpell, &rewSpellCast,
 		&rewItems[0], &rewItems[1], &rewItems[2], &rewItems[3],
 		&rewItemCounts[0], &rewItemCounts[1], &rewItemCounts[2], &rewItemCounts[3],
 		&rewChoiceItems[0], &rewChoiceItems[1], &rewChoiceItems[2], &rewChoiceItems[3], &rewChoiceItems[4], &rewChoiceItems[5],
@@ -329,6 +376,10 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 	if err != nil {
 		return nil, err
 	}
+
+	// Reward spell the quest teaches (RewSpell, or a learn-type RewSpellCast),
+	// resolved through any learn-spell wrapper to the real ability.
+	q.RewardSpellInfo = r.resolveQuestRewardSpell(q.RewardSpell, rewSpellCast)
 
 	q.Title = cleanQuestEscapes(q.Title)
 	if details != nil {

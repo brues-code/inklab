@@ -39,8 +39,9 @@ type SpellDetail struct {
 	Effects     []SpellEffectInfo  `json:"effects,omitempty"`
 	Flags       []string           `json:"flags,omitempty"`
 	UsedByItems []*SpellUsedByItem `json:"usedByItems,omitempty"`
-	TaughtByNpcs  []*SpellTrainerNpc `json:"taughtByNpcs,omitempty"`  // trainers (scraped)
-	TaughtByItems []*SpellUsedByItem `json:"taughtByItems,omitempty"` // recipe items that teach it
+	TaughtByNpcs   []*SpellTrainerNpc `json:"taughtByNpcs,omitempty"`   // trainers (scraped)
+	TaughtByItems  []*SpellUsedByItem `json:"taughtByItems,omitempty"`  // recipe items that teach it
+	TaughtByQuests []*SpellRewardQuest `json:"taughtByQuests,omitempty"` // quests that reward/teach it
 }
 
 // SpellTrainerNpc is an NPC that trains this spell (from npc_trainer_spell).
@@ -49,4 +50,11 @@ type SpellTrainerNpc struct {
 	Name     string `json:"name"`
 	LevelMin int    `json:"levelMin"`
 	LevelMax int    `json:"levelMax"`
+}
+
+// SpellRewardQuest is a quest whose reward teaches this spell.
+type SpellRewardQuest struct {
+	Entry int    `json:"entry"`
+	Title string `json:"title"`
+	Level int    `json:"level"`
 }

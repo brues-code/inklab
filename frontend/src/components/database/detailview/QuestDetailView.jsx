@@ -209,6 +209,23 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                     </span>
                                 </div>
                             ))}
+                            {detail.rewardSpellInfo && (
+                                <div
+                                    className="flex w-fit cursor-pointer items-center gap-2 rounded border border-wow-rare/10 bg-wow-rare/5 px-3 py-1.5 transition-colors hover:bg-wow-rare/10"
+                                    onClick={() =>
+                                        onNavigate?.('spell', detail.rewardSpellInfo.spellId)
+                                    }
+                                >
+                                    <span className="text-xs font-bold uppercase text-gray-500">
+                                        Learn:
+                                    </span>
+                                    <ReqIcon name={detail.rewardSpellInfo.iconName} />
+                                    <span className="font-medium text-wow-rare">
+                                        {detail.rewardSpellInfo.name ||
+                                            `Spell #${detail.rewardSpellInfo.spellId}`}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         {detail.rewardItems?.length > 0 && (

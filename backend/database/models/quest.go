@@ -47,6 +47,7 @@ type QuestDetail struct {
 	RewardXP        int                `json:"rewardXp"`
 	RewardMoney     int                `json:"rewardMoney"`
 	RewardSpell     int                `json:"rewardSpell,omitempty"`
+	RewardSpellInfo *QuestRewardSpell  `json:"rewardSpellInfo,omitempty"` // resolved learned spell
 	RewardItems     []*QuestItem       `json:"rewardItems"`
 	ChoiceItems     []*QuestItem       `json:"choiceItems"`
 	RequiredItems      []*QuestItem       `json:"requiredItems"`
@@ -57,6 +58,14 @@ type QuestDetail struct {
 	Series          []*QuestSeriesItem `json:"series"`
 	PrevQuests      []*QuestSeriesItem `json:"prevQuests"`
 	ExclusiveQuests []*QuestSeriesItem `json:"exclusiveQuests"`
+}
+
+// QuestRewardSpell is the spell a quest teaches on completion, resolved through
+// any learn-spell wrapper to the actual ability shown to the player.
+type QuestRewardSpell struct {
+	SpellID  int    `json:"spellId"`
+	Name     string `json:"name"`
+	IconName string `json:"iconName"`
 }
 
 // QuestSeriesItem represents a quest in a quest chain

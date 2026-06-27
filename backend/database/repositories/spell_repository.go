@@ -615,6 +615,32 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		}
 	}
 
+	// Quests that teach this spell: granted directly via RewSpell, or via a
+	// learn-spell reward (RewSpell or RewSpellCast) whose triggered spell is this
+	// one. Plain RewSpellCast (completion buffs/summons) is intentionally excluded.
+	questRows, err := r.db.Query(`
+		SELECT DISTINCT q.entry, q.Title, q.QuestLevel
+		FROM quest_template q
+		WHERE q.RewSpell = ?
+		   OR EXISTS (
+		       SELECT 1 FROM spell_template ls
+		       WHERE ls.entry IN (q.RewSpell, q.RewSpellCast)
+		         AND ((ls.effect1 = 36 AND ls.effectTriggerSpell1 = ?)
+		           OR (ls.effect2 = 36 AND ls.effectTriggerSpell2 = ?)
+		           OR (ls.effect3 = 36 AND ls.effectTriggerSpell3 = ?)))
+		ORDER BY q.QuestLevel, q.Title
+		LIMIT 50
+	`, entry, entry, entry, entry)
+	if err == nil {
+		defer questRows.Close()
+		for questRows.Next() {
+			q := &models.SpellRewardQuest{}
+			if err := questRows.Scan(&q.Entry, &q.Title, &q.Level); err == nil {
+				detail.TaughtByQuests = append(detail.TaughtByQuests, q)
+			}
+		}
+	}
+
 	return detail
 }
 
