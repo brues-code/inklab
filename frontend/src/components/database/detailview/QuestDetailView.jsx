@@ -3,6 +3,8 @@ import { queryClient } from '../../../queryClient'
 import { useQuestDetail } from '../../../hooks/queries/quests'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { SyncQuestData } from '../../../services/api'
+import { useIcon } from '../../../services/useImage'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow'
 import {
     DetailPageLayout,
     DetailHeader,
@@ -13,6 +15,18 @@ import {
     DetailError,
 } from '../../ui'
 import { LootItem } from '../../ui'
+
+// Small icon resolved through the cached icon service (data/icons + fallback).
+const ReqIcon = ({ name }) => {
+    const icon = useIcon(name)
+    return (
+        <img
+            src={icon.src || QUESTION_MARK_ICON}
+            alt=""
+            className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+        />
+    )
+}
 
 const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const { data: detail, isLoading: loading, isError, error } = useQuestDetail(entry)
@@ -110,6 +124,55 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                         <p className="whitespace-pre-wrap leading-relaxed text-gray-300">
                             {detail.objectives || 'No objectives listed.'}
                         </p>
+
+                        {(detail.requiredItems?.length > 0 ||
+                            detail.requiredObjectives?.length > 0) && (
+                            <div className="mt-4 space-y-1">
+                                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                    Required
+                                </h4>
+                                {detail.requiredItems?.map((it) => (
+                                    <div
+                                        key={`i${it.entry}`}
+                                        onClick={() => onNavigate('item', it.entry)}
+                                        className="flex cursor-pointer items-center gap-2 rounded border border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                                        {...(tooltipHook?.getItemHandlers?.(it.entry) || {})}
+                                    >
+                                        <ReqIcon name={it.iconPath} />
+                                        <span
+                                            className="font-semibold"
+                                            style={{ color: getQualityColor(it.quality) }}
+                                        >
+                                            {it.name || `Item #${it.entry}`}
+                                        </span>
+                                        {it.count > 1 && (
+                                            <span className="ml-auto font-mono text-xs text-gray-400">
+                                                ×{it.count}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                                {detail.requiredObjectives?.map((o) => (
+                                    <div
+                                        key={`o${o.kind}${o.entry}`}
+                                        onClick={() => onNavigate(o.kind, o.entry)}
+                                        className="flex cursor-pointer items-center gap-2 rounded border border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                                    >
+                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-wow-rare/30 bg-wow-rare/10 text-[9px] font-bold text-wow-rare">
+                                            {o.kind === 'object' ? 'OBJ' : 'NPC'}
+                                        </span>
+                                        <span className="text-gray-200">
+                                            {o.name || `#${o.entry}`}
+                                        </span>
+                                        {o.count > 1 && (
+                                            <span className="ml-auto font-mono text-xs text-gray-400">
+                                                ×{o.count}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </DetailSection>
 
                     {/* Rewards */}

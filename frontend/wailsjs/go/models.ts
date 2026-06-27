@@ -2089,6 +2089,24 @@ export namespace models {
 	        this.value = source["value"];
 	    }
 	}
+	export class QuestObjective {
+	    entry: number;
+	    name: string;
+	    count: number;
+	    kind: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuestObjective(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	        this.kind = source["kind"];
+	    }
+	}
 	export class QuestItem {
 	    entry: number;
 	    name: string;
@@ -2130,6 +2148,8 @@ export namespace models {
 	    rewardSpell?: number;
 	    rewardItems: QuestItem[];
 	    choiceItems: QuestItem[];
+	    requiredItems: QuestItem[];
+	    requiredObjectives: QuestObjective[];
 	    reputation: QuestReputation[];
 	    starters: QuestRelation[];
 	    enders: QuestRelation[];
@@ -2163,6 +2183,8 @@ export namespace models {
 	        this.rewardSpell = source["rewardSpell"];
 	        this.rewardItems = this.convertValues(source["rewardItems"], QuestItem);
 	        this.choiceItems = this.convertValues(source["choiceItems"], QuestItem);
+	        this.requiredItems = this.convertValues(source["requiredItems"], QuestItem);
+	        this.requiredObjectives = this.convertValues(source["requiredObjectives"], QuestObjective);
 	        this.reputation = this.convertValues(source["reputation"], QuestReputation);
 	        this.starters = this.convertValues(source["starters"], QuestRelation);
 	        this.enders = this.convertValues(source["enders"], QuestRelation);
@@ -2189,6 +2211,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	
 	

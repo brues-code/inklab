@@ -49,7 +49,9 @@ type QuestDetail struct {
 	RewardSpell     int                `json:"rewardSpell,omitempty"`
 	RewardItems     []*QuestItem       `json:"rewardItems"`
 	ChoiceItems     []*QuestItem       `json:"choiceItems"`
-	Reputation      []*QuestReputation `json:"reputation"`
+	RequiredItems      []*QuestItem       `json:"requiredItems"`
+	RequiredObjectives []*QuestObjective  `json:"requiredObjectives"`
+	Reputation         []*QuestReputation `json:"reputation"`
 	Starters        []*QuestRelation   `json:"starters"`
 	Enders          []*QuestRelation   `json:"enders"`
 	Series          []*QuestSeriesItem `json:"series"`
@@ -71,6 +73,15 @@ type QuestItem struct {
 	Icon    string `json:"iconPath"` // Frontend expects iconPath
 	Count   int    `json:"count"`
 	Quality int    `json:"quality"`
+}
+
+// QuestObjective is a kill/interact target required by a quest — a creature or
+// gameobject — with the required count.
+type QuestObjective struct {
+	Entry int    `json:"entry"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+	Kind  string `json:"kind"` // "npc" or "object"
 }
 
 // QuestReputation represents reputation reward from a quest

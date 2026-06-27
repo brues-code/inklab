@@ -288,7 +288,11 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 			RewChoiceItemCount1, RewChoiceItemCount2, RewChoiceItemCount3, RewChoiceItemCount4, RewChoiceItemCount5, RewChoiceItemCount6,
 			RewRepFaction1, RewRepFaction2, RewRepFaction3, RewRepFaction4, RewRepFaction5,
 			RewRepValue1, RewRepValue2, RewRepValue3, RewRepValue4, RewRepValue5,
-			PrevQuestId, NextQuestId, ExclusiveGroup, NextQuestInChain
+			PrevQuestId, NextQuestId, ExclusiveGroup, NextQuestInChain,
+			ReqItemId1, ReqItemId2, ReqItemId3, ReqItemId4,
+			ReqItemCount1, ReqItemCount2, ReqItemCount3, ReqItemCount4,
+			ReqCreatureOrGOId1, ReqCreatureOrGOId2, ReqCreatureOrGOId3, ReqCreatureOrGOId4,
+			ReqCreatureOrGOCount1, ReqCreatureOrGOCount2, ReqCreatureOrGOCount3, ReqCreatureOrGOCount4
 		FROM quest_template WHERE entry = ?
 	`, entry)
 
@@ -301,6 +305,10 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 	var repFactions [5]int
 	var repValues [5]int
 	var prevQuestID, nextQuestID, exclusiveGroup, nextQuestInChain int
+	var reqItems [4]int
+	var reqItemCounts [4]int
+	var reqCreatureGO [4]int
+	var reqCreatureGOCounts [4]int
 
 	err := row.Scan(
 		&q.Entry, &q.Title, &details, &objectives, &offerReward, &endText,
@@ -314,6 +322,10 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 		&repFactions[0], &repFactions[1], &repFactions[2], &repFactions[3], &repFactions[4],
 		&repValues[0], &repValues[1], &repValues[2], &repValues[3], &repValues[4],
 		&prevQuestID, &nextQuestID, &exclusiveGroup, &nextQuestInChain,
+		&reqItems[0], &reqItems[1], &reqItems[2], &reqItems[3],
+		&reqItemCounts[0], &reqItemCounts[1], &reqItemCounts[2], &reqItemCounts[3],
+		&reqCreatureGO[0], &reqCreatureGO[1], &reqCreatureGO[2], &reqCreatureGO[3],
+		&reqCreatureGOCounts[0], &reqCreatureGOCounts[1], &reqCreatureGOCounts[2], &reqCreatureGOCounts[3],
 	)
 	if err != nil {
 		return nil, err
@@ -384,6 +396,43 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 			item.Quality = quality
 			q.ChoiceItems = append(q.ChoiceItems, item)
 		}
+	}
+
+	// Required items (turn-in objectives), with icon/quality for linking.
+	for i := 0; i < 4; i++ {
+		if reqItems[i] > 0 {
+			item := &models.QuestItem{Entry: reqItems[i], Count: reqItemCounts[i]}
+			var name, icon string
+			var quality int
+			r.db.QueryRow(`
+				SELECT i.name, COALESCE(idi.icon, ''), i.quality
+				FROM item_template i
+				LEFT JOIN item_display_info idi ON i.display_id = idi.ID
+				WHERE i.entry = ?
+			`, reqItems[i]).Scan(&name, &icon, &quality)
+			item.Name = name
+			item.Icon = icon
+			item.Quality = quality
+			q.RequiredItems = append(q.RequiredItems, item)
+		}
+	}
+
+	// Required kill/interact targets: a positive id is a creature, a negative id
+	// is a gameobject (stored as its negation).
+	for i := 0; i < 4; i++ {
+		id := reqCreatureGO[i]
+		if id == 0 {
+			continue
+		}
+		o := &models.QuestObjective{Count: reqCreatureGOCounts[i]}
+		if id > 0 {
+			o.Entry, o.Kind = id, "npc"
+			r.db.QueryRow("SELECT name FROM creature_template WHERE entry = ?", id).Scan(&o.Name)
+		} else {
+			o.Entry, o.Kind = -id, "object"
+			r.db.QueryRow("SELECT name FROM gameobject_template WHERE entry = ?", -id).Scan(&o.Name)
+		}
+		q.RequiredObjectives = append(q.RequiredObjectives, o)
 	}
 
 	// Process prev quests
