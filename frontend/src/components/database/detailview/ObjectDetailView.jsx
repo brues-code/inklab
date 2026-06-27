@@ -141,6 +141,17 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                     <th className="py-1 pr-4 text-gray-400">Display ID:</th>
                                     <td className="text-white">{detail.displayId}</td>
                                 </tr>
+                                {detail.gatherSkill && (
+                                    <tr>
+                                        <th className="py-1 pr-4 text-gray-400">Requires:</th>
+                                        <td className="text-white">
+                                            {detail.gatherSkill}
+                                            {detail.gatherSkillReq > 0
+                                                ? ` (${detail.gatherSkillReq})`
+                                                : ''}
+                                        </td>
+                                    </tr>
+                                )}
                                 {detail.faction > 0 && (
                                     <tr>
                                         <th className="py-1 pr-4 text-gray-400">Faction:</th>
