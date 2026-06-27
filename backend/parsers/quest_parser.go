@@ -46,7 +46,7 @@ var (
 		"quest": regexp.MustCompile(`quest=(\d+)`),
 	}
 	// e.g. "75 Reputation with <a href="?faction=72">Stormwind</a>"
-	questRepRe = regexp.MustCompile(`(\d+)\s+Reputation with\s*<a[^>]*faction=(\d+)`)
+	questRepRe = regexp.MustCompile(`(-?\d+)\s+Reputation with\s*<a[^>]*faction=(\d+)`)
 )
 
 // firstRefID returns the first id of the given kind (npc/quest) linked inside a
