@@ -731,6 +731,7 @@ func genSpells(cf ClientFiles) (interface{}, error) {
 			"effectRadiusIndex1": d.I32(r, 88), "effectRadiusIndex2": d.I32(r, 89), "effectRadiusIndex3": d.I32(r, 90),
 			"durationIndex": d.U32(r, 30), "rangeIndex": d.U32(r, 36),
 			"procChance": d.I32(r, 25), "procCharges": d.I32(r, 26),
+			"maxLevel": d.I32(r, 27), "baseLevel": d.I32(r, 28), "spellLevel": d.I32(r, 29),
 			"maxTargetLevel": d.I32(r, 159), "maxAffectedTargets": d.I32(r, 163),
 			"spellIconId": iconID, "iconName": name,
 		})

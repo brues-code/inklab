@@ -93,6 +93,9 @@ type SpellEnhanced struct {
 	RangeIndex         int    `json:"rangeIndex"`
 	ProcChance         int    `json:"procChance"`
 	ProcCharges        int    `json:"procCharges"`
+	MaxLevel           int    `json:"maxLevel"`
+	BaseLevel          int    `json:"baseLevel"`
+	SpellLevel         int    `json:"spellLevel"`
 	MaxTargetLevel     int    `json:"maxTargetLevel"`
 	MaxAffectedTargets int    `json:"maxAffectedTargets"`
 	SpellIconId        int    `json:"spellIconId"`
@@ -137,6 +140,7 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 		effectChainTarget1=?, effectChainTarget2=?, effectChainTarget3=?,
 		effectRadiusIndex1=?, effectRadiusIndex2=?, effectRadiusIndex3=?,
 		durationIndex=?, rangeIndex=?, procChance=?, procCharges=?,
+		maxLevel=?, baseLevel=?, spellLevel=?,
 		maxTargetLevel=?, maxAffectedTargets=?,
 		spellIconId=?, iconName=COALESCE(NULLIF(?,''), iconName)
 		WHERE entry=?`)
@@ -151,8 +155,9 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 		 effectChainTarget1, effectChainTarget2, effectChainTarget3,
 		 effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
 		 durationIndex, rangeIndex, procChance, procCharges,
+		 maxLevel, baseLevel, spellLevel,
 		 maxTargetLevel, maxAffectedTargets, spellIconId, iconName)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -174,6 +179,7 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
 			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
 			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
+			s.MaxLevel, s.BaseLevel, s.SpellLevel,
 			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon, s.Entry)
 		if err != nil {
 			continue
@@ -190,6 +196,7 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 			s.ChainTarget1, s.ChainTarget2, s.ChainTarget3,
 			s.RadiusIndex1, s.RadiusIndex2, s.RadiusIndex3,
 			s.DurationIndex, s.RangeIndex, s.ProcChance, s.ProcCharges,
+			s.MaxLevel, s.BaseLevel, s.SpellLevel,
 			s.MaxTargetLevel, s.MaxAffectedTargets, s.SpellIconId, icon); err == nil {
 			inserted++
 		}
