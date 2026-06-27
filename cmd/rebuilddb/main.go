@@ -112,6 +112,15 @@ func main() {
 	if err := gen.ImportRaces(filepath.Join(dataDir, "races.json")); err != nil {
 		fmt.Println("  warn races:", err)
 	}
+	if err := gen.ImportSpellMechanics(filepath.Join(dataDir, "spell_mechanics.json")); err != nil {
+		fmt.Println("  warn spell mechanics:", err)
+	}
+	if err := gen.ImportDispelTypes(filepath.Join(dataDir, "spell_dispel_types.json")); err != nil {
+		fmt.Println("  warn dispel types:", err)
+	}
+	if err := gen.ImportEnchantProcSpells(filepath.Join(dataDir, "enchant_proc_spells.json")); err != nil {
+		fmt.Println("  warn enchant procs:", err)
+	}
 
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	fmt.Println("Resolving spell descriptions...")

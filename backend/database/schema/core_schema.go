@@ -279,6 +279,45 @@ func CoreSchema() string {
 		name TEXT NOT NULL
 	);
 
+	-- Spell proc data from the world DB (mangos). Column names mirror the MySQL
+	-- tables so the importer can copy them 1:1. These give the real proc rate
+	-- (PPM / custom %) that the DBC procChance field doesn't.
+	CREATE TABLE IF NOT EXISTS spell_proc_event (
+		entry INTEGER PRIMARY KEY,
+		SchoolMask INTEGER DEFAULT 0,
+		SpellFamilyName INTEGER DEFAULT 0,
+		SpellFamilyMask0 INTEGER DEFAULT 0,
+		SpellFamilyMask1 INTEGER DEFAULT 0,
+		SpellFamilyMask2 INTEGER DEFAULT 0,
+		procFlags INTEGER DEFAULT 0,
+		procEx INTEGER DEFAULT 0,
+		ppmRate REAL DEFAULT 0,
+		CustomChance REAL DEFAULT 0,
+		Cooldown INTEGER DEFAULT 0
+	);
+	-- Weapon-enchant proc rates (PPM), keyed by the proc spell id.
+	CREATE TABLE IF NOT EXISTS spell_proc_item_enchant (
+		entry INTEGER PRIMARY KEY,
+		ppmRate REAL DEFAULT 0
+	);
+	-- Spell ids that are on-hit weapon-enchant procs (SpellItemEnchantment.dbc,
+	-- type COMBAT_SPELL). Used to apply the engine's 1-PPM default when an enchant
+	-- proc has no explicit rate in spell_proc_item_enchant.
+	CREATE TABLE IF NOT EXISTS enchant_proc_spells (
+		id INTEGER PRIMARY KEY
+	);
+
+	-- Spell mechanics (SpellMechanic.dbc): mechanic id -> name (e.g. "rooted").
+	CREATE TABLE IF NOT EXISTS spell_mechanics (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
+	-- Spell dispel types (SpellDispelType.dbc): id -> name (e.g. "Magic").
+	CREATE TABLE IF NOT EXISTS spell_dispel_types (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
+
 	-- Item stat types (the ITEM_MOD enum): stat_type id -> display name. Seeded
 	-- from the built-in canonical names, with the base stats overlaid from the
 	-- client's GlobalStrings.lua (SPELL_STATn_NAME) so they follow its locale.

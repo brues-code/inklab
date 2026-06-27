@@ -189,6 +189,14 @@ func (i *MySQLImporter) ImportAllFromMySQL() error {
 	if err := i.runCustomImportIfEmpty("spell_cast_times", "SELECT id, base FROM aowow.aowow_spellcasttimes", "INSERT OR REPLACE INTO spell_cast_times (id, base) VALUES (?, ?)"); err != nil {
 		log.Printf("Warning: Failed to import spell_cast_times: %v", err)
 	}
+	// spell proc tables (real proc rates: PPM / custom chance), from the world DB.
+	if err := i.runImportIfEmpty("spell_proc_event",
+		"entry,SchoolMask,SpellFamilyName,SpellFamilyMask0,SpellFamilyMask1,SpellFamilyMask2,procFlags,procEx,ppmRate,CustomChance,Cooldown"); err != nil {
+		log.Printf("Warning: Failed to import spell_proc_event: %v", err)
+	}
+	if err := i.runImportIfEmpty("spell_proc_item_enchant", "entry,ppmRate"); err != nil {
+		log.Printf("Warning: Failed to import spell_proc_item_enchant: %v", err)
+	}
 
 	// 5. Gameobject Template
 	goCols := "entry,`type`,displayId,name,faction,flags,size,data0,data1,data2,data3,data4,data5,data6,data7,data8,data9,data10,data11,data12,data13,data14,data15,data16,data17,data18,data19,data20,data21,data22,data23,mingold,maxgold,phase_quest_id,script_name"

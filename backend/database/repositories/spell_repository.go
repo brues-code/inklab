@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"inklab/backend/database/helpers"
 	"inklab/backend/database/models"
 )
 
@@ -303,13 +304,24 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	// Select relevant fields for the Detail View.
 	// Use spell_icons table to get icon name via spellIconId
 	query := `
-		SELECT 
+		SELECT
 			sp.entry, sp.name, sp.description, sp.durationIndex, sp.rangeIndex,
 			sp.manaCost, sp.castingTimeIndex, sp.school, sp.spellLevel, COALESCE(NULLIF(si.icon_name, ''), sp.iconName, ''),
             sp.effectBasePoints1, sp.effectBasePoints2, sp.effectBasePoints3,
             sp.effectDieSides1, sp.effectDieSides2, sp.effectDieSides3,
             sp.effectBaseDice1, sp.effectBaseDice2, sp.effectBaseDice3,
-            COALESCE(sp.nameSubtext, '')
+            COALESCE(sp.nameSubtext, ''),
+            sp.mechanic, sp.dispel, sp.recoveryTime, sp.categoryRecoveryTime, sp.startRecoveryTime,
+            sp.procChance, sp.procCharges, sp.maxAffectedTargets,
+            sp.attributes, sp.attributesEx, sp.attributesEx2, sp.attributesEx3, sp.attributesEx4, sp.customFlags,
+            sp.effect1, sp.effect2, sp.effect3,
+            sp.effectApplyAuraName1, sp.effectApplyAuraName2, sp.effectApplyAuraName3,
+            sp.effectAmplitude1, sp.effectAmplitude2, sp.effectAmplitude3,
+            sp.effectBonusCoefficient1, sp.effectBonusCoefficient2, sp.effectBonusCoefficient3,
+            sp.effectMechanic1, sp.effectMechanic2, sp.effectMechanic3,
+            sp.effectRadiusIndex1, sp.effectRadiusIndex2, sp.effectRadiusIndex3,
+            sp.effectTriggerSpell1, sp.effectTriggerSpell2, sp.effectTriggerSpell3,
+            sp.effectMiscValue1, sp.effectMiscValue2, sp.effectMiscValue3
 		FROM spell_template sp
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 		WHERE sp.entry = ?
@@ -319,11 +331,26 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	var iconName string
 
 	var bp1, bp2, bp3, ds1, ds2, ds3, bd1, bd2, bd3 int
+	var mechanic, dispel, recoveryTime, catRecovery, startRecovery, procChance, procCharges, maxTargets int
+	var attr [6]int64
+	var eff, auraN, amp, effMech, radIdx, trig, misc [3]int
+	var coeff [3]float64
 	err := r.db.QueryRow(query, entry).Scan(
 		&s.Entry, &s.Name, &desc, &s.Durationindex, &s.Rangeindex,
 		&s.Manacost, &s.Castingtimeindex, &s.School, &s.Spelllevel, &iconName,
 		&bp1, &bp2, &bp3, &ds1, &ds2, &ds3, &bd1, &bd2, &bd3,
 		&s.Namesubtext,
+		&mechanic, &dispel, &recoveryTime, &catRecovery, &startRecovery,
+		&procChance, &procCharges, &maxTargets,
+		&attr[0], &attr[1], &attr[2], &attr[3], &attr[4], &attr[5],
+		&eff[0], &eff[1], &eff[2],
+		&auraN[0], &auraN[1], &auraN[2],
+		&amp[0], &amp[1], &amp[2],
+		&coeff[0], &coeff[1], &coeff[2],
+		&effMech[0], &effMech[1], &effMech[2],
+		&radIdx[0], &radIdx[1], &radIdx[2],
+		&trig[0], &trig[1], &trig[2],
+		&misc[0], &misc[1], &misc[2],
 	)
 
 	if err != nil {
@@ -385,6 +412,104 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	} else {
 		detail.CastTime = "Instant"
 	}
+
+	// Cooldown (the greater of the spell's own and its category recovery).
+	cd := recoveryTime
+	if catRecovery > cd {
+		cd = catRecovery
+	}
+	if cd > 0 {
+		detail.Cooldown = fmtDurationMs(cd)
+	}
+	if startRecovery > 0 {
+		detail.GCD = fmt.Sprintf("%.1fs", float64(startRecovery)/1000.0)
+	}
+	// Raw numbers live on the embedded template (so they serialize once).
+	s.Procchance = procChance
+	s.Proccharges = procCharges
+	s.Maxaffectedtargets = maxTargets
+	s.Mechanic = mechanic
+	s.Dispel = dispel
+
+	// Real proc rate from the world DB proc tables (more accurate than the DBC
+	// procChance, which is usually the 101 "always" sentinel). Prefer an explicit
+	// custom %, then a spell PPM, then a weapon-enchant PPM, then a real DBC %.
+	var peFlags int
+	var pePPM, peCustom, enchPPM float64
+	r.db.QueryRow("SELECT procFlags, ppmRate, CustomChance FROM spell_proc_event WHERE entry = ?", entry).Scan(&peFlags, &pePPM, &peCustom)
+	r.db.QueryRow("SELECT ppmRate FROM spell_proc_item_enchant WHERE entry = ?", entry).Scan(&enchPPM)
+	switch {
+	case peCustom > 0:
+		detail.Proc = fmt.Sprintf("%s%%", trimFloat(peCustom))
+	case pePPM > 0:
+		detail.Proc = fmt.Sprintf("%s PPM", trimFloat(pePPM))
+	case enchPPM > 0:
+		detail.Proc = fmt.Sprintf("%s PPM", trimFloat(enchPPM))
+	case procChance > 0 && procChance <= 100:
+		detail.Proc = fmt.Sprintf("%d%%", procChance)
+	default:
+		// On-hit weapon-enchant procs with no explicit rate fall back to the
+		// engine's 1-PPM default (e.g. Crusader).
+		var isEnchantProc int
+		r.db.QueryRow("SELECT 1 FROM enchant_proc_spells WHERE id = ?", entry).Scan(&isEnchantProc)
+		if isEnchantProc == 1 {
+			detail.Proc = "1 PPM (default)"
+		}
+	}
+
+	// Mechanic / dispel display names come from the client DBC reference tables.
+	if mechanic > 0 {
+		r.db.QueryRow("SELECT name FROM spell_mechanics WHERE id = ?", mechanic).Scan(&detail.MechanicName)
+	}
+	if dispel > 0 {
+		r.db.QueryRow("SELECT name FROM spell_dispel_types WHERE id = ?", dispel).Scan(&detail.DispelType)
+	}
+
+	// Decoded effects (type/aura names from the server-source enums; values from
+	// spell_template; radius from the client SpellRadius reference).
+	bps := [3]int{bp1, bp2, bp3}
+	dss := [3]int{ds1, ds2, ds3}
+	bds := [3]int{bd1, bd2, bd3}
+	for i := 0; i < 3; i++ {
+		if eff[i] == 0 {
+			continue
+		}
+		e := models.SpellEffectInfo{Index: i + 1, Effect: helpers.SpellEffectNames[eff[i]]}
+		if e.Effect == "" {
+			e.Effect = fmt.Sprintf("Effect %d", eff[i])
+		}
+		if auraN[i] != 0 {
+			if name := helpers.AuraTypeNames[auraN[i]]; name != "" {
+				e.AuraName = name
+			} else {
+				e.AuraName = fmt.Sprintf("Aura %d", auraN[i])
+			}
+			// Many auras qualify themselves via the misc value (which stat, school,
+			// skill, ...). Append it so "Mod Stat" reads "Mod Stat: Strength".
+			if q := r.effectQualifier(auraN[i], misc[i]); q != "" {
+				e.AuraName += ": " + q
+			}
+		}
+		e.Value = buildEffectValue(bps[i], dss[i], bds[i], amp[i], coeff[i])
+		if radIdx[i] > 0 {
+			var rb float64
+			r.db.QueryRow("SELECT radius_base FROM spell_radius WHERE id = ?", radIdx[i]).Scan(&rb)
+			if rb > 0 {
+				e.Radius = fmt.Sprintf("%g yd", rb)
+			}
+		}
+		if effMech[i] > 0 {
+			r.db.QueryRow("SELECT name FROM spell_mechanics WHERE id = ?", effMech[i]).Scan(&e.Mechanic)
+		}
+		e.TriggerSpell = trig[i]
+		detail.Effects = append(detail.Effects, e)
+	}
+
+	// Attribute flags (server-source labels).
+	detail.Flags = helpers.DecodeSpellAttributes([6]uint32{
+		uint32(attr[0]), uint32(attr[1]), uint32(attr[2]),
+		uint32(attr[3]), uint32(attr[4]), uint32(attr[5]),
+	})
 
 	detail.ToolTip = s.Description
 
@@ -448,4 +573,98 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	}
 
 	return detail
+}
+
+// fmtDurationMs renders a millisecond duration as a compact "1.5s" / "2m" string.
+func fmtDurationMs(ms int) string {
+	if ms >= 60000 {
+		return fmt.Sprintf("%gm", float64(ms)/60000.0)
+	}
+	return fmt.Sprintf("%gs", float64(ms)/1000.0)
+}
+
+// buildEffectValue renders a spell effect's value the way the detail view shows
+// it: base value (basePoints+baseDice, a range when dieSides>1), an "every Ns"
+// period for periodic auras, and a spell-power coefficient. Zero-value control
+// effects (e.g. Root) render no number.
+func buildEffectValue(bp, ds, bd, amp int, coeff float64) string {
+	minV := bp + bd
+	maxV := bp + bd*ds
+	val := ""
+	if minV != 0 || maxV != 0 {
+		if minV == maxV {
+			val = strconv.Itoa(minV)
+		} else {
+			val = fmt.Sprintf("%d to %d", minV, maxV)
+		}
+	}
+	if amp > 0 {
+		secs := trimFloat(float64(amp) / 1000.0)
+		if val == "" {
+			val = "every " + secs + " sec"
+		} else {
+			val = fmt.Sprintf("%s every %s sec", val, secs)
+		}
+	}
+	if coeff > 0 {
+		val = strings.TrimSpace(val + fmt.Sprintf(" (SP mod: %s)", trimFloat(coeff)))
+	}
+	return strings.TrimSpace(val)
+}
+
+// trimFloat formats a float without trailing zeros (3 -> "3", 0.033 -> "0.033").
+func trimFloat(f float64) string {
+	s := strconv.FormatFloat(f, 'f', 3, 64)
+	s = strings.TrimRight(s, "0")
+	return strings.TrimRight(s, ".")
+}
+
+// baseStatToStatType maps a unit base-stat index (as stored in MOD_STAT-style
+// aura misc values: 0=Strength..4=Spirit) to the item stat_type id, so the name
+// resolves from the client-extracted stat_types table.
+var baseStatToStatType = [5]int{4, 3, 7, 5, 6}
+
+// effectQualifier resolves the qualifier an aura's misc value carries (which
+// stat / school / skill), so "Mod Stat" can read "Mod Stat: Strength". Returns
+// "" for auras whose misc value isn't a known qualifier.
+func (r *SpellRepository) effectQualifier(auraType, misc int) string {
+	switch auraType {
+	case 29, 80, 137: // Mod Stat / Mod Percent Stat / Mod Total Stat Percentage
+		if misc < 0 {
+			return "All Stats"
+		}
+		if misc < len(baseStatToStatType) {
+			var name string
+			r.db.QueryRow("SELECT name FROM stat_types WHERE id = ?", baseStatToStatType[misc]).Scan(&name)
+			return name
+		}
+	case 13, 14, 22, 59, 101, 143, 168: // school-mask auras (damage done/taken, resistance)
+		return r.schoolMaskNames(misc)
+	case 30, 98: // Mod Skill / Mod Skill Talent
+		var name string
+		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", misc).Scan(&name)
+		return name
+	}
+	return ""
+}
+
+// schoolMaskNames turns a spell-school bitmask into "Fire", "Fire/Frost", etc.,
+// using the client-extracted spell_schools names (English fallback).
+func (r *SpellRepository) schoolMaskNames(mask int) string {
+	if mask <= 0 {
+		return ""
+	}
+	var names []string
+	for i := 0; i < 7; i++ {
+		if mask&(1<<uint(i)) == 0 {
+			continue
+		}
+		var n string
+		r.db.QueryRow("SELECT name FROM spell_schools WHERE id = ?", i).Scan(&n)
+		if n == "" {
+			n = helpers.GetSchoolName(i)
+		}
+		names = append(names, n)
+	}
+	return strings.Join(names, "/")
 }

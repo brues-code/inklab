@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"inklab/backend/database/helpers"
 )
@@ -462,6 +463,94 @@ func (i *GeneratedImporter) ImportStatNames(jsonPath string) error {
 		return err
 	}
 	fmt.Printf("  ✓ Imported stat types (%d client-localized)\n", overlaid)
+	return nil
+}
+
+// importIDName loads a simple [{id,name}] JSON into an (id, name) table. Used
+// for the small client-derived spell reference tables. A missing file is a
+// no-op (only present after a client import).
+func (i *GeneratedImporter) importIDName(jsonPath, table string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil
+	}
+	var rows []struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(data, &rows); err != nil {
+		fmt.Printf("  ERROR parsing %s: %v\n", filepath.Base(jsonPath), err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM " + table)
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO " + table + " (id, name) VALUES (?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, r := range rows {
+		if r.Name == "" {
+			continue
+		}
+		if _, err := stmt.Exec(r.ID, r.Name); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d rows into %s\n", n, table)
+	return nil
+}
+
+// ImportSpellMechanics loads spell_mechanics.json (SpellMechanic.dbc) into spell_mechanics.
+func (i *GeneratedImporter) ImportSpellMechanics(jsonPath string) error {
+	return i.importIDName(jsonPath, "spell_mechanics")
+}
+
+// ImportDispelTypes loads spell_dispel_types.json (SpellDispelType.dbc) into spell_dispel_types.
+func (i *GeneratedImporter) ImportDispelTypes(jsonPath string) error {
+	return i.importIDName(jsonPath, "spell_dispel_types")
+}
+
+// ImportEnchantProcSpells loads enchant_proc_spells.json (the on-hit enchant proc
+// spell ids from SpellItemEnchantment.dbc) into enchant_proc_spells. Optional.
+func (i *GeneratedImporter) ImportEnchantProcSpells(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil
+	}
+	var rows []struct {
+		ID int `json:"id"`
+	}
+	if err := json.Unmarshal(data, &rows); err != nil {
+		fmt.Printf("  ERROR parsing enchant_proc_spells.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM enchant_proc_spells")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO enchant_proc_spells (id) VALUES (?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, r := range rows {
+		stmt.Exec(r.ID)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d enchant proc spells\n", len(rows))
 	return nil
 }
 

@@ -69,6 +69,8 @@ func (a *App) GetDataStatus() DataStatus {
 		{"classes", "Classes", "ChrClasses.dbc", "table", a.countRows("class_info")},
 		{"races", "Races", "ChrRaces.dbc + CharBaseInfo.dbc + glue strings", "table", a.countRows("races")},
 		{"spellSchools", "Spell school names", "GlobalStrings.lua", "table", a.countRows("spell_schools")},
+		{"spellMechanics", "Spell mechanics", "SpellMechanic.dbc", "table", a.countRows("spell_mechanics")},
+		{"dispelTypes", "Dispel types", "SpellDispelType.dbc", "table", a.countRows("spell_dispel_types")},
 		{"statTypes", "Item stat names", "GlobalStrings.lua", "table", a.countRows("stat_types")},
 	}
 
@@ -317,6 +319,9 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportSpellSchools(filepath.Join(a.DataDir, "spell_schools.json"))
 	_ = gen.ImportStatNames(filepath.Join(a.DataDir, "stat_names.json"))
 	_ = gen.ImportRaces(filepath.Join(a.DataDir, "races.json"))
+	_ = gen.ImportSpellMechanics(filepath.Join(a.DataDir, "spell_mechanics.json"))
+	_ = gen.ImportDispelTypes(filepath.Join(a.DataDir, "spell_dispel_types.json"))
+	_ = gen.ImportEnchantProcSpells(filepath.Join(a.DataDir, "enchant_proc_spells.json"))
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}

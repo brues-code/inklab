@@ -2314,6 +2314,30 @@ export namespace models {
 	        this.triggerType = source["triggerType"];
 	    }
 	}
+	export class SpellEffectInfo {
+	    index: number;
+	    effect: string;
+	    auraName?: string;
+	    value?: string;
+	    radius?: string;
+	    mechanic?: string;
+	    triggerSpell?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpellEffectInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.effect = source["effect"];
+	        this.auraName = source["auraName"];
+	        this.value = source["value"];
+	        this.radius = source["radius"];
+	        this.mechanic = source["mechanic"];
+	        this.triggerSpell = source["triggerSpell"];
+	    }
+	}
 	export class SpellDetail {
 	    entry: number;
 	    school: number;
@@ -2471,6 +2495,13 @@ export namespace models {
 	    range: string;
 	    duration: string;
 	    power: string;
+	    cooldown: string;
+	    gcd: string;
+	    proc: string;
+	    mechanicName: string;
+	    dispelType: string;
+	    effects?: SpellEffectInfo[];
+	    flags?: string[];
 	    usedByItems?: SpellUsedByItem[];
 	
 	    static createFrom(source: any = {}) {
@@ -2635,6 +2666,13 @@ export namespace models {
 	        this.range = source["range"];
 	        this.duration = source["duration"];
 	        this.power = source["power"];
+	        this.cooldown = source["cooldown"];
+	        this.gcd = source["gcd"];
+	        this.proc = source["proc"];
+	        this.mechanicName = source["mechanicName"];
+	        this.dispelType = source["dispelType"];
+	        this.effects = this.convertValues(source["effects"], SpellEffectInfo);
+	        this.flags = source["flags"];
 	        this.usedByItems = this.convertValues(source["usedByItems"], SpellUsedByItem);
 	    }
 	
@@ -2656,6 +2694,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	export class SpellSkill {
 	    id: number;
 	    categoryId: number;

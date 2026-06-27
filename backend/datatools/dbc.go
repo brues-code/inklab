@@ -126,6 +126,9 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"spellschools", "spell_schools.json"},
 		{"itemmods", "stat_names.json"},
 		{"races", "races.json"},
+		{"mechanics", "spell_mechanics.json"},
+		{"dispeltypes", "spell_dispel_types.json"},
+		{"enchantprocs", "enchant_proc_spells.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -169,6 +172,12 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genItemMods(cf)
 	case "races":
 		v, err = genRaces(cf)
+	case "mechanics":
+		v, err = genMechanics(cf)
+	case "dispeltypes":
+		v, err = genDispelTypes(cf)
+	case "enchantprocs":
+		v, err = genEnchantProcSpells(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -539,6 +548,64 @@ func genRaces(cf ClientFiles) (interface{}, error) {
 			ClassIDs:       classByRace[id],
 			RacialSpellIDs: spellByRace[id],
 		})
+	}
+	return out, nil
+}
+
+// genMechanics reads SpellMechanic.dbc (id -> name, e.g. "rooted") — the spell
+// mechanic display names, which (unlike effect/aura type names) do live in the
+// client.
+func genMechanics(cf ClientFiles) (interface{}, error) {
+	return genIDName(cf, "SpellMechanic.dbc")
+}
+
+// genDispelTypes reads SpellDispelType.dbc (id -> name, e.g. "Magic").
+func genDispelTypes(cf ClientFiles) (interface{}, error) {
+	return genIDName(cf, "SpellDispelType.dbc")
+}
+
+// genEnchantProcSpells reads SpellItemEnchantment.dbc and returns the set of
+// spell ids that are on-hit weapon-enchant procs (enchant slot type 1 =
+// COMBAT_SPELL). These resolve to a 1 PPM default when they have no explicit
+// rate in spell_proc_item_enchant (matching the server's enchant proc fallback).
+// Layout: type[3] at fields 1-3, spellid[3] at fields 10-12.
+func genEnchantProcSpells(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "SpellItemEnchantment.dbc")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[uint32]bool{}
+	out := make([]map[string]interface{}, 0)
+	for r := 0; r < d.RecordCount; r++ {
+		for slot := 0; slot < 3; slot++ {
+			if d.U32(r, 1+slot) != 1 { // ITEM_ENCHANTMENT_TYPE_COMBAT_SPELL
+				continue
+			}
+			spellID := d.U32(r, 10+slot)
+			if spellID == 0 || seen[spellID] {
+				continue
+			}
+			seen[spellID] = true
+			out = append(out, map[string]interface{}{"id": spellID})
+		}
+	}
+	return out, nil
+}
+
+// genIDName reads a simple DBC whose first field is the id and field 1 is the
+// enUS name, into [{id, name}].
+func genIDName(cf ClientFiles, dbc string) (interface{}, error) {
+	d, err := openDBCFrom(cf, dbc)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		name := d.Str(r, 1)
+		if name == "" {
+			continue
+		}
+		out = append(out, map[string]interface{}{"id": d.U32(r, 0), "name": name})
 	}
 	return out, nil
 }

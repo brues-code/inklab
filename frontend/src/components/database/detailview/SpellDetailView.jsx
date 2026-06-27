@@ -48,6 +48,20 @@ const ItemIcon = ({ iconName }) => {
     )
 }
 
+// One label/value row in the Properties grid; renders nothing when value is empty.
+const PropRow = ({ label, value, color, capitalize }) =>
+    (value === 0 || value) ? (
+        <>
+            <span className="text-gray-500">{label}:</span>
+            <span
+                className={`text-gray-300 text-right ${capitalize ? 'capitalize' : ''}`}
+                style={color ? { color, fontWeight: 500 } : undefined}
+            >
+                {value}
+            </span>
+        </>
+    ) : null
+
 const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [syncing, setSyncing] = useState(false)
 
@@ -141,6 +155,39 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                         </DetailSection>
                     )}
 
+                    {/* Spell effects */}
+                    {detail.effects?.length > 0 && (
+                        <DetailSection title="Effects">
+                            <div className="space-y-2">
+                                {detail.effects.map((e) => (
+                                    <div key={e.index} className="rounded border border-border-dark/50 bg-white/[0.02] p-2.5">
+                                        <div className="text-sm text-gray-200 font-semibold">
+                                            Effect #{e.index}: {e.effect}{e.auraName ? `: ${e.auraName}` : ''}
+                                        </div>
+                                        {e.value && (
+                                            <div className="text-xs text-gray-400 mt-0.5">Value: {e.value}</div>
+                                        )}
+                                        {(e.radius || e.mechanic || e.triggerSpell > 0) && (
+                                            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5 text-[11px] text-gray-500">
+                                                {e.radius && <span>Radius: {e.radius}</span>}
+                                                {e.mechanic && <span className="capitalize">Mechanic: {e.mechanic}</span>}
+                                                {e.triggerSpell > 0 && (
+                                                    <span
+                                                        className="cursor-pointer text-wow-rare/80 hover:text-wow-rare"
+                                                        onClick={() => onNavigate?.('spell', e.triggerSpell)}
+                                                        {...(tooltipHook?.getSpellHandlers?.(e.triggerSpell) || {})}
+                                                    >
+                                                        Triggers spell #{e.triggerSpell}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </DetailSection>
+                    )}
+
                     {/* Used By Items */}
                     {detail.usedByItems && detail.usedByItems.length > 0 && (
                         <DetailSection title={`Used By (${detail.usedByItems.length})`}>
@@ -179,27 +226,29 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 <div className="space-y-6">
                     <DetailSection title="Properties">
                         <div className="grid grid-cols-2 gap-y-2 text-sm">
-                            <span className="text-gray-500">Duration:</span>
-                            <span className="text-gray-300 text-right">{detail.duration}</span>
-                            
-                            <span className="text-gray-500">Range:</span>
-                            <span className="text-gray-300 text-right">{detail.range}</span>
-                            
-                            <span className="text-gray-500">Cost:</span>
-                            <span className="text-gray-300 text-right">
-                                {detail.manaCost > 0 ? `${detail.manaCost} ${powerType}` : 'None'}
-                            </span>
-                            
-                            <span className="text-gray-500">Cast Time:</span>
-                            <span className="text-gray-300 text-right">{detail.castTime}</span>
-
-                            <span className="text-gray-500">School:</span>
-                            <span className="text-gray-300 text-right font-medium" style={{ color: schoolColor }}>{schoolName}</span>
-                            
-                            <span className="text-gray-500">Level:</span>
-                            <span className="text-gray-300 text-right">{detail.spellLevel}</span>
+                            <PropRow label="Cost" value={detail.manaCost > 0 ? `${detail.manaCost} ${powerType}` : 'None'} />
+                            <PropRow label="Cast Time" value={detail.castTime} />
+                            <PropRow label="Cooldown" value={detail.cooldown} />
+                            <PropRow label="GCD" value={detail.gcd} />
+                            <PropRow label="Range" value={detail.range} />
+                            <PropRow label="Duration" value={detail.duration} />
+                            <PropRow label="School" value={schoolName} color={schoolColor} />
+                            <PropRow label="Mechanic" value={detail.mechanicName} capitalize />
+                            <PropRow label="Dispel type" value={detail.dispelType} />
+                            {/* Real proc rate (PPM / %) from the world DB proc tables; "" when none. */}
+                            <PropRow label="Proc" value={detail.proc} />
+                            <PropRow label="Max targets" value={detail.maxAffectedTargets > 0 ? detail.maxAffectedTargets : ''} />
+                            <PropRow label="Level" value={detail.spellLevel} />
                         </div>
                     </DetailSection>
+
+                    {detail.flags?.length > 0 && (
+                        <DetailSection title="Flags">
+                            <ul className="text-xs text-amber-300/80 space-y-1 list-disc list-inside">
+                                {detail.flags.map((f, i) => <li key={i}>{f}</li>)}
+                            </ul>
+                        </DetailSection>
+                    )}
                 </div>
             </div>
         </DetailPageLayout>

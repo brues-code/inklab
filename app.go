@@ -312,6 +312,15 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportRaces(filepath.Join(dataDir, "races.json")); err != nil {
 		fmt.Printf("⚠️ Race import failed: %v\n", err)
 	}
+	if err := gen.ImportSpellMechanics(filepath.Join(dataDir, "spell_mechanics.json")); err != nil {
+		fmt.Printf("⚠️ Spell mechanic import failed: %v\n", err)
+	}
+	if err := gen.ImportDispelTypes(filepath.Join(dataDir, "spell_dispel_types.json")); err != nil {
+		fmt.Printf("⚠️ Dispel type import failed: %v\n", err)
+	}
+	if err := gen.ImportEnchantProcSpells(filepath.Join(dataDir, "enchant_proc_spells.json")); err != nil {
+		fmt.Printf("⚠️ Enchant proc import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }

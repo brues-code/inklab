@@ -386,6 +386,19 @@ func GetStatName(statType int) string {
 	return StatNames[statType]
 }
 
+// DecodeSpellAttributes turns the spell_template attribute bitfields into a list
+// of human labels using the server-source flag table (SpellAttrFlags). fields is
+// indexed: 0=attributes, 1=attributesEx .. 4=attributesEx4, 5=customFlags.
+func DecodeSpellAttributes(fields [6]uint32) []string {
+	var out []string
+	for _, f := range SpellAttrFlags {
+		if f.Field < len(fields) && fields[f.Field]&f.Mask != 0 {
+			out = append(out, f.Name)
+		}
+	}
+	return out
+}
+
 // GetSchoolName returns the magic school name for damage types
 func GetSchoolName(school int) string {
 	switch school {
