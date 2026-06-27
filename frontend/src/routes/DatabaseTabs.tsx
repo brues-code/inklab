@@ -76,7 +76,7 @@ export function DatabaseTabs() {
                     <ItemsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />
                 ) : (
                     <ContentGrid columns={activeTab === 'sets' ? SETS_LAYOUT : GRID_LAYOUT}>
-                        {activeTab === 'sets' && <SetsTab tooltipHook={tooltipHook} />}
+                        {activeTab === 'sets' && <SetsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />}
                         {activeTab === 'npcs' && <NPCsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />}
                         {activeTab === 'quests' && <QuestsTab onNavigate={onNavigate} />}
                         {activeTab === 'objects' && <ObjectsTab onNavigate={onNavigate} />}

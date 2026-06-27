@@ -5,7 +5,7 @@ import { filterItems } from '../../../utils/databaseApi'
 import { useItemSets, useItemSetDetail } from '../../../hooks/queries/sets'
 import { useTalentClasses } from '../../../hooks/queries/talents'
 
-function SetsTab({ tooltipHook }) {
+function SetsTab({ tooltipHook, onNavigate }) {
     const [selectedSet, setSelectedSet] = useStickyState('sets.selectedSet', null)
     // First column: playable classes, each with its allowable_class bit
     // (1<<(id-1)). bit 0 = "All Classes".
@@ -149,9 +149,10 @@ function SetsTab({ tooltipHook }) {
                                 }
                                 
                                 return (
-                                    <LootItem 
+                                    <LootItem
                                         key={item.entry || idx}
                                         item={item}
+                                        onClick={() => onNavigate?.('item', item.entry)}
                                         {...handlers}
                                     />
                                 )
