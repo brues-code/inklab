@@ -1468,7 +1468,86 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	// Get crafting recipes that create this item ("Created By").
 	detail.CreatedBy = r.getCreatedBy(entry)
 
+	// Get containers (gameobject chests + container items) whose loot holds this
+	// item — the reverse of Contains.
+	detail.ContainedIn = r.getContainedIn(entry)
+
+	// Quests this item is an objective of (a required turn-in item).
+	objRows, err := r.db.Query(`
+		SELECT entry, Title, QuestLevel
+		FROM quest_template
+		WHERE ReqItemId1 = ? OR ReqItemId2 = ? OR ReqItemId3 = ? OR ReqItemId4 = ?
+		LIMIT 20
+	`, entry, entry, entry, entry)
+	if err == nil {
+		defer objRows.Close()
+		for objRows.Next() {
+			q := &models.QuestReward{}
+			if objRows.Scan(&q.Entry, &q.Title, &q.Level) == nil {
+				detail.ObjectiveOf = append(detail.ObjectiveOf, q)
+			}
+		}
+	}
+
+	// The quest this item starts (item_template.start_quest), if any.
+	var startQuestID int
+	r.db.QueryRow("SELECT start_quest FROM item_template WHERE entry = ?", entry).Scan(&startQuestID)
+	if startQuestID > 0 {
+		sq := &models.QuestReward{}
+		if r.db.QueryRow("SELECT entry, Title, QuestLevel FROM quest_template WHERE entry = ?", startQuestID).
+			Scan(&sq.Entry, &sq.Title, &sq.Level) == nil {
+			detail.StartsQuest = sq
+		}
+	}
+
 	return detail, nil
+}
+
+// getContainedIn returns the gameobject chests and container items whose loot
+// includes this item (the reverse of Contains).
+func (r *ItemRepository) getContainedIn(entry int) []*models.ItemContainer {
+	var out []*models.ItemContainer
+
+	// Gameobject chests (type 3): data1 is the loot template entry.
+	goRows, err := r.db.Query(`
+		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance
+		FROM gameobject_loot_template gl
+		JOIN gameobject_template o ON o.data1 = gl.entry
+		WHERE gl.item = ? AND o.type = 3
+		ORDER BY gl.ChanceOrQuestChance DESC
+		LIMIT 50
+	`, entry)
+	if err == nil {
+		for goRows.Next() {
+			c := &models.ItemContainer{Kind: "object"}
+			if goRows.Scan(&c.Entry, &c.Name, &c.Chance) == nil {
+				out = append(out, c)
+			}
+		}
+		goRows.Close()
+	}
+
+	// Container items: item_loot_template.entry is the container item's entry.
+	itRows, err := r.db.Query(`
+		SELECT i.entry, i.name, i.quality, COALESCE(idi.icon, ''), il.ChanceOrQuestChance
+		FROM item_loot_template il
+		JOIN item_template i ON il.entry = i.entry
+		LEFT JOIN item_display_info idi ON i.display_id = idi.ID
+		WHERE il.item = ?
+		ORDER BY il.ChanceOrQuestChance DESC
+		LIMIT 50
+	`, entry)
+	if err == nil {
+		for itRows.Next() {
+			c := &models.ItemContainer{Kind: "item"}
+			if itRows.Scan(&c.Entry, &c.Name, &c.Quality, &c.IconPath, &c.Chance) == nil {
+				out = append(out, c)
+			}
+		}
+		itRows.Close()
+	}
+
+	return out
 }
 
 // getCreatedBy returns the tradeskill spells whose Create Item effect (effect

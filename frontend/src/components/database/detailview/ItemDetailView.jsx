@@ -394,6 +394,45 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             </DetailSection>
           )}
 
+          {/* Contained In (reverse of Contains: chests / container items) */}
+          {detail.containedIn?.length > 0 && (
+            <DetailSection title="Contained In">
+              <div className="space-y-1">
+                {detail.containedIn.map((c) => (
+                  <div
+                    key={`${c.kind}-${c.entry}`}
+                    className="flex items-center justify-between p-2 bg-white/[0.02] hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors"
+                    onClick={() => onNavigate(c.kind, c.entry)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {c.kind === "item" ? (
+                        <IconImg
+                          name={c.iconPath}
+                          className="w-7 h-7 rounded border border-black/40 object-cover shrink-0"
+                        />
+                      ) : (
+                        <span className="w-7 h-7 rounded bg-[#00B4FF]/20 border border-[#00B4FF]/40 text-[#00B4FF] text-[9px] font-bold flex items-center justify-center shrink-0">
+                          OBJ
+                        </span>
+                      )}
+                      <span
+                        className="font-bold truncate hover:text-wow-gold"
+                        style={{ color: c.kind === "item" ? getQualityColor(c.quality) : "#00B4FF" }}
+                      >
+                        {c.name}
+                      </span>
+                    </div>
+                    {c.chance > 0 && (
+                      <div className="text-wow-gold font-mono text-sm shrink-0">
+                        {c.chance.toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          )}
+
           {/* Dropped By */}
           {detail.droppedBy?.length > 0 && (
             <DetailSection title="Dropped By">
@@ -480,6 +519,45 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                           </span>
                         )}
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          )}
+
+          {/* Starts Quest */}
+          {detail.startsQuest && (
+            <DetailSection title="Starts Quest">
+              <div
+                className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors"
+                onClick={() => onNavigate("quest", detail.startsQuest.entry)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-wow-gold font-bold truncate">
+                    {detail.startsQuest.title}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Level {detail.startsQuest.level}
+                  </div>
+                </div>
+              </div>
+            </DetailSection>
+          )}
+
+          {/* Objective Of */}
+          {detail.objectiveOf?.length > 0 && (
+            <DetailSection title="Objective Of">
+              <div className="space-y-1">
+                {detail.objectiveOf.map((q) => (
+                  <div
+                    key={q.entry}
+                    className="flex items-center gap-3 p-2 bg-white/[0.02] hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors"
+                    onClick={() => onNavigate("quest", q.entry)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-wow-gold font-bold truncate">{q.title}</div>
+                      <div className="text-xs text-gray-500">Level {q.level}</div>
                     </div>
                   </div>
                 ))}

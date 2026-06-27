@@ -255,11 +255,25 @@ type ItemDetail struct {
 	BuyCount   int             `json:"buyCount"`
 	Stackable  int             `json:"stackable"`
 	Material   int             `json:"material"`
-	DroppedBy  []*CreatureDrop `json:"droppedBy"`
-	RewardFrom []*QuestReward  `json:"rewardFrom"`
-	Contains   []*ItemDrop     `json:"contains"`
-	SoldBy     []*ItemVendor   `json:"soldBy"`
-	CreatedBy  []*ItemCraftSource `json:"createdBy"`
+	DroppedBy   []*CreatureDrop    `json:"droppedBy"`
+	RewardFrom  []*QuestReward     `json:"rewardFrom"`
+	Contains    []*ItemDrop        `json:"contains"`
+	SoldBy      []*ItemVendor      `json:"soldBy"`
+	CreatedBy   []*ItemCraftSource `json:"createdBy"`
+	ContainedIn []*ItemContainer   `json:"containedIn"`
+	ObjectiveOf []*QuestReward     `json:"objectiveOf"`
+	StartsQuest *QuestReward       `json:"startsQuest,omitempty"`
+}
+
+// ItemContainer is a container (gameobject chest or other item) whose loot
+// includes this item — the reverse of Contains.
+type ItemContainer struct {
+	Entry    int     `json:"entry"`
+	Name     string  `json:"name"`
+	Kind     string  `json:"kind"` // "object" or "item"
+	Quality  int     `json:"quality"`
+	IconPath string  `json:"iconPath"`
+	Chance   float64 `json:"chance"`
 }
 
 // ItemCraftSource is a recipe/spell that creates this item (a tradeskill spell
