@@ -129,6 +129,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"mechanics", "spell_mechanics.json"},
 		{"dispeltypes", "spell_dispel_types.json"},
 		{"enchantprocs", "enchant_proc_spells.json"},
+		{"locktypes", "lock_types.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -178,6 +179,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genDispelTypes(cf)
 	case "enchantprocs":
 		v, err = genEnchantProcSpells(cf)
+	case "locktypes":
+		v, err = genLockTypes(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -562,6 +565,12 @@ func genMechanics(cf ClientFiles) (interface{}, error) {
 // genDispelTypes reads SpellDispelType.dbc (id -> name, e.g. "Magic").
 func genDispelTypes(cf ClientFiles) (interface{}, error) {
 	return genIDName(cf, "SpellDispelType.dbc")
+}
+
+// genLockTypes reads LockType.dbc (id -> name, e.g. "Herbalism", "Mining",
+// "Survival"). Drives the derived gathering/lock object categories.
+func genLockTypes(cf ClientFiles) (interface{}, error) {
+	return genIDName(cf, "LockType.dbc")
 }
 
 // genEnchantProcSpells reads SpellItemEnchantment.dbc and returns the set of

@@ -322,6 +322,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportSpellMechanics(filepath.Join(a.DataDir, "spell_mechanics.json"))
 	_ = gen.ImportDispelTypes(filepath.Join(a.DataDir, "spell_dispel_types.json"))
 	_ = gen.ImportEnchantProcSpells(filepath.Join(a.DataDir, "enchant_proc_spells.json"))
+	_ = gen.ImportLockTypes(filepath.Join(a.DataDir, "lock_types.json"))
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}

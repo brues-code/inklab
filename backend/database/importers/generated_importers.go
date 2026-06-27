@@ -519,6 +519,11 @@ func (i *GeneratedImporter) ImportDispelTypes(jsonPath string) error {
 	return i.importIDName(jsonPath, "spell_dispel_types")
 }
 
+// ImportLockTypes loads lock_types.json (LockType.dbc) into lock_types.
+func (i *GeneratedImporter) ImportLockTypes(jsonPath string) error {
+	return i.importIDName(jsonPath, "lock_types")
+}
+
 // ImportEnchantProcSpells loads enchant_proc_spells.json (the on-hit enchant proc
 // spell ids from SpellItemEnchantment.dbc) into enchant_proc_spells. Optional.
 func (i *GeneratedImporter) ImportEnchantProcSpells(jsonPath string) error {

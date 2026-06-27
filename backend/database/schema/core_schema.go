@@ -317,6 +317,12 @@ func CoreSchema() string {
 		id INTEGER PRIMARY KEY,
 		name TEXT NOT NULL
 	);
+	-- Lock types (LockType.dbc): id -> name (Herbalism, Mining, Survival, ...).
+	-- Drives the derived gathering/lock object categories.
+	CREATE TABLE IF NOT EXISTS lock_types (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	);
 
 	-- Item stat types (the ITEM_MOD enum): stat_type id -> display name. Seeded
 	-- from the built-in canonical names, with the base stats overlaid from the

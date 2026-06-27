@@ -44,22 +44,33 @@ func NewGameObjectRepository(db *sql.DB) *GameObjectRepository {
 func (r *GameObjectRepository) GetObjectTypes() ([]*models.ObjectType, error) {
 	types := []*models.ObjectType{}
 
-	// Helper for derived types (Herbalism, Mining, Lockpicking)
-	countDerived := func(propID int, name string, id int) {
-		var count int
-		r.db.QueryRow(`
-			SELECT COUNT(DISTINCT o.entry) FROM gameobject_template o
-			JOIN locks l ON o.data0 = l.id
-			WHERE o.type = 3 AND (l.prop1 = ? OR l.prop2 = ? OR l.prop3 = ? OR l.prop4 = ? OR l.prop5 = ?)
-		`, propID, propID, propID, propID, propID).Scan(&count)
-		if count > 0 {
-			types = append(types, &models.ObjectType{ID: id, Name: name, Count: count})
+	// Derived gathering/lock categories: one per LockType (Herbalism, Mining,
+	// Survival, Pick Lock, ...) actually used by chest objects (type 3). Names
+	// come from lock_types (LockType.dbc), so any server-custom type appears
+	// automatically. Category id is -(1000 + lockTypeID) to avoid colliding with
+	// real gameobject type ids. Only key-skill lock slots (type 2) count.
+	lockRows, err := r.db.Query(`
+		SELECT lt.id, lt.name, COUNT(DISTINCT o.entry)
+		FROM gameobject_template o
+		JOIN locks l ON o.data0 = l.id
+		JOIN lock_types lt ON lt.id IN (l.prop1, l.prop2, l.prop3, l.prop4, l.prop5)
+		WHERE o.type = 3 AND (
+			(l.type1 = 2 AND l.prop1 = lt.id) OR (l.type2 = 2 AND l.prop2 = lt.id) OR
+			(l.type3 = 2 AND l.prop3 = lt.id) OR (l.type4 = 2 AND l.prop4 = lt.id) OR
+			(l.type5 = 2 AND l.prop5 = lt.id))
+		GROUP BY lt.id, lt.name
+		ORDER BY COUNT(DISTINCT o.entry) DESC
+	`)
+	if err == nil {
+		for lockRows.Next() {
+			var id, count int
+			var name string
+			if lockRows.Scan(&id, &name, &count) == nil && count > 0 {
+				types = append(types, &models.ObjectType{ID: -(1000 + id), Name: name, Count: count})
+			}
 		}
+		lockRows.Close()
 	}
-
-	countDerived(2, "Herbalism", -3)
-	countDerived(3, "Mining", -4)
-	countDerived(1, "Lockpicking", -5)
 
 	// Count every type actually present, then emit one category per type:
 	// priority (player-relevant) order first, the rest appended ascending.
@@ -103,6 +114,9 @@ func (r *GameObjectRepository) GetObjectTypes() ([]*models.ObjectType, error) {
 		add(t)
 	}
 
+	// Present the whole list (derived lock categories + gameobject types) alphabetically.
+	sort.Slice(types, func(i, j int) bool { return types[i].Name < types[j].Name })
+
 	return types, nil
 }
 
@@ -114,20 +128,16 @@ func (r *GameObjectRepository) GetObjectsByType(typeID int, nameFilter string) (
 	baseSelect := "SELECT entry, name, type, displayId as display_id, size FROM gameobject_template o"
 
 	if typeID < 0 {
-		var propID int
-		switch typeID {
-		case -3:
-			propID = 2
-		case -4:
-			propID = 3
-		case -5:
-			propID = 1
-		}
+		// Derived lock category: id is -(1000 + lockTypeID). Match key-skill slots.
+		lockType := -typeID - 1000
 		query = baseSelect + `
 			JOIN locks l ON o.data0 = l.id
-			WHERE o.type = 3 AND (l.prop1 = ? OR l.prop2 = ? OR l.prop3 = ? OR l.prop4 = ? OR l.prop5 = ?)
+			WHERE o.type = 3 AND (
+				(l.type1 = 2 AND l.prop1 = ?) OR (l.type2 = 2 AND l.prop2 = ?) OR
+				(l.type3 = 2 AND l.prop3 = ?) OR (l.type4 = 2 AND l.prop4 = ?) OR
+				(l.type5 = 2 AND l.prop5 = ?))
 		`
-		args = append(args, propID, propID, propID, propID, propID)
+		args = append(args, lockType, lockType, lockType, lockType, lockType)
 	} else {
 		query = baseSelect + " WHERE o.type = ?"
 		args = append(args, typeID)

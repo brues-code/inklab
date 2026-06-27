@@ -121,6 +121,9 @@ func main() {
 	if err := gen.ImportEnchantProcSpells(filepath.Join(dataDir, "enchant_proc_spells.json")); err != nil {
 		fmt.Println("  warn enchant procs:", err)
 	}
+	if err := gen.ImportLockTypes(filepath.Join(dataDir, "lock_types.json")); err != nil {
+		fmt.Println("  warn lock types:", err)
+	}
 
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	fmt.Println("Resolving spell descriptions...")

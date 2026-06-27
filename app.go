@@ -321,6 +321,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportEnchantProcSpells(filepath.Join(dataDir, "enchant_proc_spells.json")); err != nil {
 		fmt.Printf("⚠️ Enchant proc import failed: %v\n", err)
 	}
+	if err := gen.ImportLockTypes(filepath.Join(dataDir, "lock_types.json")); err != nil {
+		fmt.Printf("⚠️ Lock type import failed: %v\n", err)
+	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)
 }
