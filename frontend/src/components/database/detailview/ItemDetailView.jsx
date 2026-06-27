@@ -302,6 +302,41 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 </div>
             ),
         },
+        detail.gatheredFrom?.length && {
+            id: 'gatheredFrom',
+            label: 'Gathered From',
+            count: detail.gatheredFrom.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.gatheredFrom.map((c) => (
+                        <div
+                            key={c.entry}
+                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate('object', c.entry)}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
+                                    OBJ
+                                </span>
+                                <span className="truncate font-bold text-[#00B4FF] hover:text-wow-gold">
+                                    {c.name}
+                                </span>
+                                {c.skill && (
+                                    <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
+                                        {c.skill}
+                                    </span>
+                                )}
+                            </div>
+                            {c.chance > 0 && (
+                                <div className="shrink-0 font-mono text-sm text-wow-gold">
+                                    {c.chance.toFixed(1)}%
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
         detail.containedIn?.length && {
             id: 'containedIn',
             label: 'Contained In',

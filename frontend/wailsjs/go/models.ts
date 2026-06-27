@@ -1559,6 +1559,7 @@ export namespace models {
 	    quality: number;
 	    iconPath: string;
 	    chance: number;
+	    skill?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemContainer(source);
@@ -1572,6 +1573,7 @@ export namespace models {
 	        this.quality = source["quality"];
 	        this.iconPath = source["iconPath"];
 	        this.chance = source["chance"];
+	        this.skill = source["skill"];
 	    }
 	}
 	export class ItemCraftSource {
@@ -1752,6 +1754,7 @@ export namespace models {
 	    soldBy: ItemVendor[];
 	    createdBy: ItemCraftSource[];
 	    containedIn: ItemContainer[];
+	    gatheredFrom: ItemContainer[];
 	    objectiveOf: QuestReward[];
 	    startsQuest?: QuestReward;
 	
@@ -1832,6 +1835,7 @@ export namespace models {
 	        this.soldBy = this.convertValues(source["soldBy"], ItemVendor);
 	        this.createdBy = this.convertValues(source["createdBy"], ItemCraftSource);
 	        this.containedIn = this.convertValues(source["containedIn"], ItemContainer);
+	        this.gatheredFrom = this.convertValues(source["gatheredFrom"], ItemContainer);
 	        this.objectiveOf = this.convertValues(source["objectiveOf"], QuestReward);
 	        this.startsQuest = this.convertValues(source["startsQuest"], QuestReward);
 	    }

@@ -261,6 +261,7 @@ type ItemDetail struct {
 	SoldBy      []*ItemVendor      `json:"soldBy"`
 	CreatedBy   []*ItemCraftSource `json:"createdBy"`
 	ContainedIn []*ItemContainer   `json:"containedIn"`
+	GatheredFrom []*ItemContainer  `json:"gatheredFrom"`
 	ObjectiveOf []*QuestReward     `json:"objectiveOf"`
 	StartsQuest *QuestReward       `json:"startsQuest,omitempty"`
 }
@@ -274,6 +275,7 @@ type ItemContainer struct {
 	Quality  int     `json:"quality"`
 	IconPath string  `json:"iconPath"`
 	Chance   float64 `json:"chance"`
+	Skill    string  `json:"skill,omitempty"` // gathering skill for nodes (Herbalism/Mining/Fishing)
 }
 
 // ItemCraftSource is a recipe/spell that creates this item (a tradeskill spell

@@ -1470,7 +1470,7 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 
 	// Get containers (gameobject chests + container items) whose loot holds this
 	// item — the reverse of Contains.
-	detail.ContainedIn = r.getContainedIn(entry)
+	detail.ContainedIn, detail.GatheredFrom = r.getContainedIn(entry)
 
 	// Quests this item is an objective of (a required turn-in item).
 	objRows, err := r.db.Query(`
@@ -1503,16 +1503,30 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	return detail, nil
 }
 
-// getContainedIn returns the gameobject chests and container items whose loot
-// includes this item (the reverse of Contains).
-func (r *ItemRepository) getContainedIn(entry int) []*models.ItemContainer {
-	var out []*models.ItemContainer
+// gatheringLockTypes maps a LockType id that marks a gathering node to its
+// profession label. A type-3 gameobject whose Lock requires one of these skills
+// is a herb/ore/fishing node ("Gathered From"), not a regular chest.
+var gatheringLockTypes = map[int]string{
+	2:  "Herbalism",
+	3:  "Mining",
+	19: "Fishing",
+}
 
-	// Gameobject chests (type 3): data1 is the loot template entry.
+// getContainedIn returns the gameobjects and container items whose loot includes
+// this item (the reverse of Contains), split into two lists: gathering nodes
+// (herb/ore/fishing objects, by their Lock skill) and everything else (chests +
+// container items).
+func (r *ItemRepository) getContainedIn(entry int) (contained, gathered []*models.ItemContainer) {
+	// Gameobject chests/nodes (type 3): data1 is the loot template entry, data0
+	// the Lock id. A lock slot of type 2 (skill) whose property is a gathering
+	// LockType marks the object as a gathering node.
 	goRows, err := r.db.Query(`
-		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance
+		SELECT DISTINCT o.entry, o.name, gl.ChanceOrQuestChance,
+		       l.type1, l.type2, l.type3, l.type4, l.type5,
+		       l.prop1, l.prop2, l.prop3, l.prop4, l.prop5
 		FROM gameobject_loot_template gl
 		JOIN gameobject_template o ON o.data1 = gl.entry
+		LEFT JOIN locks l ON l.id = o.data0
 		WHERE gl.item = ? AND o.type = 3
 		ORDER BY gl.ChanceOrQuestChance DESC
 		LIMIT 50
@@ -1520,8 +1534,25 @@ func (r *ItemRepository) getContainedIn(entry int) []*models.ItemContainer {
 	if err == nil {
 		for goRows.Next() {
 			c := &models.ItemContainer{Kind: "object"}
-			if goRows.Scan(&c.Entry, &c.Name, &c.Chance) == nil {
-				out = append(out, c)
+			var typ, prop [5]int
+			if goRows.Scan(&c.Entry, &c.Name, &c.Chance,
+				&typ[0], &typ[1], &typ[2], &typ[3], &typ[4],
+				&prop[0], &prop[1], &prop[2], &prop[3], &prop[4]) != nil {
+				continue
+			}
+			// Type 2 == skill lock; prop is the LockType id.
+			for i := 0; i < 5; i++ {
+				if typ[i] == 2 {
+					if skill, ok := gatheringLockTypes[prop[i]]; ok {
+						c.Skill = skill
+						break
+					}
+				}
+			}
+			if c.Skill != "" {
+				gathered = append(gathered, c)
+			} else {
+				contained = append(contained, c)
 			}
 		}
 		goRows.Close()
@@ -1541,13 +1572,13 @@ func (r *ItemRepository) getContainedIn(entry int) []*models.ItemContainer {
 		for itRows.Next() {
 			c := &models.ItemContainer{Kind: "item"}
 			if itRows.Scan(&c.Entry, &c.Name, &c.Quality, &c.IconPath, &c.Chance) == nil {
-				out = append(out, c)
+				contained = append(contained, c)
 			}
 		}
 		itRows.Close()
 	}
 
-	return out
+	return contained, gathered
 }
 
 // getCreatedBy returns the tradeskill spells whose Create Item effect (effect
