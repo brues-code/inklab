@@ -160,6 +160,15 @@ func (a *App) startup(ctx context.Context) {
 	// Build category cache
 	a.buildCategoryCache()
 
+	// Construct the services the frontend can call immediately (NPC/object/sync)
+	// BEFORE the possibly-slow data imports below. On a `wails dev` rebuild the
+	// app restarts while the frontend reconnects and may re-fire e.g.
+	// GetNpcDetails during startup — if these aren't set yet that call hits a nil
+	// service. Their deps (db, MySQL, repos) are all ready by here.
+	a.scraper = services.NewScraperService()
+	a.npcService = services.NewNpcService(a.db.DB(), a.mysqlDB, a.scraper, a.itemRepo, a.creatureRepo, a.DataDir)
+	a.syncService = services.NewSyncService(a.db.DB())
+
 	// Data import using importers
 	// dataDir is already set in a.DataDir
 
@@ -212,10 +221,7 @@ func (a *App) startup(ctx context.Context) {
 	// Icon downloading is now on-demand via fix button
 	// No need to auto-download on startup
 
-	// Initialize NPC Service
-	a.scraper = services.NewScraperService()
-	a.npcService = services.NewNpcService(a.db.DB(), a.mysqlDB, a.scraper, a.itemRepo, a.creatureRepo, a.DataDir)
-	a.syncService = services.NewSyncService(a.db.DB())
+	// (NPC/sync services are constructed earlier, before the data imports above.)
 
 	// Async sync creature spawns for dev convenience
 	if a.isDevMode && a.mysqlDB != nil {

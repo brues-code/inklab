@@ -525,12 +525,23 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 	var metaZone string
 	err := s.sqlite.QueryRow("SELECT x, y, zone_name FROM creature_metadata WHERE entry = ?", entry).Scan(&metaX, &metaY, &metaZone)
 	if err == nil && metaZone != "" && (metaX > 0 || metaY > 0) {
-		fmt.Printf("  ⚠ No MySQL spawns for %d, falling back to scraped data: %s (%.1f, %.1f)\n", entry, metaZone, metaX, metaY)
+		// octowow buckets continent-level spawns under "Azeroth"/"Kalimdor" with
+		// continent-map percentages; recover the specific subzone from geometry
+		// (same path the object sync uses) so custom octo zones like Northwind
+		// resolve instead of defaulting to the continent. metaX/metaY are then the
+		// continent percentages we can invert.
+		zoneName, mapX, mapY := metaZone, metaX, metaY
+		if metaZone == "Azeroth" || metaZone == "Kalimdor" {
+			if zn, zx, zy, ok := s.resolveContinentSpawn(metaX, metaY); ok {
+				zoneName, mapX, mapY = zn, zx, zy
+			}
+		}
+		fmt.Printf("  ⚠ No MySQL spawns for %d, falling back to scraped data: %s (%.1f, %.1f)\n", entry, zoneName, mapX, mapY)
 		s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 		_, err = s.sqlite.Exec(`
 			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, entry, 0, 0, metaZone, metaX, metaY, 0)
+		`, entry, 0, 0, zoneName, mapX, mapY, 0)
 		if err == nil {
 			fmt.Printf("  ✓ Created pseudo-spawn from web data for creature %d\n", entry)
 		} else {
@@ -1365,11 +1376,23 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 	inserted := 0
 	for _, sp := range data.Spawns {
+		zoneName, x, y := sp.ZoneName, sp.X, sp.Y
+		// octowow buckets continent-level spawns under zone 0 with continent-map
+		// percentages; recover the specific subzone — including custom octo zones
+		// like Northwind — from geometry, the same way the gameobject sync does.
+		if sp.ZoneID == 0 {
+			if zoneName == "" {
+				zoneName = s.zoneNameByID(0)
+			}
+			if zn, zx, zy, ok := s.resolveContinentSpawn(sp.X, sp.Y); ok {
+				zoneName, x, y = zn, zx, zy
+			}
+		}
 		_, err := s.sqlite.Exec(`
 			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(creature_entry, map_id, position_x, position_y) DO NOTHING
-		`, entry, 0, sp.ZoneID, sp.ZoneName, sp.X, sp.Y, 0)
+		`, entry, 0, sp.ZoneID, zoneName, x, y, 0)
 		if err == nil {
 			inserted++
 		}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"runtime/debug"
+
 	"inklab/backend/database"
 	"inklab/backend/services"
 
@@ -114,9 +116,21 @@ func (a *App) GetCreatureLoot(entry int) []*database.LootItem {
 	return loot
 }
 
-// GetNpcDetails returns full details for an NPC (Scraped + DB)
-func (a *App) GetNpcDetails(entry int) *services.NpcFullDetails {
+// GetNpcDetails returns full details for an NPC (Scraped + DB). A recover guard
+// keeps a panic from killing the IPC pump and logs the full stack so the exact
+// line is captured instead of just Wails' recovered summary.
+func (a *App) GetNpcDetails(entry int) (res *services.NpcFullDetails) {
 	fmt.Printf("[API] GetNpcDetails called for %d\n", entry)
+	if a.npcService == nil {
+		fmt.Println("[API] GetNpcDetails: NPC service not ready yet (startup in progress)")
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[API] GetNpcDetails PANIC for %d: %v\n%s\n", entry, r, debug.Stack())
+			res = nil
+		}
+	}()
 	details, err := a.npcService.GetNpcDetails(entry)
 	if err != nil {
 		fmt.Printf("Error getting NPC details: %v\n", err)
@@ -128,6 +142,9 @@ func (a *App) GetNpcDetails(entry int) *services.NpcFullDetails {
 // SyncNpcData forces a re-sync of NPC data
 func (a *App) SyncNpcData(entry int) *services.NpcFullDetails {
 	fmt.Printf("[API] SyncNpcData called for %d\n", entry)
+	if a.npcService == nil {
+		return nil
+	}
 	err := a.npcService.SyncNpcData(entry)
 	if err != nil {
 		fmt.Printf("Error syncing NPC data: %v\n", err)
@@ -141,6 +158,9 @@ func (a *App) SyncNpcData(entry int) *services.NpcFullDetails {
 // for an NPC, without re-syncing creature_template stats from MySQL.
 func (a *App) RefreshNpcImages(entry int) *services.NpcFullDetails {
 	fmt.Printf("[API] RefreshNpcImages called for %d\n", entry)
+	if a.npcService == nil {
+		return nil
+	}
 	if err := a.npcService.RefreshNpcImages(entry); err != nil {
 		fmt.Printf("Error refreshing NPC images: %v\n", err)
 	}
@@ -156,6 +176,9 @@ func (a *App) FullSyncNpcs(startFrom int, delayMs int) string {
 		delayMs = 200 // Default delay
 	}
 
+	if a.npcService == nil {
+		return "NPC service not ready"
+	}
 	a.npcService.ResetStop()
 
 	go func() {
