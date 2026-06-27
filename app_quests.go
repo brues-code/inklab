@@ -83,23 +83,21 @@ func (a *App) GetQuestsByEnhancedCategory(categoryID int, nameFilter string) []*
 	return quests
 }
 
-// SyncQuestData syncs quest data from TurtleCraft
+// SyncQuestData syncs a single quest from the web. It uses the SAME
+// fill/set-policy importer as the full sync (FetchAndImportQuest) so WDB-carried
+// fields — Title, Details, Objectives, EndText, QuestLevel, ZoneOrSort — are only
+// backfilled when empty and never clobbered by an empty scrape. (The old path
+// here blanket-overwrote those columns, wiping e.g. the Objectives text the WDB
+// provides but octowow's page omits.)
 func (a *App) SyncQuestData(entry int) (*database.QuestDetail, error) {
 	fmt.Printf("[API] SyncQuestData called: %d\n", entry)
-
-	// 1. Scrape from TurtleCraft
-	data, err := a.scraper.ScrapeQuestData(entry)
-	if err != nil {
-		fmt.Printf("[API] Error scraping quest data: %v\n", err)
-		return nil, err
+	if a.syncService == nil {
+		return nil, fmt.Errorf("sync service not ready")
 	}
-
-	// 2. Update Database
-	if err := a.questRepo.UpdateQuestFromScraper(data); err != nil {
-		fmt.Printf("[API] Error updating quest in DB: %v\n", err)
-		return nil, err
+	res := a.syncService.FetchAndImportQuest(entry)
+	if res != nil && !res.Success {
+		fmt.Printf("[API] Error syncing quest %d: %s\n", entry, res.Error)
+		return nil, fmt.Errorf("%s", res.Error)
 	}
-
-	// 3. Return updated detail
 	return a.GetQuestDetail(entry)
 }

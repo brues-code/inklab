@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"inklab/backend/database/models"
-	"inklab/backend/parsers"
 )
 
 // QuestRepository handles quest-related database operations
@@ -601,34 +600,6 @@ func (r *QuestRepository) getQuestChainForwards(currentQuestID int, nextQuestInC
 	}
 
 	return result
-}
-
-// UpdateQuestFromScraper updates basic quest info from scraped data
-func (r *QuestRepository) UpdateQuestFromScraper(data *parsers.ScrapedQuestData) error {
-	// Only update fields that we scraped
-	_, err := r.db.Exec(`
-		UPDATE quest_template SET 
-			Title = ?,
-			QuestLevel = COALESCE(NULLIF(?, 0), QuestLevel),
-			MinLevel = COALESCE(NULLIF(?, 0), MinLevel),
-			ZoneOrSort = COALESCE(NULLIF(?, 0), ZoneOrSort),
-			Details = ?,
-			Objectives = ?,
-			OfferRewardText = ?,
-			EndText = ?
-		WHERE entry = ?
-	`,
-		data.Title,
-		data.QuestLevel,
-		data.MinLevel,
-		data.ZoneOrSort,
-		data.Details,
-		data.Objectives,
-		data.OfferRewardText,
-		data.EndText,
-		data.Entry,
-	)
-	return err
 }
 
 // WoW gender escapes: $GmaleText:femaleText; (and $g). Most quest text
