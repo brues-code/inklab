@@ -729,6 +729,42 @@ func continentMapID(name string) (int, bool) {
 	return 0, false
 }
 
+// resolveScrapedSpawn turns one octowow-scraped spawn (its reported zone id,
+// continent label, and 0-100 map coords) into the authoritative zone + local
+// coords. octowow's zone DETECTION is unreliable — it runs on stock aowow map
+// files and doesn't know octo's custom zones, so it tags spawns with the nearest
+// mainland zone (e.g. Blackstone Island nodes reported as Barrens/Durotar). We
+// therefore trust octowow only for the continent and the coordinates: convert
+// the coords to world space (via the reported zone's bounds, or the continent's
+// for zone 0) and re-resolve the real zone from the client area grid, which is
+// built from octo's actual ADT terrain. Falls back to octowow's label only when
+// the grid can't place the point.
+func (s *NpcService) resolveScrapedSpawn(zoneID int, contName string, cx, cy float64) (zoneName string, x, y float64) {
+	s.loadZoneBounds()
+
+	if zoneID == 0 {
+		mapID, _ := continentMapID(contName)
+		if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, cx, cy); ok {
+			return zn, zx, zy
+		}
+		if contName != "" {
+			return contName, cx, cy
+		}
+		return s.zoneNameByID(0), cx, cy
+	}
+
+	// Reported zone gives the coordinate frame (the % is relative to its map).
+	// Invert to world coords, then let the area grid name the real zone.
+	if zb := s.zoneByArea[zoneID]; zb != nil && (zb.XMin != 0 || zb.XMax != 0) {
+		worldY := zb.YMax - (cx/100)*(zb.YMax-zb.YMin)
+		worldX := zb.XMax - (cy/100)*(zb.XMax-zb.XMin)
+		if zn, zx, zy, ok := s.zoneFromAreaGrid(zb.MapID, worldX, worldY); ok {
+			return zn, zx, zy
+		}
+	}
+	return s.zoneNameByID(zoneID), cx, cy
+}
+
 func clampPct(v float64) float64 {
 	if v < 0 {
 		return 0
@@ -1061,19 +1097,9 @@ func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) i
 
 	n := 0
 	for _, p := range points {
-		zoneName := s.zoneNameByID(p.ZoneID)
-		x, y := p.X, p.Y
-		// octowow buckets spawns it can't map to a subzone under zone 0, with
-		// continent-level coords, labelling the block by continent ("Azeroth" or
-		// "Kalimdor"). Resolve the real subzone on THAT continent — the label is
-		// authoritative, so a custom Kalimdor zone (e.g. Blackstone Island) isn't
-		// mis-pinned to Eastern Kingdoms (and vice-versa). Defaults to map 0.
-		if p.ZoneID == 0 {
-			mapID, _ := continentMapID(p.ZoneName)
-			if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, p.X, p.Y); ok {
-				zoneName, x, y = zn, zx, zy
-			}
-		}
+		// Trust octowow only for continent + coords; derive the real zone from the
+		// client area grid (its zone detection mis-tags octo's custom zones).
+		zoneName, x, y := s.resolveScrapedSpawn(p.ZoneID, p.ZoneName, p.X, p.Y)
 		if _, err := s.sqlite.Exec(`
 			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1410,22 +1436,11 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 	inserted := 0
 	for _, sp := range data.Spawns {
-		zoneName, x, y := sp.ZoneName, sp.X, sp.Y
-		// octowow buckets continent-level spawns under zone 0 with continent-map
-		// percentages; recover the specific subzone — including custom octo zones
-		// like Northwind — from geometry, the same way the gameobject sync does.
-		// Resolve on the continent octowow named (zone 0 is "Azeroth"/Eastern
-		// Kingdoms unless labelled "Kalimdor"), so an EK point isn't mis-claimed by
-		// a smaller Kalimdor zone.
-		if sp.ZoneID == 0 {
-			mapID, _ := continentMapID(sp.ZoneName)
-			if zoneName == "" {
-				zoneName = s.zoneNameByID(0)
-			}
-			if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, sp.X, sp.Y); ok {
-				zoneName, x, y = zn, zx, zy
-			}
-		}
+		// Trust octowow only for continent + coords; derive the real zone from the
+		// client area grid (it mis-tags octo's custom zones — e.g. Blackstone
+		// Island spawns reported as Barrens/Durotar — and buckets others under the
+		// continent at zone 0).
+		zoneName, x, y := s.resolveScrapedSpawn(sp.ZoneID, sp.ZoneName, sp.X, sp.Y)
 		_, err := s.sqlite.Exec(`
 			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
