@@ -16,16 +16,19 @@ const CATEGORIES = [
     { key: 'object', label: 'Objects' },
 ]
 
-const ResultIcon = ({ iconName, type, displayId }) => {
+const ResultIcon = ({ iconName, type, displayId, activeCategory }) => {
     const icon = useIcon(iconName)
     // NPCs prefer the head-shot portrait; bounded result set, so generate=true is safe.
     const portrait = useNpcPortrait(type === 'npc' ? displayId : 0, 0, 0, true)
     const src = type === 'npc' && portrait.src ? portrait.src : icon.src || QUESTION_MARK_ICON
+    // The type badge disambiguates the mixed "All" list; it's redundant on a
+    // single-type tab, so hide it there.
+    const showBadge = TYPE_BADGE[type] !== '' && activeCategory !== type
 
     return (
         <div className="relative mr-2 h-7 w-7 flex-shrink-0 overflow-hidden rounded bg-black">
             {!icon.loading && <img src={src} className="h-full w-full object-cover" alt="" />}
-            {TYPE_BADGE[type] !== '' && (
+            {showBadge && (
                 <div className="absolute bottom-0 right-0 bg-black/80 px-0.5 text-[7px] font-bold uppercase leading-tight text-white">
                     {TYPE_BADGE[type]}
                 </div>
@@ -185,6 +188,7 @@ function GlobalSearch() {
                                         iconName={item.iconPath}
                                         type={item.type}
                                         displayId={item.displayId1}
+                                        activeCategory={category}
                                     />
                                     <span className="mr-2 min-w-[46px] font-mono text-[11px] text-gray-500">
                                         #{item.entry}
