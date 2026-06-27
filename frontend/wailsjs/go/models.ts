@@ -2174,6 +2174,22 @@ export namespace models {
 	        this.quality = source["quality"];
 	    }
 	}
+	export class QuestRewardSpell {
+	    spellId: number;
+	    name: string;
+	    iconName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuestRewardSpell(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.name = source["name"];
+	        this.iconName = source["iconName"];
+	    }
+	}
 	export class QuestDetail {
 	    entry: number;
 	    title: string;
@@ -2193,6 +2209,7 @@ export namespace models {
 	    rewardXp: number;
 	    rewardMoney: number;
 	    rewardSpell?: number;
+	    rewardSpellInfo?: QuestRewardSpell;
 	    rewardItems: QuestItem[];
 	    choiceItems: QuestItem[];
 	    requiredItems: QuestItem[];
@@ -2228,6 +2245,7 @@ export namespace models {
 	        this.rewardXp = source["rewardXp"];
 	        this.rewardMoney = source["rewardMoney"];
 	        this.rewardSpell = source["rewardSpell"];
+	        this.rewardSpellInfo = this.convertValues(source["rewardSpellInfo"], QuestRewardSpell);
 	        this.rewardItems = this.convertValues(source["rewardItems"], QuestItem);
 	        this.choiceItems = this.convertValues(source["choiceItems"], QuestItem);
 	        this.requiredItems = this.convertValues(source["requiredItems"], QuestItem);
@@ -2258,6 +2276,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -2454,6 +2473,40 @@ export namespace models {
 	        this.name = source["name"];
 	        this.skillCount = source["skillCount"];
 	        this.color = source["color"];
+	    }
+	}
+	export class SpellRewardQuest {
+	    entry: number;
+	    title: string;
+	    level: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpellRewardQuest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.title = source["title"];
+	        this.level = source["level"];
+	    }
+	}
+	export class SpellTrainerNpc {
+	    entry: number;
+	    name: string;
+	    levelMin: number;
+	    levelMax: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpellTrainerNpc(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.levelMin = source["levelMin"];
+	        this.levelMax = source["levelMax"];
 	    }
 	}
 	export class SpellUsedByItem {
@@ -2665,6 +2718,9 @@ export namespace models {
 	    effects?: SpellEffectInfo[];
 	    flags?: string[];
 	    usedByItems?: SpellUsedByItem[];
+	    taughtByNpcs?: SpellTrainerNpc[];
+	    taughtByItems?: SpellUsedByItem[];
+	    taughtByQuests?: SpellRewardQuest[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SpellDetail(source);
@@ -2836,6 +2892,9 @@ export namespace models {
 	        this.effects = this.convertValues(source["effects"], SpellEffectInfo);
 	        this.flags = source["flags"];
 	        this.usedByItems = this.convertValues(source["usedByItems"], SpellUsedByItem);
+	        this.taughtByNpcs = this.convertValues(source["taughtByNpcs"], SpellTrainerNpc);
+	        this.taughtByItems = this.convertValues(source["taughtByItems"], SpellUsedByItem);
+	        this.taughtByQuests = this.convertValues(source["taughtByQuests"], SpellRewardQuest);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2856,6 +2915,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	export class SpellSkill {
 	    id: number;
@@ -2889,6 +2949,7 @@ export namespace models {
 	        this.name = source["name"];
 	    }
 	}
+	
 	
 	export class StatType {
 	    id: number;
@@ -3207,6 +3268,26 @@ export namespace services {
 	        this.icon = source["icon"];
 	    }
 	}
+	export class NpcTrainSpell {
+	    spellId: number;
+	    name: string;
+	    subtext: string;
+	    level: number;
+	    iconName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NpcTrainSpell(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.name = source["name"];
+	        this.subtext = source["subtext"];
+	        this.level = source["level"];
+	        this.iconName = source["iconName"];
+	    }
+	}
 	export class NpcSellItem {
 	    itemId: number;
 	    name: string;
@@ -3330,6 +3411,7 @@ export namespace services {
 	    abilities: NpcAbility[];
 	    spawns: NpcSpawn[];
 	    sells: NpcSellItem[];
+	    trains: NpcTrainSpell[];
 	
 	    static createFrom(source: any = {}) {
 	        return new NpcFullDetails(source);
@@ -3377,6 +3459,7 @@ export namespace services {
 	        this.abilities = this.convertValues(source["abilities"], NpcAbility);
 	        this.spawns = this.convertValues(source["spawns"], NpcSpawn);
 	        this.sells = this.convertValues(source["sells"], NpcSellItem);
+	        this.trains = this.convertValues(source["trains"], NpcTrainSpell);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3397,6 +3480,7 @@ export namespace services {
 		    return a;
 		}
 	}
+	
 	
 	
 	
