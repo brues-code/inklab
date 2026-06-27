@@ -181,6 +181,13 @@ type ItemSetInfo struct {
 }
 
 // TooltipData represents data for rendering a tooltip
+// TooltipEffect is one item spell effect line (e.g. "Use: ...") plus the spell
+// id it comes from, so the UI can link to the spell page.
+type TooltipEffect struct {
+	Text    string `json:"text"`
+	SpellID int    `json:"spellId"`
+}
+
 type TooltipData struct {
 	Entry         int          `json:"entry"`
 	Name          string       `json:"name"`
@@ -194,9 +201,9 @@ type TooltipData struct {
 	DamageRange   string       `json:"damageText,omitempty"`
 	AttackSpeed   string       `json:"speedText,omitempty"`
 	DPS           string       `json:"dps,omitempty"`
-	Stats         []string     `json:"stats,omitempty"`
-	Resistances   []string     `json:"resistances,omitempty"`
-	Effects       []string     `json:"effects,omitempty"`
+	Stats         []string        `json:"stats,omitempty"`
+	Resistances   []string        `json:"resistances,omitempty"`
+	Effects       []TooltipEffect `json:"effects,omitempty"`
 	RequiredLevel int          `json:"requiredLevel,omitempty"`
 	SellPrice     int          `json:"sellPrice,omitempty"`
 	Durability    string       `json:"durability,omitempty"`

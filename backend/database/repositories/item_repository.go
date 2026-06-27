@@ -804,17 +804,23 @@ func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error)
 		tooltip.Durability = fmt.Sprintf("Durability %d / %d", item.MaxDurability, item.MaxDurability)
 	}
 
-	// Spell Effects
-	spellPairs := []struct{ id, trigger int }{
-		{item.SpellID1, item.SpellTrigger1},
-		{item.SpellID2, item.SpellTrigger2},
-		{item.SpellID3, item.SpellTrigger3},
+	// Spell Effects. The per-item spell cooldown (the category cooldown is the
+	// global 1-sec item-use throttle, not a real shown cooldown), used to show
+	// "(N cooldown)" on Use effects.
+	var icd [3]int
+	r.db.QueryRow(`SELECT spellcooldown_1, spellcooldown_2, spellcooldown_3
+		FROM item_template WHERE entry = ?`, itemID).Scan(&icd[0], &icd[1], &icd[2])
+
+	spellPairs := []struct{ id, trigger, cd int }{
+		{item.SpellID1, item.SpellTrigger1, icd[0]},
+		{item.SpellID2, item.SpellTrigger2, icd[1]},
+		{item.SpellID3, item.SpellTrigger3, icd[2]},
 	}
 	for _, sp := range spellPairs {
 		if sp.id > 0 {
-			effect := r.formatSpellEffect(sp.id, sp.trigger)
+			effect := r.formatSpellEffect(sp.id, sp.trigger, sp.cd)
 			if effect != "" {
-				tooltip.Effects = append(tooltip.Effects, effect)
+				tooltip.Effects = append(tooltip.Effects, models.TooltipEffect{Text: effect, SpellID: sp.id})
 			}
 		}
 	}
@@ -1301,7 +1307,7 @@ func (r *ItemRepository) getSpellDuration(durationIndex int) string {
 }
 
 // formatSpellEffect returns a formatted spell effect string with trigger prefix
-func (r *ItemRepository) formatSpellEffect(spellID, trigger int) string {
+func (r *ItemRepository) formatSpellEffect(spellID, trigger, itemCooldownMs int) string {
 	text := r.resolveSpellText(spellID)
 	if text == "" {
 		return ""
@@ -1309,24 +1315,54 @@ func (r *ItemRepository) formatSpellEffect(spellID, trigger int) string {
 
 	// Format based on trigger type
 	var prefix string
+	isUse := false
 	switch trigger {
 	case 0: // Use
 		prefix = "Use:"
+		isUse = true
 	case 1: // On Equip
 		prefix = "Equip:"
 	case 2: // Chance on Hit
 		prefix = "Chance on hit:"
 	case 4: // Soulstone
 		prefix = "Use:"
+		isUse = true
 	case 5: // Use with no delay
 		prefix = "Use:"
+		isUse = true
 	case 6: // Learn spell
 		prefix = "Use:"
 	default:
 		prefix = "Equip:"
 	}
 
-	return fmt.Sprintf("%s %s", prefix, text)
+	result := fmt.Sprintf("%s %s", prefix, text)
+
+	// Cooldown on Use effects: prefer the per-item cooldown, else the spell's own
+	// recovery. Ignore the 1-sec global item-use throttle.
+	if isUse {
+		cd := itemCooldownMs
+		if cd <= 0 {
+			r.db.QueryRow("SELECT recoveryTime FROM spell_template WHERE entry = ?", spellID).Scan(&cd)
+		}
+		if cd > 1000 {
+			result += " (" + formatCooldown(cd) + " cooldown)"
+		}
+	}
+
+	return result
+}
+
+// formatCooldown renders a millisecond cooldown as "30 sec" / "2 min" / "1 hr".
+func formatCooldown(ms int) string {
+	switch {
+	case ms >= 3600000:
+		return fmt.Sprintf("%g hr", float64(ms)/3600000.0)
+	case ms >= 60000:
+		return fmt.Sprintf("%g min", float64(ms)/60000.0)
+	default:
+		return fmt.Sprintf("%g sec", float64(ms)/1000.0)
+	}
 }
 
 // GetItemDetail returns full item information with drop sources

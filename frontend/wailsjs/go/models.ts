@@ -2742,6 +2742,20 @@ export namespace models {
 	        this.name = source["name"];
 	    }
 	}
+	export class TooltipEffect {
+	    text: string;
+	    spellId: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TooltipEffect(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.spellId = source["spellId"];
+	    }
+	}
 	export class TooltipData {
 	    entry: number;
 	    name: string;
@@ -2757,7 +2771,7 @@ export namespace models {
 	    dps?: string;
 	    stats?: string[];
 	    resistances?: string[];
-	    effects?: string[];
+	    effects?: TooltipEffect[];
 	    requiredLevel?: number;
 	    sellPrice?: number;
 	    durability?: string;
@@ -2786,7 +2800,7 @@ export namespace models {
 	        this.dps = source["dps"];
 	        this.stats = source["stats"];
 	        this.resistances = source["resistances"];
-	        this.effects = source["effects"];
+	        this.effects = this.convertValues(source["effects"], TooltipEffect);
 	        this.requiredLevel = source["requiredLevel"];
 	        this.sellPrice = source["sellPrice"];
 	        this.durability = source["durability"];
@@ -2814,6 +2828,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	export class ZoneSpawn {
 	    entry: number;
 	    x: number;

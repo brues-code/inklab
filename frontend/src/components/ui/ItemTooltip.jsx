@@ -10,7 +10,9 @@ const ItemTooltip = ({
     style,
     onMouseEnter = undefined,
     onMouseLeave = undefined,
-    interactive = false
+    interactive = false,
+    onSpellClick = undefined,
+    tooltipHook = undefined
 }) => {
     // Loading state
     if (!tooltip) {
@@ -126,12 +128,28 @@ const ItemTooltip = ({
                 <div className="text-white leading-tight">Requires Level {tooltip.requiredLevel}</div>
             )}
             
-            {/* Spell Effects (green) - WoW style: after stats/durability */}
+            {/* Spell Effects (green) - WoW style: after stats/durability. In the
+                interactive (detail-page) tooltip the spell is a link to its page. */}
             {tooltip.effects?.length > 0 && (
                 <div className="flex flex-col gap-0.5 mt-1">
-                    {tooltip.effects.map((effect, i) => (
-                        <div key={i} className="text-wow-uncommon leading-tight">{effect}</div>
-                    ))}
+                    {tooltip.effects.map((effect, i) => {
+                        const clickable = interactive && onSpellClick && effect.spellId > 0
+                        return (
+                            <div key={i} className="text-wow-uncommon leading-tight">
+                                {clickable ? (
+                                    <span
+                                        className="cursor-pointer hover:underline"
+                                        onClick={() => onSpellClick(effect.spellId)}
+                                        {...(tooltipHook?.getSpellHandlers?.(effect.spellId) || {})}
+                                    >
+                                        {effect.text}
+                                    </span>
+                                ) : (
+                                    effect.text
+                                )}
+                            </div>
+                        )
+                    })}
                 </div>
             )}
             
