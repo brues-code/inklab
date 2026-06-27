@@ -44,6 +44,9 @@ func (a *App) GetLocalImage(imageType string, name string) *ImageResult {
 	case "race_icon":
 		basePath = filepath.Join(a.DataDir, "race_icons")
 		extensions = []string{".png"}
+	case "coin":
+		basePath = filepath.Join(a.DataDir, "coin_icons")
+		extensions = []string{".png"}
 	case "zone_map":
 		// Zone maps are keyed by texture-folder name (e.g. "UngoroCrater") but
 		// the stored zone name may differ in spacing/punctuation ("Ungoro

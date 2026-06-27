@@ -61,5 +61,7 @@ data/npc_images/
 data/talent_bg/
 # Race/gender icons — cropped locally from the client sprite sheet (not shipped)
 data/race_icons/
+# Coin icons (gold/silver/copper) — cropped locally from UI-MoneyIcons (not shipped)
+data/coin_icons/
 # Per-chunk ADT area grid for spawn->zone resolution (regenerated via the Import tab)
 data/area_grid.bin

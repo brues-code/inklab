@@ -13,6 +13,7 @@ import {
     LootGrid,
     DetailLoading,
     DetailError,
+    Money,
 } from '../../ui'
 import { LootItem } from '../../ui'
 
@@ -179,14 +180,11 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                     <DetailSection title="Rewards">
                         <div className="space-y-4">
                             {detail.rewardMoney > 0 && (
-                                <div className="flex w-fit items-center gap-2 rounded border border-wow-gold/10 bg-wow-gold/5 px-3 py-1.5 text-wow-gold">
+                                <div className="flex w-fit items-center gap-2 rounded border border-wow-gold/10 bg-wow-gold/5 px-3 py-1.5">
                                     <span className="text-xs font-bold uppercase text-gray-500">
                                         Money:
                                     </span>
-                                    <span>
-                                        {Math.floor(detail.rewardMoney / 10000)}g{' '}
-                                        {Math.floor((detail.rewardMoney % 10000) / 100)}s
-                                    </span>
+                                    <Money copper={detail.rewardMoney} />
                                 </div>
                             )}
                             {detail.rewardXp > 0 && (

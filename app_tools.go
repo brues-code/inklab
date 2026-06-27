@@ -56,6 +56,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"npcImages", "NPC model renders", `Creature\*.m2 (client MPQs)`, "image", npcImages},
 		{"talentBgs", "Talent backgrounds", `Interface\TalentFrame art`, "image", talentBgs},
 		{"raceIcons", "Race / gender icons", `UI-CharacterCreate-Races.blp`, "image", countFiles(filepath.Join(a.DataDir, "race_icons"), ".png")},
+		{"coinIcons", "Coin icons (g/s/c)", `UI-MoneyIcons.blp`, "image", countFiles(filepath.Join(a.DataDir, "coin_icons"), ".png")},
 		// DBC-derived reference tables (row counts).
 		{"itemIcons", "Item icon mappings", "ItemDisplayInfo.dbc", "table", a.countRows("item_display_info")},
 		{"spellIcons", "Spell icon mappings", "Spell.dbc + SpellIcon.dbc", "table", a.countRows("spell_icons")},
@@ -266,6 +267,14 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		fail("Race icons: " + err.Error())
 	} else {
 		rep.Lines = append(rep.Lines, fmt.Sprintf("%d race icons", res.Generated))
+	}
+
+	// 5b. Coin icons (gold/silver/copper) cropped from the money-icons sprite.
+	coinSrc := pick(datatools.NewDirSourceClient(baseDir))
+	if res, err := datatools.GenerateCoinIcons(coinSrc, filepath.Join(a.DataDir, "coin_icons")); err != nil {
+		fail("Coin icons: " + err.Error())
+	} else {
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%d coin icons", res.Generated))
 	}
 
 	// 6. Area grid: per-chunk ADT zone data for authoritative spawn->zone
