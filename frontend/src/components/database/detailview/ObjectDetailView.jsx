@@ -49,14 +49,16 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     (selectedZone && zones.find((z) => z.name === selectedZone)) || zones[0] || null;
   const mapImage = useZoneMap(activeZone?.name);
 
+  // One sync per object: octowow's page drives both spawns and (for chests) loot.
   const handleSync = () => {
     if (syncing) return;
-    const fn = window?.go?.main?.App?.SyncObjectSpawns;
+    const fn = window?.go?.main?.App?.SyncObject;
     if (!fn) return;
     setSyncing(true);
     fn(entry)
       .then(() => {
-        // Drop the cache so the list/search behind this overlay refetch too.
+        // A sync changes spawns + loot (this object's Contains and the items'
+        // Contained In), so drop the cache to refetch this and the list behind it.
         queryClient.invalidateQueries();
         setSelectedZone(null);
       })
@@ -103,10 +105,10 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
               <button
                 onClick={handleSync}
                 disabled={syncing}
-                title="Fetch spawn locations from octowow.st"
+                title="Fetch spawns and loot from octowow.st"
                 className="px-3 py-1.5 text-xs font-bold uppercase rounded transition-colors bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white flex items-center gap-1"
               >
-                <span className="text-sm">↻</span> {syncing ? "Syncing…" : "Sync Spawns"}
+                <span className="text-sm">↻</span> {syncing ? "Syncing…" : "Sync"}
               </button>
               <a
                 href={`${DATABASE_BASE_URL}/?object=${detail.entry}`}

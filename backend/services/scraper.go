@@ -1,7 +1,9 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -163,11 +165,18 @@ func (s *ScraperService) scrapeFromWowhead(npcID int) (*ScrapedNpcData, error) {
 	return parsers.ParseNpcData(resp.Body)
 }
 
-// ScrapeObjectSpawns scrapes a game object's spawn points from octowow.st. The
-// page embeds them as per-zone myMapper.update({zone, coords}) calls with
-// already-computed 0-100 map percentages — authoritative server data, grouped
-// by the real zone areatableID.
-func (s *ScraperService) ScrapeObjectSpawns(objectID int) ([]parsers.SpawnPoint, error) {
+// ScrapedObject bundles everything we pull from a single octowow object page:
+// spawn points (per-zone myMapper.update calls with 0-100 map percentages) and,
+// for chests, the contains list. One fetch drives both so they stay in sync.
+type ScrapedObject struct {
+	Spawns []parsers.SpawnPoint
+	Loot   []parsers.ObjectLootEntry
+}
+
+// ScrapeObject fetches a game object's octowow.st page once and parses both its
+// spawns and its loot (chests with custom contents not in our world-DB snapshot,
+// e.g. Cache of the Firelord).
+func (s *ScraperService) ScrapeObject(objectID int) (*ScrapedObject, error) {
 	url := fmt.Sprintf(DatabaseBaseURL+"/?object=%d", objectID)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -185,7 +194,15 @@ func (s *ScraperService) ScrapeObjectSpawns(objectID int) ([]parsers.SpawnPoint,
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("octowow returned status %d", resp.StatusCode)
 	}
-	return parsers.ParseSpawnPoints(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	spawns, _ := parsers.ParseSpawnPoints(bytes.NewReader(body))
+	loot, _ := parsers.ParseObjectLoot(bytes.NewReader(body))
+	return &ScrapedObject{Spawns: spawns, Loot: loot}, nil
 }
 
 // ScrapeQuestData scrapes Quest data from TurtleCraft

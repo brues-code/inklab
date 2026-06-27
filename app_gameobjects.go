@@ -50,14 +50,15 @@ func (a *App) GetObjectDetail(entry int) *database.GameObjectDetail {
 	return detail
 }
 
-// SyncObjectSpawns scrapes spawn points for this object from octowow.st, stores
-// them, and returns the refreshed detail. This is how users without a MySQL
-// connection populate object spawn maps.
-func (a *App) SyncObjectSpawns(entry int) *database.GameObjectDetail {
-	fmt.Printf("[API] SyncObjectSpawns called: %d\n", entry)
+// SyncObject scrapes this object's octowow.st page and refreshes both its spawn
+// points and (for chests) its loot, returning the refreshed detail. This is how
+// users without a MySQL connection populate object spawn maps and fill custom
+// loot missing from our world-DB snapshot (and the item pages' "Contained In").
+func (a *App) SyncObject(entry int) *database.GameObjectDetail {
+	fmt.Printf("[API] SyncObject called: %d\n", entry)
 	if a.npcService != nil {
-		if _, err := a.npcService.SyncObjectSpawnsFromWeb(entry); err != nil {
-			fmt.Printf("[API] SyncObjectSpawns error: %v\n", err)
+		if err := a.npcService.SyncObjectFromWeb(entry); err != nil {
+			fmt.Printf("[API] SyncObject error: %v\n", err)
 		}
 	}
 	return a.GetObjectDetail(entry)

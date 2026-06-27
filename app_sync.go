@@ -316,9 +316,10 @@ func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 // RenderNpcModel) and the data/npc_images cache is age-swept, so there's no
 // bulk "render everything" pass — it just churned a multi-GB cache.
 
-// FullSyncObjects re-syncs spawn points for every known game object from the web
-// (octowow.st) — the bulk counterpart to SyncObjectSpawns. Runs in the
-// background, emits progress, and is cancellable via StopSync.
+// FullSyncObjects re-syncs every known game object from the web (octowow.st),
+// refreshing spawn points and (for chests) loot — the bulk counterpart to
+// SyncObject. Runs in the background, emits progress, and is cancellable via
+// StopSync.
 func (a *App) FullSyncObjects(delayMs int, startFrom int) string {
 	fmt.Printf("[API] FullSyncObjects called with delayMs=%d, startFrom=%d\n", delayMs, startFrom)
 	if delayMs <= 0 {
@@ -335,10 +336,10 @@ func (a *App) FullSyncObjects(delayMs int, startFrom int) string {
 				"itemName": fmt.Sprintf("Object %d", id),
 			})
 		}
-		if err := a.npcService.FullSyncObjectSpawns(startFrom, delayMs, progressCb); err != nil {
+		if err := a.npcService.FullSyncObjects(startFrom, delayMs, progressCb); err != nil {
 			runtime.EventsEmit(a.ctx, "sync:objects_full:error", err.Error())
 		} else {
-			runtime.EventsEmit(a.ctx, "sync:objects_full:complete", "GameObject spawn sync complete")
+			runtime.EventsEmit(a.ctx, "sync:objects_full:complete", "GameObject sync complete")
 		}
 	}()
 

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"inklab/backend/database"
 	"inklab/backend/datatools"
+	"inklab/backend/parsers"
 	"strconv"
 	"strings"
 	"sync"
@@ -991,20 +992,29 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 	}
 }
 
-// SyncObjectSpawnsFromWeb scrapes a game object's spawn points from octowow.st
-// and replaces its gameobject_spawn rows. Unlike the MySQL path this needs no
-// coordinate conversion — aowow already provides per-zone map percentages — and
-// it groups by the authoritative zone areatableID, which we resolve to a folder
-// name. This is the spawn source for users without a MySQL connection.
-func (s *NpcService) SyncObjectSpawnsFromWeb(entry int) (int, error) {
+// SyncObjectFromWeb scrapes a game object's octowow.st page once and refreshes
+// both its spawn points and (for chests) its loot — they share the same source
+// page, so they sync together. This is the spawn/loot source for users without a
+// MySQL connection.
+func (s *NpcService) SyncObjectFromWeb(entry int) error {
 	if s.scraper == nil {
-		return 0, fmt.Errorf("no scraper available")
+		return fmt.Errorf("no scraper available")
 	}
-	points, err := s.scraper.ScrapeObjectSpawns(entry)
+	obj, err := s.scraper.ScrapeObject(entry)
 	if err != nil {
-		return 0, err
+		return err
 	}
+	spawns := s.writeObjectSpawns(entry, obj.Spawns)
+	loot := s.writeObjectLoot(entry, obj.Loot)
+	fmt.Printf("✓ Web-synced gameobject %d: %d spawns, %d loot\n", entry, spawns, loot)
+	return nil
+}
 
+// writeObjectSpawns replaces a gameobject's gameobject_spawn rows from scraped
+// points. Unlike the MySQL path this needs no coordinate conversion — aowow
+// already provides per-zone map percentages — and it groups by the authoritative
+// zone areatableID, which we resolve to a folder name.
+func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) int {
 	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
 
 	n := 0
@@ -1026,8 +1036,33 @@ func (s *NpcService) SyncObjectSpawnsFromWeb(entry int) (int, error) {
 			n++
 		}
 	}
-	fmt.Printf("✓ Web-synced %d spawn points for gameobject %d\n", n, entry)
-	return n, nil
+	return n
+}
+
+// writeObjectLoot merges scraped contains items into gameobject_loot_template,
+// keyed by the chest's loot id (gameobject_template.data1) so the item pages'
+// "Contained In" populates. Only type-3 chests carry a contains list. Existing
+// rows are preserved (chance is refreshed) so we never clobber the world-DB
+// import — we only add custom items the snapshot lacks (e.g. Cache of the
+// Firelord -> Twisting Rift Crystal).
+func (s *NpcService) writeObjectLoot(entry int, entries []parsers.ObjectLootEntry) int {
+	var typ, lootID int
+	s.sqlite.QueryRow("SELECT type, data1 FROM gameobject_template WHERE entry = ?", entry).Scan(&typ, &lootID)
+	if typ != 3 || lootID == 0 {
+		return 0
+	}
+
+	n := 0
+	for _, e := range entries {
+		if _, err := s.sqlite.Exec(`
+			INSERT INTO gameobject_loot_template (entry, item, ChanceOrQuestChance, groupid, mincountOrRef, maxcount)
+			VALUES (?, ?, ?, 0, 1, 1)
+			ON CONFLICT(entry, item) DO UPDATE SET ChanceOrQuestChance = excluded.ChanceOrQuestChance
+		`, lootID, e.ItemID, e.Percent); err == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // zoneNameByID resolves an areatableID to its client texture-folder name via
@@ -1134,12 +1169,12 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	return nil
 }
 
-// FullSyncObjectSpawns scrapes spawn points for every known game object from the
-// web (octowow.st), replacing each object's gameobject_spawn rows — the bulk
-// counterpart to SyncObjectSpawnsFromWeb (the individual object sync). Like the
-// NPC full sync it's network-bound, so it runs over a worker pool; honors the
-// stop flag and resumes from startFrom.
-func (s *NpcService) FullSyncObjectSpawns(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
+// FullSyncObjects scrapes every known game object's octowow.st page from
+// startFrom, refreshing each object's spawn points and (for chests) its loot —
+// the bulk counterpart to SyncObjectFromWeb. Like the NPC full sync it's
+// network-bound, so it runs over a worker pool; honors the stop flag and resumes
+// from startFrom.
+func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
 	if s.scraper == nil {
 		return fmt.Errorf("no scraper available")
 	}
@@ -1171,8 +1206,8 @@ func (s *NpcService) FullSyncObjectSpawns(startFrom int, delayMs int, progressCb
 				return
 			}
 			// Non-fatal per object: a scrape failure (no page, network blip) just
-			// leaves that object's spawns as-is and we move on.
-			_, _ = s.SyncObjectSpawnsFromWeb(entry)
+			// leaves that object's spawns/loot as-is and we move on.
+			_ = s.SyncObjectFromWeb(entry)
 			mu.Lock()
 			processed++
 			if progressCb != nil {
