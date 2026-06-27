@@ -198,11 +198,12 @@ func decodeQuests(recs []record) ([]string, [][]interface{}) {
 	cols := []string{
 		"Method", "QuestLevel", "ZoneOrSort", "Type", "SuggestedPlayers",
 		"RepObjectiveFaction", "RepObjectiveValue", "NextQuestInChain",
-		// NOTE: field 13 is NOT RewSpellCast — that column lives only in the world
-		// DB (quest_template), not the client quest-query response. Field 13 carries
-		// a source-item value here, so writing it to RewSpellCast corrupted the
-		// world-DB value (e.g. quest 5061 lost RewSpellCast 1446 -> 15885). Skip it.
-		"RewOrReqMoney", "RewMoneyMaxLevel", "RewSpell", "QuestFlags",
+		// Field 13 is SrcItemId (the item the quest giver provides), NOT RewSpellCast
+		// — RewSpellCast exists only in the world DB, not the client quest-query
+		// response. Confirmed across the WDB: field 13 always tracks SrcItemId and
+		// never ReqItemId1 (which lives in the post-string objectives block). The
+		// earlier RewSpellCast label put a source-item id into a spell column.
+		"RewOrReqMoney", "RewMoneyMaxLevel", "RewSpell", "SrcItemId", "QuestFlags",
 		"RewItemId1", "RewItemCount1", "RewItemId2", "RewItemCount2", "RewItemId3", "RewItemCount3", "RewItemId4", "RewItemCount4",
 		"RewChoiceItemId1", "RewChoiceItemCount1", "RewChoiceItemId2", "RewChoiceItemCount2", "RewChoiceItemId3", "RewChoiceItemCount3",
 		"RewChoiceItemId4", "RewChoiceItemCount4", "RewChoiceItemId5", "RewChoiceItemCount5", "RewChoiceItemId6", "RewChoiceItemCount6",
@@ -224,7 +225,7 @@ func decodeQuests(recs []record) ([]string, [][]interface{}) {
 		row := []interface{}{
 			u32(blk, 1*4), int32(u32(blk, 2*4)), int32(u32(blk, 3*4)), u32(blk, 4*4), u32(blk, 5*4),
 			u32(blk, 6*4), u32(blk, 7*4), u32(blk, 9*4),
-			int32(u32(blk, 10*4)), u32(blk, 11*4), u32(blk, 12*4), u32(blk, 14*4), // field 13 skipped (not RewSpellCast)
+			int32(u32(blk, 10*4)), u32(blk, 11*4), u32(blk, 12*4), u32(blk, 13*4), u32(blk, 14*4), // 13=SrcItemId
 		}
 		for i := 0; i < 4; i++ {
 			row = append(row, u32(blk, (15+i*2)*4), u32(blk, (16+i*2)*4))
