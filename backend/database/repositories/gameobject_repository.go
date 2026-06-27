@@ -250,13 +250,16 @@ func (r *GameObjectRepository) GetObjectDetail(entry int) (*models.GameObjectDet
 	}
 
 	// Spawn points (synced from MySQL into gameobject_spawn), in map-percentage
-	// coords for plotting on the zone map.
+	// coords for plotting on the zone map. The cap is high (not ~50) so every
+	// zone the object spawns in is represented — ordering by id then limiting low
+	// truncated multi-zone objects to just their first zone or two. The frontend
+	// plots one zone at a time, so returning the full set is cheap.
 	spawnRows, _ := r.db.Query(`
 		SELECT map_id, zone_name, position_x, position_y
 		FROM gameobject_spawn
 		WHERE gameobject_entry = ?
 		ORDER BY id
-		LIMIT 50
+		LIMIT 2000
 	`, entry)
 	if spawnRows != nil {
 		defer spawnRows.Close()

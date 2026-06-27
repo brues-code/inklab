@@ -232,13 +232,16 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 		// Ignore error if metadata missing
 	}
 
-	// Load spawns from creature_spawn table (synced from MySQL)
+	// Load spawns from creature_spawn table (synced from MySQL). The cap is high
+	// (not ~20) so every zone the NPC spawns in is represented — a low limit
+	// ordered by id truncated multi-zone NPCs to just their first zone or two. The
+	// frontend plots one zone at a time, so returning the full set is cheap.
 	spawnRows, err := s.sqlite.Query(`
 		SELECT map_id, zone_id, zone_name, position_x, position_y, position_z
 		FROM creature_spawn
 		WHERE creature_entry = ?
 		ORDER BY id
-		LIMIT 20
+		LIMIT 2000
 	`, entry)
 	if err == nil {
 		defer spawnRows.Close()
@@ -975,7 +978,7 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 		FROM gameobject
 		WHERE id = ?
 		GROUP BY map, ROUND(position_x, -1), ROUND(position_y, -1)
-		LIMIT 50
+		LIMIT 2000
 	`, entry)
 	if err != nil {
 		fmt.Printf("Warning: Could not query gameobject spawns from MySQL: %v\n", err)
