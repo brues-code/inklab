@@ -92,7 +92,7 @@ function RacesTab({ onNavigate, tooltipHook }) {
                         No race data. Run a Client Data import to populate races.
                     </div>
                 ) : (
-                    <ScrollList className="p-4 space-y-5">
+                    <ScrollList className="p-4 space-y-7">
                         {/* Header */}
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-baseline gap-3">
