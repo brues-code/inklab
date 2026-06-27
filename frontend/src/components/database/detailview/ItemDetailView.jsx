@@ -11,7 +11,6 @@ import { useIcon } from '../../../services/useImage'
 import {
     DetailPageLayout,
     DetailHeader,
-    DetailSection,
     DetailLoading,
     DetailError,
     ItemTooltip,
@@ -141,6 +140,8 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [imgError, setImgError] = useState(false)
     const [fixing, setFixing] = useState(false)
     const [syncing, setSyncing] = useState(false)
+    // Active relations tab; null = fall back to the first tab that has data.
+    const [activeRelTab, setActiveRelTab] = useState(null)
 
     // Favorite status, cached per item and derived from the query (not state);
     // toggled optimistically in handleFavoriteToggle.
@@ -151,6 +152,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     if (entry !== imgErrKey) {
         setImgErrKey(entry)
         setImgError(false)
+        setActiveRelTab(null)
     }
 
     // A sync or icon-fix can change this item anywhere it appears (the grid behind
@@ -279,6 +281,235 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
     const qualityColor = getQualityColor(detail.quality)
 
+    // Relation sections become tabs (Contained In / Dropped By etc. can get
+    // long). Only tabs with data are shown, each with a count; the active tab
+    // defaults to the first available.
+    const relationTabs = [
+        detail.createdBy?.length && {
+            id: 'createdBy',
+            label: 'Created By',
+            count: detail.createdBy.length,
+            content: (
+                <div className="space-y-2">
+                    {detail.createdBy.map((source) => (
+                        <CreatedBySource
+                            key={source.spellId}
+                            source={source}
+                            onNavigate={onNavigate}
+                            tooltipHook={tooltipHook}
+                        />
+                    ))}
+                </div>
+            ),
+        },
+        detail.containedIn?.length && {
+            id: 'containedIn',
+            label: 'Contained In',
+            count: detail.containedIn.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.containedIn.map((c) => (
+                        <div
+                            key={`${c.kind}-${c.entry}`}
+                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate(c.kind, c.entry)}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                {c.kind === 'item' ? (
+                                    <IconImg
+                                        name={c.iconPath}
+                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                    />
+                                ) : (
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
+                                        OBJ
+                                    </span>
+                                )}
+                                <span
+                                    className="truncate font-bold hover:text-wow-gold"
+                                    style={{
+                                        color:
+                                            c.kind === 'item'
+                                                ? getQualityColor(c.quality)
+                                                : '#00B4FF',
+                                    }}
+                                >
+                                    {c.name}
+                                </span>
+                            </div>
+                            {c.chance > 0 && (
+                                <div className="shrink-0 font-mono text-sm text-wow-gold">
+                                    {c.chance.toFixed(1)}%
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
+        detail.droppedBy?.length && {
+            id: 'droppedBy',
+            label: 'Dropped By',
+            count: detail.droppedBy.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.droppedBy.map((npc) => (
+                        <div
+                            key={npc.entry}
+                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate('npc', npc.entry)}
+                        >
+                            <div>
+                                <div className="font-bold text-white hover:text-wow-gold">
+                                    {npc.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    Level {npc.levelMin}
+                                    {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
+                                </div>
+                            </div>
+                            <div className="font-mono text-sm text-wow-gold">
+                                {npc.chance.toFixed(1)}%
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
+        detail.soldBy?.length && {
+            id: 'soldBy',
+            label: 'Sold By',
+            count: detail.soldBy.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.soldBy.map((npc) => {
+                        const m = npc.cost > 0 ? formatMoney(npc.cost) : null
+                        return (
+                            <div
+                                key={npc.entry}
+                                className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                                onClick={() => onNavigate('npc', npc.entry)}
+                            >
+                                <div>
+                                    <div className="font-bold text-white hover:text-wow-gold">
+                                        {npc.name}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        Level {npc.levelMin}
+                                        {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
+                                        {npc.stock > 0 ? ` · ${npc.stock} in stock` : ''}
+                                    </div>
+                                </div>
+                                {m && (
+                                    <div className="whitespace-nowrap font-mono text-sm">
+                                        {m.g > 0 && (
+                                            <span className="text-yellow-400">{m.g}g </span>
+                                        )}
+                                        {(m.g > 0 || m.s > 0) && (
+                                            <span className="text-gray-300">{m.s}s </span>
+                                        )}
+                                        <span className="text-orange-400">{m.c}c</span>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            ),
+        },
+        detail.rewardFrom?.length && {
+            id: 'rewardFrom',
+            label: 'Reward From',
+            count: detail.rewardFrom.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.rewardFrom.map((q) => (
+                        <div
+                            key={q.entry}
+                            className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate('quest', q.entry)}
+                        >
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate font-bold text-wow-gold">{q.title}</div>
+                                <div className="text-xs text-gray-500">
+                                    Level {q.level}
+                                    {q.isChoice && (
+                                        <span className="ml-2 rounded border border-white/10 px-1 text-[10px] uppercase">
+                                            Choice
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
+        detail.startsQuest && {
+            id: 'startsQuest',
+            label: 'Starts Quest',
+            count: 1,
+            content: (
+                <div
+                    className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                    onClick={() => onNavigate('quest', detail.startsQuest.entry)}
+                >
+                    <div className="min-w-0 flex-1">
+                        <div className="truncate font-bold text-wow-gold">
+                            {detail.startsQuest.title}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                            Level {detail.startsQuest.level}
+                        </div>
+                    </div>
+                </div>
+            ),
+        },
+        detail.objectiveOf?.length && {
+            id: 'objectiveOf',
+            label: 'Objective Of',
+            count: detail.objectiveOf.length,
+            content: (
+                <div className="space-y-1">
+                    {detail.objectiveOf.map((q) => (
+                        <div
+                            key={q.entry}
+                            className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+                            onClick={() => onNavigate('quest', q.entry)}
+                        >
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate font-bold text-wow-gold">{q.title}</div>
+                                <div className="text-xs text-gray-500">Level {q.level}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ),
+        },
+        detail.contains?.length && {
+            id: 'contains',
+            label: 'Contains',
+            count: detail.contains.length,
+            content: (
+                <div className="grid grid-cols-1 gap-1">
+                    {detail.contains.map((item) => (
+                        <LootItem
+                            key={item.entry}
+                            item={{
+                                ...item,
+                                dropChance: item.chance ? item.chance.toFixed(1) + '%' : null,
+                            }}
+                            showDropChance={true}
+                            onClick={() => onNavigate('item', item.entry)}
+                        />
+                    ))}
+                </div>
+            ),
+        },
+    ].filter(Boolean)
+
+    const activeTab = relationTabs.find((t) => t.id === activeRelTab) || relationTabs[0]
+
     return (
         <DetailPageLayout onBack={onBack}>
             <DetailHeader
@@ -369,239 +600,28 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 {/* Tooltip Block */}
                 {renderTooltipBlock()}
 
-                {/* Relations */}
-                <div className="min-w-[300px] flex-1 space-y-8">
-                    {/* Created By */}
-                    {detail.createdBy?.length > 0 && (
-                        <DetailSection title="Created By">
-                            <div className="space-y-2">
-                                {detail.createdBy.map((source) => (
-                                    <CreatedBySource
-                                        key={source.spellId}
-                                        source={source}
-                                        onNavigate={onNavigate}
-                                        tooltipHook={tooltipHook}
-                                    />
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Contained In (reverse of Contains: chests / container items) */}
-                    {detail.containedIn?.length > 0 && (
-                        <DetailSection title="Contained In">
-                            <div className="space-y-1">
-                                {detail.containedIn.map((c) => (
-                                    <div
-                                        key={`${c.kind}-${c.entry}`}
-                                        className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                        onClick={() => onNavigate(c.kind, c.entry)}
-                                    >
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            {c.kind === 'item' ? (
-                                                <IconImg
-                                                    name={c.iconPath}
-                                                    className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
-                                                />
-                                            ) : (
-                                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
-                                                    OBJ
-                                                </span>
-                                            )}
-                                            <span
-                                                className="truncate font-bold hover:text-wow-gold"
-                                                style={{
-                                                    color:
-                                                        c.kind === 'item'
-                                                            ? getQualityColor(c.quality)
-                                                            : '#00B4FF',
-                                                }}
-                                            >
-                                                {c.name}
-                                            </span>
-                                        </div>
-                                        {c.chance > 0 && (
-                                            <div className="shrink-0 font-mono text-sm text-wow-gold">
-                                                {c.chance.toFixed(1)}%
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Dropped By */}
-                    {detail.droppedBy?.length > 0 && (
-                        <DetailSection title="Dropped By">
-                            <div className="space-y-1">
-                                {detail.droppedBy.map((npc) => (
-                                    <div
-                                        key={npc.entry}
-                                        className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                        onClick={() => onNavigate('npc', npc.entry)}
-                                    >
-                                        <div>
-                                            <div className="font-bold text-white hover:text-wow-gold">
-                                                {npc.name}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                Level {npc.levelMin}
-                                                {npc.levelMax > npc.levelMin
-                                                    ? `-${npc.levelMax}`
-                                                    : ''}
-                                            </div>
-                                        </div>
-                                        <div className="font-mono text-sm text-wow-gold">
-                                            {npc.chance.toFixed(1)}%
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Sold By */}
-                    {detail.soldBy?.length > 0 && (
-                        <DetailSection title="Sold By">
-                            <div className="space-y-1">
-                                {detail.soldBy.map((npc) => {
-                                    const m = npc.cost > 0 ? formatMoney(npc.cost) : null
-                                    return (
-                                        <div
-                                            key={npc.entry}
-                                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                            onClick={() => onNavigate('npc', npc.entry)}
-                                        >
-                                            <div>
-                                                <div className="font-bold text-white hover:text-wow-gold">
-                                                    {npc.name}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    Level {npc.levelMin}
-                                                    {npc.levelMax > npc.levelMin
-                                                        ? `-${npc.levelMax}`
-                                                        : ''}
-                                                    {npc.stock > 0
-                                                        ? ` · ${npc.stock} in stock`
-                                                        : ''}
-                                                </div>
-                                            </div>
-                                            {m && (
-                                                <div className="whitespace-nowrap font-mono text-sm">
-                                                    {m.g > 0 && (
-                                                        <span className="text-yellow-400">
-                                                            {m.g}g{' '}
-                                                        </span>
-                                                    )}
-                                                    {(m.g > 0 || m.s > 0) && (
-                                                        <span className="text-gray-300">
-                                                            {m.s}s{' '}
-                                                        </span>
-                                                    )}
-                                                    <span className="text-orange-400">{m.c}c</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Reward From */}
-                    {detail.rewardFrom?.length > 0 && (
-                        <DetailSection title="Reward From">
-                            <div className="space-y-1">
-                                {detail.rewardFrom.map((q) => (
-                                    <div
-                                        key={q.entry}
-                                        className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                        onClick={() => onNavigate('quest', q.entry)}
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <div className="truncate font-bold text-wow-gold">
-                                                {q.title}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                Level {q.level}
-                                                {q.isChoice && (
-                                                    <span className="ml-2 rounded border border-white/10 px-1 text-[10px] uppercase">
-                                                        Choice
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Starts Quest */}
-                    {detail.startsQuest && (
-                        <DetailSection title="Starts Quest">
-                            <div
-                                className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                onClick={() => onNavigate('quest', detail.startsQuest.entry)}
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <div className="truncate font-bold text-wow-gold">
-                                        {detail.startsQuest.title}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                        Level {detail.startsQuest.level}
-                                    </div>
-                                </div>
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Objective Of */}
-                    {detail.objectiveOf?.length > 0 && (
-                        <DetailSection title="Objective Of">
-                            <div className="space-y-1">
-                                {detail.objectiveOf.map((q) => (
-                                    <div
-                                        key={q.entry}
-                                        className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                        onClick={() => onNavigate('quest', q.entry)}
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <div className="truncate font-bold text-wow-gold">
-                                                {q.title}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                Level {q.level}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-
-                    {/* Contains */}
-                    {detail.contains?.length > 0 && (
-                        <DetailSection title="Contains">
-                            <div className="grid grid-cols-1 gap-1">
-                                {detail.contains.map((item) => (
-                                    <LootItem
-                                        key={item.entry}
-                                        item={{
-                                            ...item,
-                                            dropChance: item.chance
-                                                ? item.chance.toFixed(1) + '%'
-                                                : null,
-                                        }}
-                                        showDropChance={true}
-                                        onClick={() => onNavigate('item', item.entry)}
-                                    />
-                                ))}
-                            </div>
-                        </DetailSection>
-                    )}
-                </div>
+                {/* Relations — tabbed (Contained In / Dropped By can get long) */}
+                {relationTabs.length > 0 && activeTab && (
+                    <div className="min-w-[300px] flex-1">
+                        <div className="mb-4 flex flex-wrap gap-1 border-b border-white/20">
+                            {relationTabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveRelTab(tab.id)}
+                                    className={`relative top-[1px] px-3 py-2 text-sm font-bold transition-all ${
+                                        activeTab.id === tab.id
+                                            ? 'tab-btn-active border-b-2 border-wow-gold text-white'
+                                            : 'tab-btn-inactive text-gray-400 hover:text-gray-200'
+                                    }`}
+                                >
+                                    {tab.label}{' '}
+                                    <span className="ml-0.5 text-xs opacity-60">{tab.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="animate-fade-in">{activeTab.content}</div>
+                    </div>
+                )}
             </div>
         </DetailPageLayout>
     )
