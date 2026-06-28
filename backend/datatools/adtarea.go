@@ -5,7 +5,38 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 )
+
+// tileDebug summarizes an ADT's chunk structure for diagnosing why tileZones
+// found no area data: the first chunk magics, the MCNK count, and the first
+// MCNK's IndexX/IndexY plus the uint32 at several candidate areaid offsets.
+func tileDebug(b []byte) string {
+	var magics []string
+	mcnk := 0
+	first := ""
+	for i := 0; i+8 < len(b); {
+		magic := string(b[i : i+4])
+		size := binary.LittleEndian.Uint32(b[i+4 : i+8])
+		if len(magics) < 14 {
+			magics = append(magics, fmt.Sprintf("%s:%d", magic, size))
+		}
+		if magic == "KNCM" {
+			mcnk++
+			if first == "" && i+8+0x44 <= len(b) {
+				h := i + 8
+				u := func(o int) uint32 { return binary.LittleEndian.Uint32(b[h+o : h+o+4]) }
+				first = fmt.Sprintf("MCNK0 ix=%d iy=%d @0x34=%d @0x38=%d @0x3c=%d @0x40=%d",
+					u(0x04), u(0x08), u(0x34), u(0x38), u(0x3c), u(0x40))
+			}
+		}
+		i += 8 + int(size)
+		if size == 0 {
+			i++
+		}
+	}
+	return fmt.Sprintf("magics=[%s] MCNK=%d %s", strings.Join(magics, " "), mcnk, first)
+}
 
 // Area-grid resolution: the in-game zone of a world coordinate, read straight from
 // the client's terrain. Each ADT tile holds a 16x16 grid of MCNK chunks, and every
@@ -86,7 +117,7 @@ func GenerateAreaGrid(cf ClientFiles, outPath string, progress func(mapName stri
 		}
 		present := wdtTiles(cf, m.dir)
 		var readFail, parseFail, ok int
-		var firstErr string
+		var firstErr, firstParseFail string
 		for _, t := range present {
 			path := fmt.Sprintf(`World\Maps\%s\%s_%d_%d.adt`, m.dir, m.dir, t.gx, t.gy)
 			b, err := cf.ReadFile(path)
@@ -100,6 +131,9 @@ func GenerateAreaGrid(cf ClientFiles, outPath string, progress func(mapName stri
 			zones, parsed := tileZones(b, topZone)
 			if !parsed {
 				parseFail++
+				if firstParseFail == "" {
+					firstParseFail = fmt.Sprintf("%s (%d bytes): %s", path, len(b), tileDebug(b))
+				}
 				continue
 			}
 			ok++
@@ -113,6 +147,9 @@ func GenerateAreaGrid(cf ClientFiles, outPath string, progress func(mapName stri
 		if len(present) > 0 && (readFail > 0 || parseFail > 0) {
 			fmt.Printf("[area-grid] map %-20s (id %d): %d listed, %d ok, %d read-fail, %d parse-fail; first read-fail: %s\n",
 				m.dir, m.id, len(present), ok, readFail, parseFail, firstErr)
+			if firstParseFail != "" {
+				fmt.Printf("[area-grid]   first parse-fail: %s\n", firstParseFail)
+			}
 		}
 	}
 	fmt.Printf("[area-grid] TOTAL: %d tiles listed in WDTs, %d written; %d read failures, %d parse failures\n",
