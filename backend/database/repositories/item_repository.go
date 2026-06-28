@@ -1775,6 +1775,31 @@ func (r *ItemRepository) craftSkillRequirement(spellID int) (string, int) {
 		return name, rank
 	}
 
+	// Trainer-taught crafts: the craft spell (e.g. 13628 Runed Golden Rod) is
+	// taught via a learn-spell (effect 36) that trainers sell. npc_trainer carries
+	// the authoritative skill + rank you learn it at (Enchanting 150) — which the
+	// craft spell's own SkillLineAbility does not. Resolve learn-spell -> trainer.
+	var tSkill, tRank int
+	terr := r.db.QueryRow(`
+		SELECT t.reqskill, t.reqskillvalue FROM spell_template ls
+		JOIN (
+			SELECT spell, reqskill, reqskillvalue FROM npc_trainer
+			UNION ALL
+			SELECT spell, reqskill, reqskillvalue FROM npc_trainer_template
+		) t ON t.spell = ls.entry
+		WHERE t.reqskill > 0
+		  AND ((ls.effect1 = ? AND ls.effectTriggerSpell1 = ?)
+		    OR (ls.effect2 = ? AND ls.effectTriggerSpell2 = ?)
+		    OR (ls.effect3 = ? AND ls.effectTriggerSpell3 = ?))
+		ORDER BY t.reqskillvalue DESC
+		LIMIT 1
+	`, learnSpellEffect, spellID, learnSpellEffect, spellID, learnSpellEffect, spellID).Scan(&tSkill, &tRank)
+	if terr == nil && tSkill > 0 {
+		var name string
+		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", tSkill).Scan(&name)
+		return name, tRank
+	}
+
 	// Fallback: trainer-taught crafts — skill line + min rank from SkillLineAbility.
 	var name string
 	var req int

@@ -398,6 +398,29 @@ func CoreSchema() string {
 	CREATE INDEX IF NOT EXISTS idx_taxi_node_map ON taxi_node(map_id);
 	CREATE INDEX IF NOT EXISTS idx_taxi_path_from ON taxi_path(from_node);
 
+	-- Trainer spell lists (synced from MySQL). reqskill/reqskillvalue give the
+	-- skill + rank you learn a spell at — the authoritative "Requires Skill (N)"
+	-- for trainer-taught recipes (the learn-spell, not the craft spell).
+	CREATE TABLE IF NOT EXISTS npc_trainer (
+		entry INTEGER NOT NULL,
+		spell INTEGER NOT NULL,
+		spellcost INTEGER DEFAULT 0,
+		reqskill INTEGER DEFAULT 0,
+		reqskillvalue INTEGER DEFAULT 0,
+		reqlevel INTEGER DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_npc_trainer_spell ON npc_trainer(spell);
+	-- Shared trainer lists referenced by creatures (negative npc_trainer.entry).
+	CREATE TABLE IF NOT EXISTS npc_trainer_template (
+		entry INTEGER NOT NULL,
+		spell INTEGER NOT NULL,
+		spellcost INTEGER DEFAULT 0,
+		reqskill INTEGER DEFAULT 0,
+		reqskillvalue INTEGER DEFAULT 0,
+		reqlevel INTEGER DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_npc_trainer_template_spell ON npc_trainer_template(spell);
+
 	-- Boat/zeppelin transport routes (a->b hubs, possibly on different maps) and
 	-- their projected track waypoints (per-map continent %).
 	CREATE TABLE IF NOT EXISTS transport_route (
