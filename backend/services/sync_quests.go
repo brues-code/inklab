@@ -315,7 +315,7 @@ func (s *SyncService) FullSyncQuests(delayMs int, startFrom int, progressCb Prog
 	}
 
 	// Worker pool to parallelize the network-bound scrape, like the item sync.
-	const numWorkers = 10
+	numWorkers := scrapeWorkers()
 	total := len(questIDs)
 	fmt.Printf("[FullSync] Starting parallel sync of %d quests with %d workers...\n", total, numWorkers)
 

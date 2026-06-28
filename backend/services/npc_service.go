@@ -1202,7 +1202,7 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	}
 
 	total := len(entries)
-	const numWorkers = 10
+	numWorkers := scrapeWorkers()
 	jobs := make(chan int, total)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -1264,7 +1264,7 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 	}
 
 	total := len(entries)
-	const numWorkers = 10
+	numWorkers := scrapeWorkers()
 	jobs := make(chan int, total)
 	var wg sync.WaitGroup
 	var mu sync.Mutex

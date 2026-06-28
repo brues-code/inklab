@@ -169,6 +169,13 @@ func (a *App) startup(ctx context.Context) {
 	a.npcService = services.NewNpcService(a.db.DB(), a.mysqlDB, a.scraper, a.itemRepo, a.creatureRepo, a.DataDir)
 	a.syncService = services.NewSyncService(a.db.DB())
 
+	// Full syncs run a worker pool of octowow.st scrapes. Shipped clients keep the
+	// low default so they don't hammer the server; the dev build (running big
+	// backfills) gets a higher cap.
+	if a.isDevMode {
+		services.SetScrapeConcurrency(10)
+	}
+
 	// Data import using importers
 	// dataDir is already set in a.DataDir
 

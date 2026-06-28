@@ -509,7 +509,7 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 	}
 
 	// Worker Pool Setup
-	numWorkers := 10 // Concurrent workers
+	numWorkers := scrapeWorkers()
 	fmt.Printf("[FullSync] Starting parallel sync of %d items with %d workers...\n", len(filteredIDs), numWorkers)
 
 	jobs := make(chan int, len(filteredIDs))

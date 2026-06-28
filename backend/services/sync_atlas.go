@@ -83,7 +83,7 @@ func (s *SyncService) ImportMissingItems(maxItems int, delayMs int) (*ImportResu
 	}
 
 	// Worker Pool Setup
-	numWorkers := 10
+	numWorkers := scrapeWorkers()
 	jobs := make(chan MissingItem, len(missing))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
