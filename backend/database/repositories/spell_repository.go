@@ -710,8 +710,14 @@ func (r *SpellRepository) effectQualifier(auraType, misc int) string {
 			r.db.QueryRow("SELECT name FROM stat_types WHERE id = ?", baseStatToStatType[misc]).Scan(&name)
 			return name
 		}
-	case 13, 14, 22, 39, 59, 101, 143, 168: // school-mask auras (damage done/taken, resistance, school immunity)
+	// School-mask auras: damage done/taken, resistance, school/damage immunity,
+	// spell crit/hit chance by school, critical threat. misc is a school bitmask.
+	case 13, 14, 22, 39, 40, 71, 87, 101, 123, 143, 179, 183, 186:
 		return r.schoolMaskNames(misc)
+	// Creature-type-mask auras: damage/AP/crit "versus creature type" (the Slaying
+	// enchants, Blessing of Righteousness, ...). misc is a creature-type bitmask.
+	case 59, 102, 131, 168, 169, 180:
+		return creatureTypeMaskNames(misc)
 	case 30, 98: // Mod Skill / Mod Skill Talent
 		var name string
 		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", misc).Scan(&name)
@@ -720,6 +726,14 @@ func (r *SpellRepository) effectQualifier(auraType, misc int) string {
 		return r.mechanicName(misc)
 	case 147: // Mechanic Immunity Mask — misc is a bitmask of 1<<(id-1)
 		return r.mechanicMaskNames(misc)
+	case 37: // Effect Immunity — misc is a spell-effect id
+		return helpers.SpellEffectNames[misc]
+	case 38: // State Immunity — misc is an aura-type id (the state it blocks)
+		return helpers.AuraTypeNames[misc]
+	case 41: // Dispel Immunity — misc is a dispel type id
+		var name string
+		r.db.QueryRow("SELECT name FROM spell_dispel_types WHERE id = ?", misc).Scan(&name)
+		return name
 	}
 	return ""
 }
@@ -764,6 +778,26 @@ func capitalizeFirst(s string) string {
 	r := []rune(s)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
+}
+
+// creatureTypeMaskNames decodes a creature-type bitmask (used by "Mod Damage
+// Done Creature"/"Versus" auras — e.g. the Slaying weapon enchants) into a
+// readable list. Each creature type contributes bit 1<<(type-1), so Monster
+// Slaying (19) reads "Beast, Dragonkin, Giant".
+func creatureTypeMaskNames(mask int) string {
+	if mask <= 0 {
+		return ""
+	}
+	var names []string
+	for t := 1; t <= 32; t++ {
+		if mask&(1<<uint(t-1)) == 0 {
+			continue
+		}
+		if n := helpers.GetCreatureTypeName(t); n != "" && n != "Unknown" {
+			names = append(names, n)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // schoolMaskNames turns a spell-school bitmask into "Fire", "Fire/Frost", etc.,
