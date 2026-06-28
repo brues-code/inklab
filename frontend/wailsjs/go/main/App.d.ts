@@ -142,6 +142,8 @@ export function GetZones():Promise<Array<models.ZoneListEntry>>;
 
 export function IsFavorite(arg1:number):Promise<boolean>;
 
+export function MatchFlightmasters():Promise<void>;
+
 export function RebuildSpawnZones(arg1:string):Promise<main.ImportReport>;
 
 export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;

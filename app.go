@@ -307,6 +307,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportTaxi(filepath.Join(dataDir, "taxi.json")); err != nil {
 		fmt.Printf("⚠️ Taxi import failed: %v\n", err)
 	}
+	// Link flight nodes to their flightmaster NPCs (needs the just-imported taxi
+	// node world coords + MySQL spawn coords). Octo-free.
+	a.MatchFlightmasters()
 	if err := gen.ImportCreatureFamilies(filepath.Join(dataDir, "creature_families.json")); err != nil {
 		fmt.Printf("⚠️ Creature family import failed: %v\n", err)
 	}

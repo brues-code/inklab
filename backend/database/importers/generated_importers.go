@@ -743,6 +743,8 @@ type taxiJSON struct {
 		Horde    bool    `json:"horde"`
 		PX       float64 `json:"px"`
 		PY       float64 `json:"py"`
+		WorldX   float64 `json:"worldX"`
+		WorldY   float64 `json:"worldY"`
 	} `json:"nodes"`
 	Paths []struct {
 		ID   int `json:"id"`
@@ -803,7 +805,7 @@ func (i *GeneratedImporter) ImportTaxi(jsonPath string) error {
 	tx.Exec("DELETE FROM transport_waypoint")
 
 	nodeStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_node
-		(id, map_id, continent, name, alliance, horde, px, py) VALUES (?,?,?,?,?,?,?,?)`)
+		(id, map_id, continent, name, alliance, horde, px, py, world_x, world_y) VALUES (?,?,?,?,?,?,?,?,?,?)`)
 	defer nodeStmt.Close()
 	pathStmt, _ := tx.Prepare(`INSERT OR REPLACE INTO taxi_path (id, from_node, to_node) VALUES (?,?,?)`)
 	defer pathStmt.Close()
@@ -817,7 +819,7 @@ func (i *GeneratedImporter) ImportTaxi(jsonPath string) error {
 		return 0
 	}
 	for _, n := range t.Nodes {
-		nodeStmt.Exec(n.ID, n.MapID, contName[n.MapID], n.Name, b2i(n.Alliance), b2i(n.Horde), n.PX, n.PY)
+		nodeStmt.Exec(n.ID, n.MapID, contName[n.MapID], n.Name, b2i(n.Alliance), b2i(n.Horde), n.PX, n.PY, n.WorldX, n.WorldY)
 	}
 	for _, p := range t.Paths {
 		pathStmt.Exec(p.ID, p.From, p.To)

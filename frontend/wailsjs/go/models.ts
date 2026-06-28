@@ -174,6 +174,10 @@ export namespace main {
 	    zone: string;
 	    px: number;
 	    py: number;
+	    allianceNpc?: number;
+	    allianceNpcName?: string;
+	    hordeNpc?: number;
+	    hordeNpcName?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FlightNode(source);
@@ -188,6 +192,10 @@ export namespace main {
 	        this.zone = source["zone"];
 	        this.px = source["px"];
 	        this.py = source["py"];
+	        this.allianceNpc = source["allianceNpc"];
+	        this.allianceNpcName = source["allianceNpcName"];
+	        this.hordeNpc = source["hordeNpc"];
+	        this.hordeNpcName = source["hordeNpcName"];
 	    }
 	}
 	export class FlightData {
@@ -626,6 +634,10 @@ export namespace main {
 	    zone: string;
 	    px: number;
 	    py: number;
+	    allianceNpc?: number;
+	    allianceNpcName?: string;
+	    hordeNpc?: number;
+	    hordeNpcName?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorldNode(source);
@@ -641,6 +653,10 @@ export namespace main {
 	        this.zone = source["zone"];
 	        this.px = source["px"];
 	        this.py = source["py"];
+	        this.allianceNpc = source["allianceNpc"];
+	        this.allianceNpcName = source["allianceNpcName"];
+	        this.hordeNpc = source["hordeNpc"];
+	        this.hordeNpcName = source["hordeNpcName"];
 	    }
 	}
 	export class WorldData {

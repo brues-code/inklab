@@ -34,8 +34,10 @@ type TaxiNodeOut struct {
 	Name     string  `json:"name"`
 	Alliance bool    `json:"alliance"`
 	Horde    bool    `json:"horde"`
-	PX       float64 `json:"px"` // 0..100 left->right
-	PY       float64 `json:"py"` // 0..100 top->bottom
+	PX       float64 `json:"px"`     // 0..100 left->right
+	PY       float64 `json:"py"`     // 0..100 top->bottom
+	WorldX   float64 `json:"worldX"` // node world coords (to match the flightmaster NPC)
+	WorldY   float64 `json:"worldY"`
 }
 
 // TaxiPathOut is a directed connection between two nodes.
@@ -243,7 +245,7 @@ func genTaxi(cf ClientFiles) (interface{}, error) {
 			continue
 		}
 		px, py := b.pct(x, y)
-		cands[id] = TaxiNodeOut{ID: id, MapID: mapID, Name: name, Horde: horde, Alliance: alliance, PX: px, PY: py}
+		cands[id] = TaxiNodeOut{ID: id, MapID: mapID, Name: name, Horde: horde, Alliance: alliance, PX: px, PY: py, WorldX: x, WorldY: y}
 	}
 
 	// All paths.

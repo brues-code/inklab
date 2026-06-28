@@ -625,6 +625,28 @@ function FlightTooltip({ node, dests, x, y }) {
             <div className="mb-1 text-xs" style={{ color }}>
                 {faction}
             </div>
+            {(node.allianceNpcName || node.hordeNpcName) && (
+                <div className="mb-1 text-xs text-zinc-300">
+                    {node.allianceNpcName &&
+                    node.hordeNpcName &&
+                    node.allianceNpcName !== node.hordeNpcName ? (
+                        <>
+                            <div>
+                                <span style={{ color: C_ALLIANCE }}>FM:</span>{' '}
+                                {node.allianceNpcName}
+                            </div>
+                            <div>
+                                <span style={{ color: C_HORDE }}>FM:</span> {node.hordeNpcName}
+                            </div>
+                        </>
+                    ) : (
+                        <div>
+                            <span className="text-zinc-400">Flight Master:</span>{' '}
+                            {node.allianceNpcName || node.hordeNpcName}
+                        </div>
+                    )}
+                </div>
+            )}
             {sorted.length ? (
                 <>
                     <div className="text-xs text-zinc-400">Connects to ({sorted.length}):</div>

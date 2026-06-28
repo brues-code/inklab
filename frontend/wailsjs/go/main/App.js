@@ -278,6 +278,10 @@ export function IsFavorite(arg1) {
   return window['go']['main']['App']['IsFavorite'](arg1);
 }
 
+export function MatchFlightmasters() {
+  return window['go']['main']['App']['MatchFlightmasters']();
+}
+
 export function RebuildSpawnZones(arg1) {
   return window['go']['main']['App']['RebuildSpawnZones'](arg1);
 }

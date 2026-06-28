@@ -480,6 +480,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportSpellIcons(filepath.Join(a.DataDir, "spells_enhanced.json"))
 	_ = gen.ImportTalents(filepath.Join(a.DataDir, "talents.json"))
 	_ = gen.ImportTaxi(filepath.Join(a.DataDir, "taxi.json"))
+	a.MatchFlightmasters() // link nodes to flightmaster NPCs (needs MySQL; no-op without)
 	_ = gen.ImportCreatureFamilies(filepath.Join(a.DataDir, "creature_families.json"))
 	_ = gen.ImportLocks(filepath.Join(a.DataDir, "locks.json"))
 	_ = gen.ImportClasses(filepath.Join(a.DataDir, "classes.json"))

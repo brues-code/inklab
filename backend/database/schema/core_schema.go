@@ -377,7 +377,11 @@ func CoreSchema() string {
 		alliance INTEGER DEFAULT 0,
 		horde INTEGER DEFAULT 0,
 		px REAL DEFAULT 0,
-		py REAL DEFAULT 0
+		py REAL DEFAULT 0,
+		world_x REAL DEFAULT 0,      -- node world coords, to match the flightmaster NPC
+		world_y REAL DEFAULT 0,
+		alliance_npc INTEGER DEFAULT 0, -- nearest Alliance flightmaster creature entry
+		horde_npc INTEGER DEFAULT 0     -- nearest Horde flightmaster creature entry
 	);
 	CREATE TABLE IF NOT EXISTS taxi_path (
 		id INTEGER PRIMARY KEY,

@@ -1,6 +1,12 @@
 package main
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"inklab/backend/database/helpers"
+)
 
 // Flight (taxi) network read from the taxi_node / taxi_path / taxi_path_node
 // tables (DBC-derived, shipped in the embedded inklab.db). Nodes are positioned
@@ -22,6 +28,12 @@ type FlightNode struct {
 	Zone     string  `json:"zone"` // zone map key this node sits in (for drill-down)
 	PX       float64 `json:"px"`
 	PY       float64 `json:"py"`
+	// Flightmaster NPC(s) standing at this node (matched by world coords), so the
+	// map can name them. A contested node has both an Alliance and a Horde one.
+	AllianceNpc     int    `json:"allianceNpc,omitempty"`
+	AllianceNpcName string `json:"allianceNpcName,omitempty"`
+	HordeNpc        int    `json:"hordeNpc,omitempty"`
+	HordeNpcName    string `json:"hordeNpcName,omitempty"`
 }
 
 // FlightConnection is a path between two nodes, with its waypoint route.
@@ -62,6 +74,10 @@ type WorldNode struct {
 	Zone     string  `json:"zone"`
 	PX       float64 `json:"px"`
 	PY       float64 `json:"py"`
+	AllianceNpc     int    `json:"allianceNpc,omitempty"`
+	AllianceNpcName string `json:"allianceNpcName,omitempty"`
+	HordeNpc        int    `json:"hordeNpc,omitempty"`
+	HordeNpcName    string `json:"hordeNpcName,omitempty"`
 }
 
 // WorldConn is a flight link between two nodes (node ids).
@@ -110,11 +126,16 @@ func (a *App) GetWorldData() *WorldData {
 		px, py float64
 	}
 	byKey := map[string]pos{}
-	if rows, err := a.db.DB().Query("SELECT id, name, alliance, horde, map_id, px, py FROM taxi_node"); err == nil {
+	if rows, err := a.db.DB().Query(`
+		SELECT t.id, t.name, t.alliance, t.horde, t.map_id, t.px, t.py,
+		       t.alliance_npc, COALESCE((SELECT name FROM creature_template WHERE entry = t.alliance_npc), ''),
+		       t.horde_npc, COALESCE((SELECT name FROM creature_template WHERE entry = t.horde_npc), '')
+		FROM taxi_node t`); err == nil {
 		for rows.Next() {
 			var n WorldNode
 			var al, ho int
-			if rows.Scan(&n.ID, &n.Name, &al, &ho, &n.MapID, &n.PX, &n.PY) == nil {
+			if rows.Scan(&n.ID, &n.Name, &al, &ho, &n.MapID, &n.PX, &n.PY,
+				&n.AllianceNpc, &n.AllianceNpcName, &n.HordeNpc, &n.HordeNpcName) == nil {
 				n.Alliance, n.Horde = al != 0, ho != 0
 				if a.npcService != nil {
 					n.Zone, _, _, _ = a.npcService.ResolveContinentPoint(n.MapID, n.PX, n.PY)
@@ -281,8 +302,11 @@ func (a *App) GetFlightData(mapID int) *FlightData {
 		return out
 	}
 
-	nodeRows, err := a.db.DB().Query(
-		"SELECT id, name, alliance, horde, px, py FROM taxi_node WHERE map_id = ? ORDER BY name", mapID)
+	nodeRows, err := a.db.DB().Query(`
+		SELECT t.id, t.name, t.alliance, t.horde, t.px, t.py,
+		       t.alliance_npc, COALESCE((SELECT name FROM creature_template WHERE entry = t.alliance_npc), ''),
+		       t.horde_npc, COALESCE((SELECT name FROM creature_template WHERE entry = t.horde_npc), '')
+		FROM taxi_node t WHERE t.map_id = ? ORDER BY t.name`, mapID)
 	if err != nil {
 		return out
 	}
@@ -290,7 +314,8 @@ func (a *App) GetFlightData(mapID int) *FlightData {
 	for nodeRows.Next() {
 		var n FlightNode
 		var al, ho int
-		if nodeRows.Scan(&n.ID, &n.Name, &al, &ho, &n.PX, &n.PY) == nil {
+		if nodeRows.Scan(&n.ID, &n.Name, &al, &ho, &n.PX, &n.PY,
+			&n.AllianceNpc, &n.AllianceNpcName, &n.HordeNpc, &n.HordeNpcName) == nil {
 			n.Alliance = al != 0
 			n.Horde = ho != 0
 			if a.npcService != nil {
@@ -445,4 +470,152 @@ func toArgs(ids []int) []interface{} {
 		a[i] = v
 	}
 	return a
+}
+
+// MatchFlightmasters links each taxi node to the nearest flightmaster creature
+// (creature_template.npc_flags & 0x2000) per faction, by matching the node's
+// world coords (from TaxiNodes.dbc) against the creatures' MySQL spawn coords. A
+// contested node keeps both an Alliance and a Horde flightmaster, disambiguated
+// by the creature's faction reaction. Dev/MySQL only, octo-free; idempotent.
+func (a *App) MatchFlightmasters() {
+	if a.db == nil || a.mysqlDB == nil {
+		return
+	}
+
+	// Candidate creatures = anything with a gossip or flightmaster flag. Octo's DB
+	// doesn't reliably set the flightmaster bit (e.g. Dungar Longdrink / Gryth
+	// Thurden are npc_flags=11, no 0x2000), so we can't depend on it alone. We
+	// prefer a flagged flightmaster when one stands at the node, but fall back to
+	// the nearest gossip NPC there — a taxi node sits on the flight master's exact
+	// spot, so the closest gossip creature is almost always them.
+	type cand struct {
+		faction int
+		isFM    bool
+	}
+	candInfo := map[int]cand{}
+	if r, err := a.db.DB().Query("SELECT entry, COALESCE(faction,0), COALESCE(npc_flags,0) FROM creature_template WHERE npc_flags & 8193 != 0"); err == nil {
+		for r.Next() {
+			var e, f, fl int
+			if r.Scan(&e, &f, &fl) == nil {
+				candInfo[e] = cand{faction: f, isFM: fl&8192 != 0}
+			}
+		}
+		r.Close()
+	}
+	if len(candInfo) == 0 {
+		return
+	}
+
+	// Faction-template group masks -> reaction toward Alliance / Horde.
+	masks := map[int][3]int{}
+	if r, err := a.db.DB().Query("SELECT template_id, our_mask, friend_mask, enemy_mask FROM faction_template"); err == nil {
+		for r.Next() {
+			var t, o, fr, e int
+			if r.Scan(&t, &o, &fr, &e) == nil {
+				masks[t] = [3]int{o, fr, e}
+			}
+		}
+		r.Close()
+	}
+	usableBy := func(faction, target int) bool {
+		m, ok := masks[faction]
+		if !ok {
+			return true // unknown faction: don't exclude it
+		}
+		return helpers.GetFactionReaction(m[0], m[1], m[2], target) != "hostile"
+	}
+
+	// Flightmaster spawn coords from MySQL (the world DB).
+	type spawn struct {
+		id, mapID int
+		x, y      float64
+	}
+	var spawns []spawn
+	ids := make([]string, 0, len(candInfo))
+	for e := range candInfo {
+		ids = append(ids, strconv.Itoa(e))
+	}
+	q := "SELECT id, map, position_x, position_y FROM creature WHERE id IN (" + strings.Join(ids, ",") + ")"
+	if r, err := a.mysqlDB.DB().Query(q); err == nil {
+		for r.Next() {
+			var s spawn
+			if r.Scan(&s.id, &s.mapID, &s.x, &s.y) == nil {
+				spawns = append(spawns, s)
+			}
+		}
+		r.Close()
+	}
+
+	type node struct {
+		id, mapID int
+		wx, wy    float64
+		al, ho    bool
+	}
+	var nodes []node
+	if r, err := a.db.DB().Query("SELECT id, map_id, world_x, world_y, alliance, horde FROM taxi_node WHERE world_x != 0 OR world_y != 0"); err == nil {
+		for r.Next() {
+			var n node
+			var al, ho int
+			if r.Scan(&n.id, &n.mapID, &n.wx, &n.wy, &al, &ho) == nil {
+				n.al, n.ho = al != 0, ho != 0
+				nodes = append(nodes, n)
+			}
+		}
+		r.Close()
+	}
+
+	// A flagged flightmaster is trusted out to fmR; a plain gossip NPC must be much
+	// closer (gossipR) to be taken as the flight master — it has to be standing on
+	// the node, not merely nearby.
+	const fmR2 = 120.0 * 120.0
+	const gossipR2 = 45.0 * 45.0
+	upd, err := a.db.DB().Prepare("UPDATE taxi_node SET alliance_npc = ?, horde_npc = ? WHERE id = ?")
+	if err != nil {
+		return
+	}
+	defer upd.Close()
+
+	// pick returns the best flight-master spawn for one node+faction: the nearest
+	// flagged flightmaster within fmR, else the nearest gossip NPC within gossipR.
+	pick := func(n node, target int) int {
+		bestFM, bestFMd := 0, fmR2
+		bestG, bestGd := 0, gossipR2
+		for _, s := range spawns {
+			if s.mapID != n.mapID {
+				continue
+			}
+			c := candInfo[s.id]
+			if !usableBy(c.faction, target) {
+				continue
+			}
+			dx, dy := s.x-n.wx, s.y-n.wy
+			d := dx*dx + dy*dy
+			if c.isFM && d < bestFMd {
+				bestFM, bestFMd = s.id, d
+			}
+			if d < bestGd {
+				bestG, bestGd = s.id, d
+			}
+		}
+		if bestFM != 0 {
+			return bestFM
+		}
+		return bestG
+	}
+
+	matched := 0
+	for _, n := range nodes {
+		a2, h2 := 0, 0
+		if n.al {
+			a2 = pick(n, helpers.FactionMaskAlliance)
+		}
+		if n.ho {
+			h2 = pick(n, helpers.FactionMaskHorde)
+		}
+		if a2 != 0 || h2 != 0 {
+			upd.Exec(a2, h2, n.id)
+			matched++
+		}
+	}
+	fmt.Printf("✓ Matched flightmasters for %d/%d taxi nodes\n", matched, len(nodes))
 }
