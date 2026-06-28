@@ -4,7 +4,8 @@ package models
 type ZoneEntry struct {
 	AreaID int    `json:"areatableID"`
 	MapID  int    `json:"mapID"`
-	Name   string `json:"name_loc0"`
+	Name   string `json:"name_loc0"`     // map-texture folder name (the map-image key)
+	DisplayName string `json:"displayName"` // official localized name (AreaTable.dbc)
 	// InstanceType from Map.dbc: 0 continent, 1 dungeon, 2 raid, 3 battleground.
 	InstanceType int `json:"instanceType"`
 }

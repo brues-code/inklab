@@ -15,6 +15,7 @@ import {
     DetailError,
     ItemTooltip,
     Money,
+    ZoneName,
 } from '../../ui'
 
 // reactionColor maps a faction reaction ("friendly"/"hostile"/"neutral") to a
@@ -586,7 +587,11 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                                         </div>
                                     </td>
                                     <td className="px-2 py-1.5 text-wow-rare">
-                                        {npc.location || '—'}
+                                        <ZoneName
+                                            name={npc.location}
+                                            onNavigate={onNavigate}
+                                            fallback="—"
+                                        />
                                     </td>
                                     <td className="px-2 py-1.5 text-center">
                                         {npc.reactionA || npc.reactionH ? (

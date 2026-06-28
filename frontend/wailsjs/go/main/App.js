@@ -266,6 +266,10 @@ export function GetZoneDetail(arg1) {
   return window['go']['main']['App']['GetZoneDetail'](arg1);
 }
 
+export function GetZoneNames() {
+  return window['go']['main']['App']['GetZoneNames']();
+}
+
 export function GetZones() {
   return window['go']['main']['App']['GetZones']();
 }

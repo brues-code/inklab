@@ -11,6 +11,15 @@ type ZoneListEntry struct {
 	QuestCount int    `json:"questCount"`
 }
 
+// ZoneNameInfo maps a zone's normalized match key to its id and official
+// localized display name. The frontend loads these once so a single <ZoneName>
+// component can turn any raw spawn/folder zone string into the proper name.
+type ZoneNameInfo struct {
+	Key  string `json:"key"`  // zoneKey(folder name) — the normalized lookup key
+	ID   int    `json:"id"`
+	Name string `json:"name"` // official localized name (AreaTable.dbc)
+}
+
 // ZoneNpc is a creature that spawns in a zone.
 type ZoneNpc struct {
 	Entry    int    `json:"entry"`

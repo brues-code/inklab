@@ -40,7 +40,8 @@ func CoreSchema() string {
 	CREATE TABLE IF NOT EXISTS quest_categories_enhanced (
 		id INTEGER PRIMARY KEY,
 		group_id INTEGER DEFAULT 0,
-		name TEXT NOT NULL,
+		name TEXT NOT NULL,            -- map-texture folder name (image key / identifier)
+		display_name TEXT DEFAULT '',  -- official localized name (AreaTable.dbc)
 		quest_count INTEGER DEFAULT 0
 	);
 

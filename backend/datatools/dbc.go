@@ -635,7 +635,11 @@ func genSLA(cf ClientFiles) (interface{}, error) {
 	return out, nil
 }
 
-// WorldMapArea.dbc: mapID(1), areaID(2), areaName(3), loc bounds(4-7).
+// WorldMapArea.dbc: mapID(1), areaID(2), areaName(3 = map-texture folder name),
+// loc bounds(4-7). name_loc0 keeps the folder name (it's the map-image key);
+// displayName is the official localized zone name from AreaTable.dbc, joined by
+// areaID — so the UI can show "Dun Morogh" / "Stranglethorn Vale" / "The Barrens"
+// where the folder name is "DunMorogh" / "Stranglethorn" / "Barrens".
 func genZones(cf ClientFiles) (interface{}, error) {
 	maps, err := openDBCFrom(cf, "Map.dbc")
 	if err != nil {
@@ -645,6 +649,17 @@ func genZones(cf ClientFiles) (interface{}, error) {
 	for r := 0; r < maps.RecordCount; r++ {
 		instByMap[maps.U32(r, 0)] = maps.U32(r, 2)
 	}
+
+	// AreaTable.dbc: id(0), AreaName_enUS(11). Build areatableID -> official name.
+	areaName := map[uint32]string{}
+	if at, err := openDBCFrom(cf, "AreaTable.dbc"); err == nil {
+		for r := 0; r < at.RecordCount; r++ {
+			areaName[at.U32(r, 0)] = at.Str(r, 11)
+		}
+	} else {
+		fmt.Printf("[dbc] AreaTable.dbc unavailable, zone display names fall back to folder names: %v\n", err)
+	}
+
 	d, err := openDBCFrom(cf, "WorldMapArea.dbc")
 	if err != nil {
 		return nil, err
@@ -652,9 +667,15 @@ func genZones(cf ClientFiles) (interface{}, error) {
 	out := make([]map[string]interface{}, 0, d.RecordCount)
 	for r := 0; r < d.RecordCount; r++ {
 		mapID := d.U32(r, 1)
+		areaID := d.U32(r, 2)
+		folder := d.Str(r, 3)
+		display := areaName[areaID]
+		if display == "" {
+			display = folder // no AreaTable name; keep the folder name
+		}
 		out = append(out, map[string]interface{}{
 			"mapID": mapID, "instanceType": instByMap[mapID],
-			"areatableID": d.U32(r, 2), "name_loc0": d.Str(r, 3),
+			"areatableID": areaID, "name_loc0": folder, "displayName": display,
 			"x_min": d.F32(r, 7), "x_max": d.F32(r, 6),
 			"y_min": d.F32(r, 5), "y_max": d.F32(r, 4),
 		})

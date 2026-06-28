@@ -83,6 +83,7 @@ func (s *SQLiteDB) InitSchema() error {
 	s.db.Exec("ALTER TABLE faction_template ADD COLUMN our_mask INTEGER DEFAULT 0")    // ignore error if exists
 	s.db.Exec("ALTER TABLE faction_template ADD COLUMN friend_mask INTEGER DEFAULT 0") // ignore error if exists
 	s.db.Exec("ALTER TABLE faction_template ADD COLUMN enemy_mask INTEGER DEFAULT 0")  // ignore error if exists
+	s.db.Exec("ALTER TABLE quest_categories_enhanced ADD COLUMN display_name TEXT DEFAULT ''") // ignore error if exists
 
 	return nil
 }

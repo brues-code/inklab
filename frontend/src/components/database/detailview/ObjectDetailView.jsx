@@ -12,6 +12,7 @@ import {
     DetailError,
     LootItem,
     LootGrid,
+    ZoneName,
 } from '../../ui'
 
 const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
@@ -193,7 +194,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                                     : 'border-gray-600/40 bg-white/[0.02] text-gray-300 hover:bg-white/5'
                                             }`}
                                         >
-                                            {z.name}{' '}
+                                            <ZoneName name={z.name} />{' '}
                                             <span className="text-gray-500">({z.pts.length})</span>
                                         </button>
                                     ))}
@@ -232,7 +233,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             >
                                 {!mapImage.src && !mapImage.loading && (
                                     <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                                        No map for {activeZone?.name}
+                                        No map for <ZoneName name={activeZone?.name} />
                                     </div>
                                 )}
                                 {mapImage.loading && (
@@ -243,7 +244,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 {mapImage.src && renderMarkers(16)}
                                 {mapImage.src && (
                                     <div className="absolute left-2 top-2 rounded border border-white/10 bg-black/70 px-2 py-0.5 text-xs text-gray-300">
-                                        {activeZone?.name} • {markers.length}{' '}
+                                        <ZoneName name={activeZone?.name} /> • {markers.length}{' '}
                                         {markers.length === 1 ? 'spawn' : 'spawns'}
                                     </div>
                                 )}
@@ -344,7 +345,7 @@ const ObjectDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                         </div>
                         {activeZone?.name && (
                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-black/80 px-4 py-2 font-bold text-white">
-                                {activeZone.name}
+                                <ZoneName name={activeZone.name} />
                             </div>
                         )}
                         <button

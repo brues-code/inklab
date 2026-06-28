@@ -24,6 +24,7 @@ import {
     DetailError,
     LootItem,
     Money,
+    ZoneName,
 } from '../../ui'
 
 // AbilityIcon resolves a spell's icon through the local icon service (local
@@ -289,7 +290,11 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                     </h3>
                                     {mapSpawns.length > 0 && (
                                         <span className="font-mono text-xs text-gray-400">
-                                            {mapSpawns[0].zoneName || `Map ${mapSpawns[0].mapId}`}
+                                            <ZoneName
+                                                name={mapSpawns[0].zoneName}
+                                                onNavigate={onNavigate}
+                                                fallback={`Map ${mapSpawns[0].mapId}`}
+                                            />
                                             {(mapSpawns[0].x > 0 || mapSpawns[0].y > 0) && (
                                                 <span className="ml-1">
                                                     ({mapSpawns[0].x.toFixed(1)},{' '}
@@ -313,7 +318,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                                         : 'border-white/10 bg-bg-panel text-gray-400 hover:bg-bg-hover hover:text-gray-200'
                                                 }`}
                                             >
-                                                {z.name}{' '}
+                                                <ZoneName name={z.name} />{' '}
                                                 <span className="opacity-60">{z.count}</span>
                                             </button>
                                         ))}
@@ -394,7 +399,10 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                                     {/* Tooltip on hover */}
                                                     <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded border border-white/20 bg-black/90 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/marker:opacity-100">
                                                         <div className="font-semibold text-wow-gold">
-                                                            {spawn.zoneName || 'Spawn Point'}
+                                                            <ZoneName
+                                                                name={spawn.zoneName}
+                                                                fallback="Spawn Point"
+                                                            />
                                                         </div>
                                                         <div className="font-mono text-gray-300">
                                                             ({spawn.x.toFixed(1)},{' '}

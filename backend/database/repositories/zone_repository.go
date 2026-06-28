@@ -89,19 +89,22 @@ func humanizeZoneName(s string) string {
 	return b.String()
 }
 
-// zoneInfo is an internal zone row carrying its match key.
+// zoneInfo is an internal zone row carrying its match key. name is the raw
+// texture-folder name (map-image key / matching identifier); displayName is the
+// official localized name (AreaTable.dbc) shown to the user.
 type zoneInfo struct {
-	id        int
-	groupID   int
-	name      string
-	groupName string
-	key       string
+	id          int
+	groupID     int
+	name        string
+	displayName string
+	groupName   string
+	key         string
 }
 
 // loadZoneInfos returns every real zone (id > 0) with its precomputed match key.
 func (r *ZoneRepository) loadZoneInfos() ([]zoneInfo, error) {
 	rows, err := r.db.Query(`
-		SELECT qce.id, qce.name, qce.group_id, COALESCE(g.name, '')
+		SELECT qce.id, qce.name, COALESCE(NULLIF(qce.display_name, ''), ''), qce.group_id, COALESCE(g.name, '')
 		FROM quest_categories_enhanced qce
 		LEFT JOIN quest_category_groups g ON g.id = qce.group_id
 		WHERE qce.id > 0
@@ -115,8 +118,13 @@ func (r *ZoneRepository) loadZoneInfos() ([]zoneInfo, error) {
 	var zones []zoneInfo
 	for rows.Next() {
 		var z zoneInfo
-		if err := rows.Scan(&z.id, &z.name, &z.groupID, &z.groupName); err != nil {
+		if err := rows.Scan(&z.id, &z.name, &z.displayName, &z.groupID, &z.groupName); err != nil {
 			continue
+		}
+		// Fall back to the camelCase-split folder name when AreaTable hasn't been
+		// imported yet (older DB / pre-regeneration zones.json).
+		if z.displayName == "" {
+			z.displayName = humanizeZoneName(z.name)
 		}
 		z.key = zoneKey(z.name)
 		zones = append(zones, z)
@@ -143,6 +151,24 @@ func matchZone(spawnName string, zones []zoneInfo) int {
 		}
 	}
 	return bestID
+}
+
+// ZoneNames returns the official display name for every real zone, keyed by its
+// normalized match key, so the frontend can resolve a raw spawn/folder zone
+// string to the localized name in one place.
+func (r *ZoneRepository) ZoneNames() ([]*models.ZoneNameInfo, error) {
+	zones, err := r.loadZoneInfos()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*models.ZoneNameInfo, 0, len(zones))
+	for _, z := range zones {
+		if z.key == "" {
+			continue
+		}
+		out = append(out, &models.ZoneNameInfo{Key: z.key, ID: z.id, Name: z.displayName})
+	}
+	return out, nil
 }
 
 // GetZones returns every real zone that has at least one NPC or quest, with
@@ -189,7 +215,7 @@ func (r *ZoneRepository) GetZones() ([]*models.ZoneListEntry, error) {
 		}
 		out = append(out, &models.ZoneListEntry{
 			ID:         z.id,
-			Name:       humanizeZoneName(z.name),
+			Name:       z.displayName,
 			GroupID:    z.groupID,
 			GroupName:  z.groupName,
 			NpcCount:   nc,
@@ -208,23 +234,23 @@ func (r *ZoneRepository) GetZoneDetail(id int) (*models.ZoneDetail, error) {
 	}
 
 	d := &models.ZoneDetail{ID: id}
-	rawName := ""
+	rawName, displayName := "", ""
 	for _, z := range zones {
 		if z.id == id {
-			rawName, d.GroupName = z.name, z.groupName
+			rawName, displayName, d.GroupName = z.name, z.displayName, z.groupName
 			break
 		}
 	}
 	if rawName == "" {
 		// Fall back to a direct lookup so unusual ids still resolve a name.
-		if err := r.db.QueryRow(`SELECT name FROM quest_categories_enhanced WHERE id = ?`, id).Scan(&rawName); err != nil {
+		if err := r.db.QueryRow(`SELECT name, COALESCE(NULLIF(display_name,''), name) FROM quest_categories_enhanced WHERE id = ?`, id).Scan(&rawName, &displayName); err != nil {
 			return nil, err
 		}
 	}
 	// MapName is the raw texture-folder name (what useZoneMap expects); Name is
-	// the readable display form.
+	// the official localized display form.
 	d.MapName = rawName
-	d.Name = humanizeZoneName(rawName)
+	d.Name = displayName
 
 	// All spawn display-names that resolve to this zone.
 	spawnNames := r.spawnNamesForZone(id, zones)

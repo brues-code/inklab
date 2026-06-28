@@ -187,11 +187,15 @@ func (m *MetadataImporter) importQuestZones(dataDir string) error {
 	}
 	defer tx.Rollback()
 
-	stmt, _ := tx.Prepare("REPLACE INTO quest_categories_enhanced (id, group_id, name) VALUES (?, ?, ?)")
+	stmt, _ := tx.Prepare("REPLACE INTO quest_categories_enhanced (id, group_id, name, display_name) VALUES (?, ?, ?, ?)")
 	defer stmt.Close()
 
 	for _, z := range zones {
-		stmt.Exec(z.AreaID, zoneGroup(z), z.Name)
+		display := z.DisplayName
+		if display == "" {
+			display = z.Name // pre-AreaTable zones.json: fall back to the folder name
+		}
+		stmt.Exec(z.AreaID, zoneGroup(z), z.Name, display)
 	}
 	return tx.Commit()
 }

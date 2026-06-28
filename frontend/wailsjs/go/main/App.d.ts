@@ -136,6 +136,8 @@ export function GetZoneData(arg1:number,arg2:string):Promise<main.ZoneData>;
 
 export function GetZoneDetail(arg1:number):Promise<models.ZoneDetail>;
 
+export function GetZoneNames():Promise<Array<models.ZoneNameInfo>>;
+
 export function GetZones():Promise<Array<models.ZoneListEntry>>;
 
 export function IsFavorite(arg1:number):Promise<boolean>;

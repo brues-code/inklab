@@ -63,6 +63,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"itemIcons", "Item icon mappings", "ItemDisplayInfo.dbc", "table", a.countRows("item_display_info")},
 		{"spellIcons", "Spell icon mappings", "Spell.dbc + SpellIcon.dbc", "table", a.countRows("spell_icons")},
 		{"skills", "Skills", "SkillLine.dbc", "table", a.countRows("spell_skills")},
+		{"zones", "Zones (localized names)", "WorldMapArea.dbc + AreaTable.dbc", "table", a.countRowsWhere("quest_categories_enhanced", "display_name != ''")},
 		{"talents", "Talents", "Talent.dbc + TalentTab.dbc", "table", a.countRows("talent")},
 		{"itemSets", "Item sets", "ItemSet.dbc", "table", a.countRows("itemsets")},
 		{"factions", "Factions", "Faction.dbc", "table", a.countRows("factions")},
@@ -97,6 +98,20 @@ func (a *App) countRows(table string) int {
 	var n int
 	// table is a fixed literal from GetDataStatus, never user input.
 	if err := a.db.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil {
+		return 0
+	}
+	return n
+}
+
+// countRowsWhere is countRows with a fixed WHERE clause (both literals from
+// GetDataStatus, never user input) — e.g. counting only zones that have a
+// localized display name.
+func (a *App) countRowsWhere(table, where string) int {
+	if a.db == nil {
+		return 0
+	}
+	var n int
+	if err := a.db.DB().QueryRow("SELECT COUNT(*) FROM " + table + " WHERE " + where).Scan(&n); err != nil {
 		return 0
 	}
 	return n

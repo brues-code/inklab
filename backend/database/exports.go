@@ -92,6 +92,7 @@ type FavoriteResult = models.FavoriteResult
 
 type ZoneEntry = models.ZoneEntry
 type ZoneListEntry = models.ZoneListEntry
+type ZoneNameInfo = models.ZoneNameInfo
 type ZoneNpc = models.ZoneNpc
 type ZoneQuest = models.ZoneQuest
 type ZoneSpawn = models.ZoneSpawn

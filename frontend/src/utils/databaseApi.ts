@@ -277,6 +277,13 @@ export const GetZoneDetail = (id: number) => {
     return Promise.resolve(null)
 }
 
+export const GetZoneNames = () => {
+    if (window?.go?.main?.App?.GetZoneNames) {
+        return window.go.main.App.GetZoneNames()
+    }
+    return Promise.resolve([])
+}
+
 // Filter helper function
 export const filterItems = (items: any[], filter: string) => {
     if (!filter || !filter.trim()) return items || []

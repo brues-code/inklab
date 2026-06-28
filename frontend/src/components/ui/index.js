@@ -8,6 +8,7 @@ export { DataStatusBanner } from './DataStatusBanner'
 export { default as GlobalSearch } from './GlobalSearch'
 export { default as ItemTooltip } from './ItemTooltip'
 export { Money } from './Money'
+export { ZoneName } from './ZoneName'
 export { default as SpellTooltip } from './SpellTooltip'
 export {
     DetailPageLayout,
