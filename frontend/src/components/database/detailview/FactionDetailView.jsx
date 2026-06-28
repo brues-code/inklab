@@ -3,8 +3,13 @@ import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { useFactionDetail } from '../../../hooks/queries/factions'
 import { DetailPageLayout, DetailHeader, DetailSection, DetailLoading, DetailError } from '../../ui'
 
-const FactionDetailView = ({ id, onBack, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState(null)
+const FactionDetailView = ({ id, onBack, onNavigate, activeTab, onTabChange }) => {
+    // Active tab. When the route supplies it (activeTab/onTabChange) it lives in
+    // the URL so Back/Forward and refresh work; otherwise fall back to local
+    // state. null = first tab with data.
+    const [localTab, setLocalTab] = useState(null)
+    const rawTab = onTabChange ? activeTab : localTab
+    const setTab = onTabChange || setLocalTab
     const { data: detail, isLoading: loading } = useFactionDetail(id)
 
     if (loading) return <DetailLoading />
@@ -20,7 +25,7 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
         questGivers.length > 0 && { id: 'givers', label: `Quest Givers (${questGivers.length})` },
         members.length > 0 && { id: 'members', label: `Faction Members (${members.length})` },
     ].filter(Boolean)
-    const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id
+    const currentTab = tabs.some((t) => t.id === rawTab) ? rawTab : tabs[0]?.id
 
     const npcGrid = (npcs) => (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
@@ -137,7 +142,7 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => setTab(tab.id)}
                                 className={`relative top-[1px] px-4 py-2 text-sm font-bold transition-all ${
                                     currentTab === tab.id
                                         ? 'tab-btn-active border-b-2 border-wow-gold text-white'

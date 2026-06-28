@@ -30,8 +30,13 @@ const SERVICES = [
 const npcMatchesService = (n, svc) => svc.kind === 'npc' && (n.npcFlags & svc.bit) !== 0
 const objMatchesService = (o, svc) => svc.kind === 'obj' && o.type === svc.type
 
-const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState('npcs')
+const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) => {
+    // Active tab. When the route supplies it (activeTab/onTabChange) it lives in
+    // the URL so Back/Forward and refresh work; otherwise fall back to local
+    // state. Effective tab is `currentTab` (validated against `tabs` below).
+    const [localTab, setLocalTab] = useState('npcs')
+    const rawTab = onTabChange ? activeTab : localTab
+    const setTab = onTabChange || setLocalTab
     const [showMapModal, setShowMapModal] = useState(false)
     const [service, setService] = useState(null) // active service filter id
     // Map style: 'atlas' = painted WorldMap, 'terrain' = in-game minimap art.
@@ -91,6 +96,9 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
         { id: 'objects', label: `Objects (${objects.length})` },
     ]
 
+    // Effective tab: the URL/local value if it's a real tab, else NPCs.
+    const currentTab = tabs.some((t) => t.id === rawTab) ? rawTab : 'npcs'
+
     // Map markers: when a service is active, show only its matching spawns;
     // otherwise follow the active tab. Object markers are cyan, creatures emerald.
     let showingObjects
@@ -102,7 +110,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
             ok.has(s.entry),
         )
     } else {
-        showingObjects = activeTab === 'objects'
+        showingObjects = currentTab === 'objects'
         markerSource = showingObjects ? detail.objectSpawns : detail.spawns
     }
     const spawns = (markerSource || []).slice(0, MAX_MARKERS)
@@ -116,7 +124,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
             return
         }
         setService(s.id)
-        setActiveTab(s.kind === 'obj' ? 'objects' : 'npcs')
+        setTab(s.kind === 'obj' ? 'objects' : 'npcs')
     }
 
     const renderMarkers = (size) =>
@@ -283,9 +291,9 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => setTab(tab.id)}
                             className={`relative top-[1px] px-4 py-2 text-sm font-bold transition-all ${
-                                activeTab === tab.id
+                                currentTab === tab.id
                                     ? 'tab-btn-active border-b-2 border-wow-gold text-white'
                                     : 'tab-btn-inactive text-gray-400 hover:text-gray-200'
                             }`}
@@ -296,7 +304,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                 </div>
 
                 <div className="animate-fade-in min-h-[200px]">
-                    {activeTab === 'npcs' && (
+                    {currentTab === 'npcs' && (
                         <>
                             {npcs.length > 0 ? (
                                 <div className="bg-bg-sub rounded border border-border-light">
@@ -338,7 +346,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                         </>
                     )}
 
-                    {activeTab === 'quests' && (
+                    {currentTab === 'quests' && (
                         <>
                             {quests.length > 0 ? (
                                 <div className="bg-bg-sub rounded border border-border-light">
@@ -372,7 +380,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate }) => {
                         </>
                     )}
 
-                    {activeTab === 'objects' && (
+                    {currentTab === 'objects' && (
                         <>
                             {objects.length > 0 ? (
                                 <div className="bg-bg-sub rounded border border-border-light">

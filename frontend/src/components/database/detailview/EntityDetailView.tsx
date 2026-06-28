@@ -23,9 +23,21 @@ type Props = {
     onBack: () => void
     onNavigate: (type: string, entry: number) => void
     tooltipHook: any
+    // Active relations sub-tab (from the URL) + setter, so detail views that
+    // support it can keep the tab in history. Optional: views ignore them.
+    activeTab?: string
+    onTabChange?: (tab: string) => void
 }
 
-export function EntityDetailView({ type, entry, onBack, onNavigate, tooltipHook }: Props) {
+export function EntityDetailView({
+    type,
+    entry,
+    onBack,
+    onNavigate,
+    tooltipHook,
+    activeTab,
+    onTabChange,
+}: Props) {
     return (
         <div className="flex h-full flex-1 flex-col overflow-hidden">
             {/* Detail header with breadcrumb */}
@@ -52,6 +64,8 @@ export function EntityDetailView({ type, entry, onBack, onNavigate, tooltipHook 
                         onNavigate={onNavigate}
                         onBack={onBack}
                         tooltipHook={tooltipHook}
+                        activeTab={activeTab}
+                        onTabChange={onTabChange}
                     />
                 )}
                 {type === 'quest' && (
@@ -68,6 +82,8 @@ export function EntityDetailView({ type, entry, onBack, onNavigate, tooltipHook 
                         onNavigate={onNavigate}
                         onBack={onBack}
                         tooltipHook={tooltipHook}
+                        activeTab={activeTab}
+                        onTabChange={onTabChange}
                     />
                 )}
                 {type === 'spell' && (
@@ -87,10 +103,22 @@ export function EntityDetailView({ type, entry, onBack, onNavigate, tooltipHook 
                     />
                 )}
                 {type === 'zone' && (
-                    <ZoneDetailView entry={entry} onNavigate={onNavigate} onBack={onBack} />
+                    <ZoneDetailView
+                        entry={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        activeTab={activeTab}
+                        onTabChange={onTabChange}
+                    />
                 )}
                 {type === 'faction' && (
-                    <FactionDetailView id={entry} onNavigate={onNavigate} onBack={onBack} />
+                    <FactionDetailView
+                        id={entry}
+                        onNavigate={onNavigate}
+                        onBack={onBack}
+                        activeTab={activeTab}
+                        onTabChange={onTabChange}
+                    />
                 )}
             </div>
         </div>

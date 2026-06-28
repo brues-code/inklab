@@ -45,11 +45,16 @@ const databaseTabRoute = createRoute({
     component: DatabaseTabs,
 })
 
-// "/database/$tab/$type/$id" — entity detail overlay
+// "/database/$tab/$type/$id" — entity detail overlay. The optional `rel` search
+// param remembers the active relations sub-tab (Sold By, Dropped By, ...) so it
+// survives Back/Forward and refresh.
 const databaseDetailRoute = createRoute({
     getParentRoute: () => databaseTabRoute,
     path: '$type/$id',
     component: DatabaseDetail,
+    validateSearch: (search: Record<string, unknown>): { rel?: string } => ({
+        rel: typeof search.rel === 'string' ? search.rel : undefined,
+    }),
 })
 
 // "/atlas" — loot browser; detail renders in its <Outlet>

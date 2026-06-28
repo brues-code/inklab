@@ -41,8 +41,13 @@ const AbilityIcon = ({ iconName }) => {
     )
 }
 
-const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
-    const [activeTab, setActiveTab] = useState('overview')
+const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTabChange }) => {
+    // Active tab. When the route supplies it (activeTab/onTabChange) it lives in
+    // the URL so Back/Forward and refresh work; otherwise fall back to local
+    // state. The effective tab is `currentTab` (validated against `tabs` below).
+    const [localTab, setLocalTab] = useState('overview')
+    const rawTab = onTabChange ? activeTab : localTab
+    const setTab = onTabChange || setLocalTab
     const [showMapModal, setShowMapModal] = useState(false)
     // Map style: 'atlas' = the painted WorldMap image, 'terrain' = the in-game
     // minimap art. Falls back to atlas automatically when a zone has no minimap.
@@ -173,6 +178,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         ...(sells.length > 0 ? [{ id: 'sells', label: `Sells (${sells.length})` }] : []),
         ...(trains.length > 0 ? [{ id: 'trains', label: `Trains (${trains.length})` }] : []),
     ]
+
+    // Effective tab: the URL/local value if it's a real tab, else the first.
+    const currentTab = tabs.some((t) => t.id === rawTab) ? rawTab : tabs[0]?.id
 
     return (
         <>
@@ -549,9 +557,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                                    onClick={() => setTab(tab.id)}
                                     className={`relative top-[1px] px-4 py-2 text-sm font-bold transition-all ${
-                                        activeTab === tab.id
+                                        currentTab === tab.id
                                             ? 'tab-btn-active border-b-2 border-wow-gold text-white'
                                             : 'tab-btn-inactive text-gray-400 hover:text-gray-200'
                                     }`}
@@ -563,7 +571,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
 
                         {/* Tab Content */}
                         <div className="animate-fade-in min-h-[200px]">
-                            {activeTab === 'overview' && (
+                            {currentTab === 'overview' && (
                                 <div className="text-sm text-gray-400">
                                     <h4 className="mb-2 font-bold text-white">Abilities Summary</h4>
                                     {detail.abilities?.length > 0 ? (
@@ -592,7 +600,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </div>
                             )}
 
-                            {activeTab === 'loot' && (
+                            {currentTab === 'loot' && (
                                 <div className="animate-fade-in">
                                     {loot.length > 0 ? (
                                         <LootGrid>
@@ -633,7 +641,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </div>
                             )}
 
-                            {activeTab === 'sells' && (
+                            {currentTab === 'sells' && (
                                 <div className="animate-fade-in">
                                     <LootGrid>
                                         {sells.map((item) => {
@@ -669,7 +677,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </div>
                             )}
 
-                            {activeTab === 'trains' && (
+                            {currentTab === 'trains' && (
                                 <div className="animate-fade-in bg-bg-sub rounded border border-border-light">
                                     {trains.map((sp, i) => (
                                         <div
@@ -700,7 +708,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </div>
                             )}
 
-                            {activeTab === 'quests' && (
+                            {currentTab === 'quests' && (
                                 <div className="animate-fade-in grid grid-cols-1 gap-6 md:grid-cols-2">
                                     <DetailSection title={`Starts Quests (${startsQuests.length})`}>
                                         {startsQuests.length > 0 ? (
@@ -762,7 +770,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </div>
                             )}
 
-                            {activeTab === 'abilities' && (
+                            {currentTab === 'abilities' && (
                                 <div className="animate-fade-in">
                                     {abilities.length > 0 ? (
                                         <div className="grid grid-cols-1 gap-4">

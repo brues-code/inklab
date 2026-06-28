@@ -132,7 +132,7 @@ const IconImg = ({ name, className }) => {
     return <img src={icon.src || QUESTION_MARK_ICON} className={className} alt="" />
 }
 
-const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
+const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTabChange }) => {
     // The item's tooltip payload, from the shared Query cache (warmed by hover
     // elsewhere). The blanket invalidate in reloadData refetches this too.
     const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry })
@@ -140,8 +140,12 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [imgError, setImgError] = useState(false)
     const [fixing, setFixing] = useState(false)
     const [syncing, setSyncing] = useState(false)
-    // Active relations tab; null = fall back to the first tab that has data.
-    const [activeRelTab, setActiveRelTab] = useState(null)
+    // Active relations tab. When the route supplies it (activeTab/onTabChange) it
+    // lives in the URL so Back/Forward and refresh work; otherwise fall back to
+    // local state. null = first tab with data.
+    const [localRelTab, setLocalRelTab] = useState(null)
+    const activeRelTab = onTabChange ? activeTab : localRelTab
+    const selectRelTab = onTabChange || setLocalRelTab
 
     // Favorite status, cached per item and derived from the query (not state);
     // toggled optimistically in handleFavoriteToggle.
@@ -152,7 +156,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     if (entry !== imgErrKey) {
         setImgErrKey(entry)
         setImgError(false)
-        setActiveRelTab(null)
+        setLocalRelTab(null)
     }
 
     // A sync or icon-fix can change this item anywhere it appears (the grid behind
@@ -729,7 +733,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         },
     ].filter(Boolean)
 
-    const activeTab = relationTabs.find((t) => t.id === activeRelTab) || relationTabs[0]
+    const currentTab = relationTabs.find((t) => t.id === activeRelTab) || relationTabs[0]
 
     return (
         <DetailPageLayout onBack={onBack}>
@@ -822,15 +826,15 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                 {renderTooltipBlock()}
 
                 {/* Relations — tabbed (Contained In / Dropped By can get long) */}
-                {relationTabs.length > 0 && activeTab && (
+                {relationTabs.length > 0 && currentTab && (
                     <div className="min-w-[300px] flex-1">
                         <div className="mb-4 flex flex-wrap gap-1 border-b border-white/20">
                             {relationTabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveRelTab(tab.id)}
+                                    onClick={() => selectRelTab(tab.id)}
                                     className={`relative top-[1px] px-3 py-2 text-sm font-bold transition-all ${
-                                        activeTab.id === tab.id
+                                        currentTab.id === tab.id
                                             ? 'tab-btn-active border-b-2 border-wow-gold text-white'
                                             : 'tab-btn-inactive text-gray-400 hover:text-gray-200'
                                     }`}
@@ -840,7 +844,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 </button>
                             ))}
                         </div>
-                        <div className="animate-fade-in">{activeTab.content}</div>
+                        <div className="animate-fade-in">{currentTab.content}</div>
                     </div>
                 )}
             </div>
