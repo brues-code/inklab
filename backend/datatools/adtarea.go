@@ -79,24 +79,44 @@ func GenerateAreaGrid(cf ClientFiles, outPath string, progress func(mapName stri
 	}
 
 	var tiles []areaGridTile
+	var totListed, totRead, totParse, totOK int
 	for i, m := range maps {
 		if progress != nil {
 			progress(m.dir, i+1, len(maps))
 		}
 		present := wdtTiles(cf, m.dir)
+		var readFail, parseFail, ok int
+		var firstErr string
 		for _, t := range present {
 			path := fmt.Sprintf(`World\Maps\%s\%s_%d_%d.adt`, m.dir, m.dir, t.gx, t.gy)
 			b, err := cf.ReadFile(path)
 			if err != nil {
+				readFail++
+				if firstErr == "" {
+					firstErr = fmt.Sprintf("%s: %v", path, err)
+				}
 				continue
 			}
-			zones, ok := tileZones(b, topZone)
-			if !ok {
+			zones, parsed := tileZones(b, topZone)
+			if !parsed {
+				parseFail++
 				continue
 			}
+			ok++
 			tiles = append(tiles, areaGridTile{mapID: uint16(m.id), gx: uint8(t.gx), gy: uint8(t.gy), zones: zones})
 		}
+		totListed += len(present)
+		totRead += readFail
+		totParse += parseFail
+		totOK += ok
+		// Only report maps that actually have terrain tiles, and flag any drops.
+		if len(present) > 0 && (readFail > 0 || parseFail > 0) {
+			fmt.Printf("[area-grid] map %-20s (id %d): %d listed, %d ok, %d read-fail, %d parse-fail; first read-fail: %s\n",
+				m.dir, m.id, len(present), ok, readFail, parseFail, firstErr)
+		}
 	}
+	fmt.Printf("[area-grid] TOTAL: %d tiles listed in WDTs, %d written; %d read failures, %d parse failures\n",
+		totListed, totOK, totRead, totParse)
 
 	return writeAreaGrid(outPath, tiles)
 }
