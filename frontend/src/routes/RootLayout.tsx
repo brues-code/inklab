@@ -47,8 +47,8 @@ export function RootLayout() {
             {/* Header */}
             <header className="flex items-center justify-between border-b-[3px] border-bg-dark bg-gradient-to-b from-[#2a2a3a] to-bg-main px-5 py-3">
                 <div className="flex items-center gap-5">
-                    <h1 className="flex items-center gap-2.5 text-2xl font-normal text-wow-gold drop-shadow-md">
-                        <img src="/logo.png" alt="InkLab" className="h-12 w-12" />
+                    <h1 className="flex items-center gap-2.5 text-2xl font-normal text-wow-gold drop-shadow-md select-none">
+                        <img draggable={false} src="/logo.png" alt="InkLab" className="h-12 w-12" />
                         InkLab
                     </h1>
                     <nav className="flex gap-1">
