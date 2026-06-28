@@ -11,7 +11,7 @@ import {
     useIcon,
 } from '../../../services/useImage'
 import { evictImage } from '../../../services/imageService'
-import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from '../../../utils/wow'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import {
     DetailPageLayout,
@@ -23,6 +23,7 @@ import {
     DetailLoading,
     DetailError,
     LootItem,
+    Money,
 } from '../../ui'
 
 // AbilityIcon resolves a spell's icon through the local icon service (local
@@ -522,9 +523,20 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                             <tr>
                                                 <th>Wealth:</th>
                                                 <td>
-                                                    {/* Simple money format for now */}
-                                                    {(detail.goldMin / 10000).toFixed(2)}g -{' '}
-                                                    {(detail.goldMax / 10000).toFixed(2)}g
+                                                    {detail.goldMin > 0 &&
+                                                    detail.goldMin !== detail.goldMax ? (
+                                                        <span className="inline-flex items-center gap-1">
+                                                            <Money copper={detail.goldMin} />
+                                                            <span className="text-gray-500">-</span>
+                                                            <Money copper={detail.goldMax} />
+                                                        </span>
+                                                    ) : (
+                                                        <Money
+                                                            copper={
+                                                                detail.goldMax || detail.goldMin
+                                                            }
+                                                        />
+                                                    )}
                                                 </td>
                                             </tr>
                                         )}
@@ -647,16 +659,6 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                         {sells.map((item) => {
                                             const handlers =
                                                 tooltipHook?.getItemHandlers?.(item.itemId) || {}
-                                            const m = item.cost > 0 ? formatMoney(item.cost) : null
-                                            const price = m
-                                                ? [
-                                                      m.g && `${m.g}g`,
-                                                      m.s && `${m.s}s`,
-                                                      m.c && `${m.c}c`,
-                                                  ]
-                                                      .filter(Boolean)
-                                                      .join(' ')
-                                                : ''
                                             return (
                                                 <LootItem
                                                     key={item.itemId}
@@ -665,10 +667,13 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                                         name: item.name || `Item ${item.itemId}`,
                                                         quality: item.quality,
                                                         iconPath: item.iconPath || '',
-                                                        dropChance: price,
+                                                        dropChance:
+                                                            item.cost > 0 ? (
+                                                                <Money copper={item.cost} />
+                                                            ) : null,
                                                     }}
                                                     onClick={() => onNavigate('item', item.itemId)}
-                                                    showDropChance={!!price}
+                                                    showDropChance={item.cost > 0}
                                                     {...handlers}
                                                 />
                                             )

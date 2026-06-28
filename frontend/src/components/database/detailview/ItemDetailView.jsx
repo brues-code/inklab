@@ -5,10 +5,17 @@ import { useItemDetail, useItemFavorite } from '../../../hooks/queries/items'
 import { queryClient } from '../../../queryClient'
 import { ToggleFavorite } from '../../../services/api'
 import { FixSingleItemIcon, SyncSingleItem } from '../../../../wailsjs/go/main/App'
-import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from '../../../utils/wow'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { useIcon } from '../../../services/useImage'
-import { DetailPageLayout, DetailHeader, DetailLoading, DetailError, ItemTooltip } from '../../ui'
+import {
+    DetailPageLayout,
+    DetailHeader,
+    DetailLoading,
+    DetailError,
+    ItemTooltip,
+    Money,
+} from '../../ui'
 
 // reactionColor maps a faction reaction ("friendly"/"hostile"/"neutral") to a
 // text color: friendly = green, hostile = red, neutral = gray.
@@ -565,7 +572,6 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                     </thead>
                     <tbody>
                         {detail.soldBy.map((npc) => {
-                            const m = npc.cost > 0 ? formatMoney(npc.cost) : null
                             return (
                                 <tr
                                     key={npc.entry}
@@ -609,16 +615,8 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                                         {detail.buyCount || 1}
                                     </td>
                                     <td className="py-1.5 pl-2 text-right">
-                                        {m ? (
-                                            <span className="whitespace-nowrap font-mono">
-                                                {m.g > 0 && (
-                                                    <span className="text-yellow-400">{m.g}g </span>
-                                                )}
-                                                {(m.g > 0 || m.s > 0) && (
-                                                    <span className="text-gray-300">{m.s}s </span>
-                                                )}
-                                                <span className="text-orange-400">{m.c}c</span>
-                                            </span>
+                                        {npc.cost > 0 ? (
+                                            <Money copper={npc.cost} className="justify-end" />
                                         ) : (
                                             <span className="text-gray-600">—</span>
                                         )}

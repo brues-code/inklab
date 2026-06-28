@@ -1,5 +1,6 @@
 import React from 'react'
 import { getQualityColor } from '../../utils/wow'
+import { Money } from './Money'
 
 /**
  * WoW-style item tooltip component
@@ -186,23 +187,7 @@ const ItemTooltip = ({
             {tooltip.sellPrice > 0 && (
                 <div className="mt-1 flex items-center gap-1 text-[11px] leading-tight text-white">
                     <span className="text-gray-500">Sell Price:</span>
-                    <span className="flex items-center gap-1">
-                        {Math.floor(tooltip.sellPrice / 10000) > 0 && (
-                            <span style={{ color: '#FFD700' }} className="drop-shadow-sm">
-                                {Math.floor(tooltip.sellPrice / 10000)}g
-                            </span>
-                        )}
-                        {Math.floor((tooltip.sellPrice % 10000) / 100) > 0 && (
-                            <span style={{ color: '#C0C0C0' }} className="drop-shadow-sm">
-                                {Math.floor((tooltip.sellPrice % 10000) / 100)}s
-                            </span>
-                        )}
-                        {tooltip.sellPrice % 100 > 0 && (
-                            <span style={{ color: '#B87333' }} className="drop-shadow-sm">
-                                {tooltip.sellPrice % 100}c
-                            </span>
-                        )}
-                    </span>
+                    <Money copper={tooltip.sellPrice} />
                 </div>
             )}
         </div>

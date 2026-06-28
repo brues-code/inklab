@@ -56,8 +56,7 @@ export interface Money {
     c: number
 }
 
-export const formatMoney = (money?: number): Money => {
-    if (!money) return { g: 0, s: 0, c: 0 }
+export const formatMoney = (money: number = 0): Money => {
     const g = Math.floor(money / 10000)
     const s = Math.floor((money % 10000) / 100)
     const c = money % 100
