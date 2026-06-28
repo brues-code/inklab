@@ -991,6 +991,22 @@ func (s *NpcService) syncSpellFromMySQL(spellID int) {
 }
 
 // SyncAllCreatureSpawns syncs spawn points for all creatures
+// RebuildSpawnZones re-resolves every creature and gameobject spawn's zone from
+// world coordinates via the client area grid — the SAME resolver
+// (convertWorldToMapCoords → zoneFromAreaGrid) the per-entry NPC/object sync
+// uses, so a standalone rebuild and a live sync can never drift apart. It is
+// octo-free: coordinates come from the MySQL world DB only. Returns an error
+// (and changes nothing) when no MySQL connection is configured.
+func (s *NpcService) RebuildSpawnZones(progressCb func(current, total int, id int)) error {
+	if s.mysql == nil {
+		return fmt.Errorf("no mysql connection")
+	}
+	if err := s.SyncAllCreatureSpawns(progressCb); err != nil {
+		return err
+	}
+	return s.SyncAllGameObjectSpawns(progressCb)
+}
+
 func (s *NpcService) SyncAllCreatureSpawns(progressCb func(current, total int, id int)) error {
 	if s.mysql == nil {
 		return fmt.Errorf("no mysql connection")

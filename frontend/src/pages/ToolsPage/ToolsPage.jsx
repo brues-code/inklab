@@ -22,6 +22,13 @@ const IMPORTS = [
         sub: 'WDB\\*.wdb',
         desc: "Patch item / quest / creature / gameobject data from your client's WDB caches — everything you've queried in-game. Overlays the freshest server values; existing data is never wiped.",
     },
+    {
+        id: 'spawnZones',
+        name: 'Rebuild Spawn Zones',
+        fn: 'RebuildSpawnZones',
+        sub: 'data/area_grid.bin + world DB coordinates',
+        desc: 'Re-resolve every creature and gameobject spawn to the correct zone using the client area grid (the actual terrain), not overlapping zone boxes. Fixes border mislabels — e.g. Westfall mobs counted in Elwynn, or Elwynn mobs swallowed by Duskwood. No octowow scraping; reports the per-zone net change. Run after a Client Data import so the area grid exists.',
+    },
 ]
 
 // DatasetInventory lists every client-derived dataset and whether it's present,

@@ -274,6 +274,10 @@ export function IsFavorite(arg1) {
   return window['go']['main']['App']['IsFavorite'](arg1);
 }
 
+export function RebuildSpawnZones() {
+  return window['go']['main']['App']['RebuildSpawnZones']();
+}
+
 export function RefreshNpcImages(arg1) {
   return window['go']['main']['App']['RefreshNpcImages'](arg1);
 }

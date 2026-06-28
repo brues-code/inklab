@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"inklab/backend/database"
@@ -66,6 +67,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"itemSets", "Item sets", "ItemSet.dbc", "table", a.countRows("itemsets")},
 		{"factions", "Factions", "Faction.dbc", "table", a.countRows("factions")},
 		{"factionTemplates", "Faction templates (NPC reactions)", "FactionTemplate.dbc", "table", a.countRows("faction_template")},
+		{"areaGrid", "Spawn zone grid", `World\Maps\*.adt terrain`, "table", a.areaGridTiles()},
 		{"taxi", "Flight (taxi) nodes", "TaxiNodes.dbc", "table", a.countRows("taxi_node")},
 		{"creatureFamilies", "Creature families", "CreatureFamily.dbc", "table", a.countRows("creature_family")},
 		{"locks", "Locks", "Lock.dbc", "table", a.countRows("locks")},
@@ -98,6 +100,16 @@ func (a *App) countRows(table string) int {
 		return 0
 	}
 	return n
+}
+
+// areaGridTiles returns the number of ADT tiles in data/area_grid.bin (the
+// authoritative spawn->zone source), or 0 when the grid hasn't been generated.
+func (a *App) areaGridTiles() int {
+	g, err := datatools.LoadAreaGrid(filepath.Join(a.DataDir, "area_grid.bin"))
+	if err != nil || g == nil {
+		return 0
+	}
+	return g.TileCount()
 }
 
 // countFiles returns the number of files in dir with one of the given
@@ -307,6 +319,116 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 		rep.Title = "Client import finished with errors"
 	}
 	return rep
+}
+
+// RebuildSpawnZones re-resolves every creature and gameobject spawn's zone from
+// the authoritative client area grid (data/area_grid.bin), using MySQL world
+// coordinates — no octowow scraping. It heals spawns whose zone was assigned by
+// the older smallest-bounding-box heuristic, which mislabels points where zone
+// boxes overlap (e.g. Westfall's NE corner counted as Elwynn, or Elwynn mobs
+// swallowed by Duskwood). Reports the net per-zone change so the move is visible.
+func (a *App) RebuildSpawnZones() ImportReport {
+	if a.mysqlDB == nil {
+		return ImportReport{
+			Title: "Spawn rebuild unavailable",
+			Lines: []string{"No MySQL connection — the rebuild needs the world DB for spawn coordinates."},
+		}
+	}
+
+	rep := ImportReport{Success: true, Title: "Spawn zones rebuilt"}
+	if g, _ := datatools.LoadAreaGrid(filepath.Join(a.DataDir, "area_grid.bin")); g == nil {
+		rep.Lines = append(rep.Lines,
+			"⚠ area_grid.bin missing — zones fall back to bounding boxes (the bug). Run Client Import first.")
+	}
+
+	before := a.spawnZoneCounts()
+	if err := a.npcService.RebuildSpawnZones(nil); err != nil {
+		return ImportReport{Title: "Spawn rebuild failed", Lines: []string{err.Error()}}
+	}
+	after := a.spawnZoneCounts()
+
+	// Net per-zone change (after - before). Only zones that actually moved.
+	type delta struct {
+		zone        string
+		before, now int
+	}
+	var changes []delta
+	seen := map[string]bool{}
+	for z := range before {
+		seen[z] = true
+	}
+	for z := range after {
+		seen[z] = true
+	}
+	moved := 0
+	for z := range seen {
+		b, n := before[z], after[z]
+		if b != n {
+			changes = append(changes, delta{z, b, n})
+			if n > b {
+				moved += n - b
+			}
+		}
+	}
+	sort.Slice(changes, func(i, j int) bool {
+		di, dj := changes[i].now-changes[i].before, changes[j].now-changes[j].before
+		if di < 0 {
+			di = -di
+		}
+		if dj < 0 {
+			dj = -dj
+		}
+		return di > dj
+	})
+
+	var total int
+	for _, n := range after {
+		total += n
+	}
+	rep.Lines = append(rep.Lines,
+		fmt.Sprintf("%d spawns re-resolved; %d reassigned across %d zones.", total, moved, len(changes)))
+	if len(changes) == 0 {
+		rep.Lines = append(rep.Lines, "No zone changes — spawns already match the area grid.")
+	}
+	const maxShown = 40
+	for i, c := range changes {
+		if i >= maxShown {
+			rep.Lines = append(rep.Lines, fmt.Sprintf("… and %d more zones", len(changes)-maxShown))
+			break
+		}
+		d := c.now - c.before
+		sign := "+"
+		if d < 0 {
+			sign = ""
+		}
+		name := c.zone
+		if name == "" {
+			name = "(no zone)"
+		}
+		rep.Lines = append(rep.Lines, fmt.Sprintf("%s: %d → %d (%s%d)", name, c.before, c.now, sign, d))
+	}
+	return rep
+}
+
+// spawnZoneCounts tallies how many creature + gameobject spawns are assigned to
+// each zone_name — the before/after snapshot RebuildSpawnZones diffs.
+func (a *App) spawnZoneCounts() map[string]int {
+	counts := map[string]int{}
+	for _, tbl := range []string{"creature_spawn", "gameobject_spawn"} {
+		rows, err := a.db.DB().Query("SELECT COALESCE(zone_name, ''), COUNT(*) FROM " + tbl + " GROUP BY zone_name")
+		if err != nil {
+			continue
+		}
+		for rows.Next() {
+			var z string
+			var n int
+			if rows.Scan(&z, &n) == nil {
+				counts[z] += n
+			}
+		}
+		rows.Close()
+	}
+	return counts
 }
 
 // reapplyReferenceData re-applies the JSON-fed reference tables (zones, skills,
