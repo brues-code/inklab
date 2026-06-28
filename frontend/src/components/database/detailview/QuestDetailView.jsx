@@ -209,7 +209,9 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                         {rep.factionId ? (
                                             <span
                                                 className="cursor-pointer hover:underline"
-                                                onClick={() => onNavigate?.('faction', rep.factionId)}
+                                                onClick={() =>
+                                                    onNavigate?.('faction', rep.factionId)
+                                                }
                                             >
                                                 {rep.name}
                                             </span>
@@ -348,7 +350,13 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                             ? detail.classes.map((c, i) => (
                                                   <React.Fragment key={c.name}>
                                                       {i > 0 && ', '}
-                                                      <span style={c.color ? { color: c.color } : undefined}>
+                                                      <span
+                                                          style={
+                                                              c.color
+                                                                  ? { color: c.color }
+                                                                  : undefined
+                                                          }
+                                                      >
                                                           {c.name}
                                                       </span>
                                                   </React.Fragment>
