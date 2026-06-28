@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { useDataStatus } from '../../hooks/queries/app'
 
-// DataStatusBanner alerts app-wide when InkLab has no locally-built image data
-// (icons / zone maps). These ship empty and are built from the user's WoW
-// client via the Tools tab, so without this a fresh user just sees placeholder
-// icons and missing maps with no explanation.
+// DataStatusBanner alerts app-wide when InkLab is missing any locally-built
+// dataset — image data (icons / zone maps / model renders) or a DBC-derived
+// reference table. These ship empty and are built from the user's WoW client
+// via the Tools tab, so without this a fresh (or partially-imported) user just
+// sees placeholder icons, missing maps, or blank reference data with no
+// explanation.
 //
-// Dismissal is session-only: if the data is still missing on the next launch,
+// It reads the full per-dataset inventory from GetDataStatus and reports every
+// dataset whose count is 0, so it stays accurate as datasets are added without
+// needing to hand-maintain a list here. It disappears entirely once nothing is
+// missing.
+//
+// Dismissal is session-only: if anything is still missing on the next launch,
 // the banner returns — it should keep nudging until resolved, but not nag
 // within a session.
 export function DataStatusBanner({ onGoToTools }) {
@@ -14,18 +21,25 @@ export function DataStatusBanner({ onGoToTools }) {
 
     // One-shot data-presence check, cached for the session.
     const { data: status } = useDataStatus()
-    const missing = [status?.icons === 0 && 'icons', status?.maps === 0 && 'zone maps'].filter(
-        Boolean,
-    )
+
+    // Every dataset currently empty. Until the status loads, treat nothing as
+    // missing so we don't flash the banner on startup.
+    const missing = (status?.datasets ?? []).filter((d) => d.count === 0)
 
     if (dismissed || missing.length === 0) return null
+
+    const labels = missing.map((d) => d.label)
+    const summary =
+        labels.length <= 3
+            ? labels.join(', ')
+            : `${labels.slice(0, 3).join(', ')} and ${labels.length - 3} more`
 
     return (
         <div className="flex items-center justify-between gap-4 border-b border-amber-500/40 bg-amber-500/15 px-5 py-2 text-sm text-amber-300">
             <span>
-                ⚠️ No <strong>{missing.join(' or ')}</strong> found — InkLab builds these from your
-                WoW client. Items will show placeholder icons and NPCs won't show a zone map until
-                you import them.
+                ⚠️ Missing data:{' '}
+                <strong title={labels.join(', ')}>{summary}</strong> — InkLab builds these from your
+                WoW client. Affected pages will show placeholders until you import them.
             </span>
             <div className="flex items-center gap-4">
                 <button
