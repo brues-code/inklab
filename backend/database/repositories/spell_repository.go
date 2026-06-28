@@ -619,7 +619,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	// learn-spell reward (RewSpell or RewSpellCast) whose triggered spell is this
 	// one. Plain RewSpellCast (completion buffs/summons) is intentionally excluded.
 	questRows, err := r.db.Query(`
-		SELECT DISTINCT q.entry, q.Title, q.QuestLevel
+		SELECT DISTINCT q.entry, q.Title, q.QuestLevel, IFNULL(q.RequiredRaces,0)
 		FROM quest_template q
 		WHERE q.RewSpell = ?
 		   OR EXISTS (
@@ -635,7 +635,9 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		defer questRows.Close()
 		for questRows.Next() {
 			q := &models.SpellRewardQuest{}
-			if err := questRows.Scan(&q.Entry, &q.Title, &q.Level); err == nil {
+			var reqRaces int
+			if err := questRows.Scan(&q.Entry, &q.Title, &q.Level, &reqRaces); err == nil {
+				q.Side, _ = resolveSideAndRaces(reqRaces)
 				detail.TaughtByQuests = append(detail.TaughtByQuests, q)
 			}
 		}

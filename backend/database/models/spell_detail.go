@@ -57,4 +57,5 @@ type SpellRewardQuest struct {
 	Entry int    `json:"entry"`
 	Title string `json:"title"`
 	Level int    `json:"level"`
+	Side  string `json:"side"` // "Alliance", "Horde", or "Both" (from RequiredRaces)
 }

@@ -296,9 +296,22 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                         className="flex cursor-pointer items-center gap-2 rounded p-1.5 transition-colors hover:bg-white/5"
                                         onClick={() => onNavigate?.('quest', q.entry)}
                                     >
-                                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-emerald-400/40 bg-emerald-400/20 text-[8px] font-bold text-emerald-300">
-                                            Q
-                                        </span>
+                                        {q.side === 'Horde' || q.side === 'Alliance' ? (
+                                            <img
+                                                src={
+                                                    q.side === 'Horde'
+                                                        ? '/Horde_15.webp'
+                                                        : '/Alliance_15.webp'
+                                                }
+                                                className="h-6 w-6 flex-shrink-0 object-contain"
+                                                alt={q.side}
+                                                title={q.side}
+                                            />
+                                        ) : (
+                                            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-emerald-400/40 bg-emerald-400/20 text-[8px] font-bold text-emerald-300">
+                                                Q
+                                            </span>
+                                        )}
                                         <span className="truncate text-sm font-medium text-wow-gold">
                                             {q.title || `Quest #${q.entry}`}
                                         </span>

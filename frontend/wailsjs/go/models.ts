@@ -2495,6 +2495,7 @@ export namespace models {
 	    entry: number;
 	    title: string;
 	    level: number;
+	    side: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SpellRewardQuest(source);
@@ -2505,6 +2506,7 @@ export namespace models {
 	        this.entry = source["entry"];
 	        this.title = source["title"];
 	        this.level = source["level"];
+	        this.side = source["side"];
 	    }
 	}
 	export class SpellTrainerNpc {
