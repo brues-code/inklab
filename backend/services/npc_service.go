@@ -546,6 +546,7 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 
 				// Convert world coordinates to map percentage (0-100)
 				zoneName, mapX, mapY := s.convertWorldToMapCoords(mapId, 0, worldX, worldY)
+				zoneName, mapX, mapY = s.applyCityOverride(mapId, worldX, worldY, z, zoneName, mapX, mapY)
 
 				_, err = s.sqlite.Exec(`
 					INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
@@ -797,6 +798,46 @@ func (s *NpcService) ResolveContinentPoint(mapID int, cx, cy float64) (zoneName 
 		return name, mx, my, true
 	}
 	return "", 0, 0, false
+}
+
+// undergroundCity is a capital whose interior is a WMO sitting BELOW the terrain,
+// so the area grid (which reads surface MCNK area ids) tags its spawns with the
+// surface zone (Ironforge→Dun Morogh, Undercity→Tirisfal). We recover the city
+// from the spawn's world position: its XY falls inside the city's WorldMapArea
+// rect (from zones.json) and its Z is at/below zMax. zMax separates the city from
+// any surface zone directly above it.
+type undergroundCity struct {
+	areatableID int
+	zMax        float64
+}
+
+var undergroundCities = []undergroundCity{
+	// Ironforge sits inside the mountain; nothing spawns on the rock above its
+	// footprint, so XY containment alone is safe (zMax effectively disabled).
+	{areatableID: 1537, zMax: math.MaxFloat64},
+	// Undercity is below the Ruins of Lordaeron (a Tirisfal subzone with surface
+	// spawns at Z>0), so require the spawn to actually be underground.
+	{areatableID: 1497, zMax: 0},
+}
+
+// applyCityOverride reclassifies a spawn into an underground capital when its
+// world position lies inside the city's rect and below its Z ceiling. Returns the
+// city name + its local 0-100 coords; otherwise returns the inputs unchanged.
+// Z-based, so it only applies on the MySQL spawn path (octowow gives no Z).
+func (s *NpcService) applyCityOverride(mapID int, worldX, worldY, worldZ float64, zoneName string, mapX, mapY float64) (string, float64, float64) {
+	s.loadZoneBounds()
+	for _, c := range undergroundCities {
+		zb := s.zoneByArea[c.areatableID]
+		if zb == nil || zb.MapID != mapID || (zb.XMin == 0 && zb.XMax == 0) {
+			continue
+		}
+		if worldX > zb.XMin && worldX < zb.XMax && worldY > zb.YMin && worldY < zb.YMax && worldZ <= c.zMax {
+			mx := clampPct((zb.YMax - worldY) / (zb.YMax - zb.YMin) * 100)
+			my := clampPct((zb.XMax - worldX) / (zb.XMax - zb.XMin) * 100)
+			return zb.Name, mx, my
+		}
+	}
+	return zoneName, mapX, mapY
 }
 
 // convertWorldToMapCoords converts world coordinates to map percentage coordinates (0-100)
@@ -1074,6 +1115,7 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 			continue
 		}
 		zoneName, mapX, mapY := s.convertWorldToMapCoords(mapId, 0, worldX, worldY)
+		zoneName, mapX, mapY = s.applyCityOverride(mapId, worldX, worldY, z, zoneName, mapX, mapY)
 		if _, err := s.sqlite.Exec(`
 			INSERT INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
