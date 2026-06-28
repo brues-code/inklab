@@ -191,6 +191,24 @@ func wdtTiles(cf ClientFiles, dir string) []tileXY {
 	return nil
 }
 
+// readMCNK pulls a chunk's IndexX/IndexY and areaid from an MCNK header that
+// begins at byte i (the 4-byte magic), writing the resolved top-zone into out.
+// Returns true if it recorded a valid area.
+func readMCNK(b []byte, i int, out *[256]uint16, topZone func(uint32) uint32) bool {
+	if i+8+0x38 > len(b) {
+		return false
+	}
+	h := i + 8
+	ix := binary.LittleEndian.Uint32(b[h+0x04 : h+0x08])
+	iy := binary.LittleEndian.Uint32(b[h+0x08 : h+0x0C])
+	area := binary.LittleEndian.Uint32(b[h+0x34 : h+0x38])
+	if ix < 16 && iy < 16 && area != 0 {
+		out[iy*16+ix] = uint16(topZone(area))
+		return true
+	}
+	return false
+}
+
 // tileZones reads an ADT's MCNK chunks and returns each chunk's top-level zone id,
 // indexed by iy*16+ix from the chunk's own IndexX/IndexY header fields.
 func tileZones(b []byte, topZone func(uint32) uint32) ([256]uint16, bool) {
@@ -199,13 +217,8 @@ func tileZones(b []byte, topZone func(uint32) uint32) ([256]uint16, bool) {
 	for i := 0; i+8 < len(b); {
 		magic := string(b[i : i+4])
 		size := binary.LittleEndian.Uint32(b[i+4 : i+8])
-		if magic == "KNCM" && i+8+0x38 <= len(b) { // MCNK header (>=0x38 for areaid)
-			h := i + 8
-			ix := binary.LittleEndian.Uint32(b[h+0x04 : h+0x08])
-			iy := binary.LittleEndian.Uint32(b[h+0x08 : h+0x0C])
-			area := binary.LittleEndian.Uint32(b[h+0x34 : h+0x38])
-			if ix < 16 && iy < 16 && area != 0 {
-				out[iy*16+ix] = uint16(topZone(area))
+		if magic == "KNCM" { // MCNK
+			if readMCNK(b, i, &out, topZone) {
 				any = true
 			}
 		}
@@ -215,6 +228,22 @@ func tileZones(b []byte, topZone func(uint32) uint32) ([256]uint16, bool) {
 		// an extra byte here and desynced the rest of the ADT, so MCNK was never
 		// found — dropping ~60% of outdoor tiles from the grid.)
 		i += 8 + int(size)
+	}
+	if any {
+		return out, true
+	}
+
+	// Fallback: a few ADTs have a pre-MCNK chunk whose declared size is off by a
+	// byte, desyncing the structured walk so MCNK is never reached. Brute-scan the
+	// buffer for the MCNK magic and validate each candidate by its header fields
+	// (ix/iy in range, nonzero area), which makes a false positive in payload bytes
+	// extremely unlikely.
+	for i := 0; i+8+0x38 <= len(b); i++ {
+		if b[i] == 'K' && b[i+1] == 'N' && b[i+2] == 'C' && b[i+3] == 'M' {
+			if readMCNK(b, i, &out, topZone) {
+				any = true
+			}
+		}
 	}
 	return out, any
 }
