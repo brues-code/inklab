@@ -187,9 +187,6 @@ func wdtTiles(cf ClientFiles, dir string) []tileXY {
 			return out
 		}
 		i += 8 + int(size)
-		if size == 0 {
-			i++
-		}
 	}
 	return nil
 }
@@ -212,10 +209,12 @@ func tileZones(b []byte, topZone func(uint32) uint32) ([256]uint16, bool) {
 				any = true
 			}
 		}
+		// Advance by the 8-byte header + payload. A zero-size chunk (e.g. an empty
+		// MMDX/MMID on a tile with no doodads) is normal: i still advances 8 bytes,
+		// so the walk stays aligned. (A previous `if size==0 { i++ }` guard skipped
+		// an extra byte here and desynced the rest of the ADT, so MCNK was never
+		// found — dropping ~60% of outdoor tiles from the grid.)
 		i += 8 + int(size)
-		if size == 0 {
-			i++
-		}
 	}
 	return out, any
 }
