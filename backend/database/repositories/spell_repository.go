@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"inklab/backend/database/helpers"
 	"inklab/backend/database/models"
@@ -709,14 +710,60 @@ func (r *SpellRepository) effectQualifier(auraType, misc int) string {
 			r.db.QueryRow("SELECT name FROM stat_types WHERE id = ?", baseStatToStatType[misc]).Scan(&name)
 			return name
 		}
-	case 13, 14, 22, 59, 101, 143, 168: // school-mask auras (damage done/taken, resistance)
+	case 13, 14, 22, 39, 59, 101, 143, 168: // school-mask auras (damage done/taken, resistance, school immunity)
 		return r.schoolMaskNames(misc)
 	case 30, 98: // Mod Skill / Mod Skill Talent
 		var name string
 		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", misc).Scan(&name)
 		return name
+	case 77: // Mechanic Immunity — misc is a single mechanic id
+		return r.mechanicName(misc)
+	case 147: // Mechanic Immunity Mask — misc is a bitmask of 1<<(id-1)
+		return r.mechanicMaskNames(misc)
 	}
 	return ""
+}
+
+// mechanicName returns the title-cased name for a single spell mechanic id
+// (e.g. 7 -> "Rooted"), or "" if unknown.
+func (r *SpellRepository) mechanicName(id int) string {
+	if id <= 0 {
+		return ""
+	}
+	var n string
+	r.db.QueryRow("SELECT name FROM spell_mechanics WHERE id = ?", id).Scan(&n)
+	return capitalizeFirst(n)
+}
+
+// mechanicMaskNames decodes a mechanic-immunity bitmask into a readable list.
+// Each mechanic id contributes bit 1<<(id-1) (so the PvP-trinket mask reads
+// "Charmed, Disoriented, Fleeing, ..."). Bits with no matching mechanic in the
+// client DBC are skipped.
+func (r *SpellRepository) mechanicMaskNames(mask int) string {
+	if mask <= 0 {
+		return ""
+	}
+	var names []string
+	for id := 1; id <= 32; id++ {
+		if mask&(1<<uint(id-1)) == 0 {
+			continue
+		}
+		if n := r.mechanicName(id); n != "" {
+			names = append(names, n)
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
+// capitalizeFirst upper-cases the first rune of s (mechanic names are stored
+// lowercase, e.g. "rooted").
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
 
 // schoolMaskNames turns a spell-school bitmask into "Fire", "Fire/Frost", etc.,
