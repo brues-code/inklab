@@ -327,7 +327,11 @@ func (a *App) RunClientImport(baseDir string) ImportReport {
 // the older smallest-bounding-box heuristic, which mislabels points where zone
 // boxes overlap (e.g. Westfall's NE corner counted as Elwynn, or Elwynn mobs
 // swallowed by Duskwood). Reports the net per-zone change so the move is visible.
-func (a *App) RebuildSpawnZones() ImportReport {
+// baseDir is unused (spawns come from MySQL + the area grid, not the client
+// folder) but kept so the method matches the Tools "run with base path" calling
+// convention shared by RunClientImport / RunCacheImport.
+func (a *App) RebuildSpawnZones(baseDir string) ImportReport {
+	_ = baseDir
 	if a.mysqlDB == nil {
 		return ImportReport{
 			Title: "Spawn rebuild unavailable",
