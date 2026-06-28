@@ -41,6 +41,9 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
     const [service, setService] = useState(null) // active service filter id
     // Map style: 'atlas' = painted WorldMap, 'terrain' = in-game minimap art.
     const [mapStyle, setMapStyle] = useState('atlas')
+    // The marker currently hovered on the map: {entry, name, x, y}. Drives a
+    // single floating name tooltip (one element, not one per dot).
+    const [hovered, setHovered] = useState(null)
 
     const { data: detail, isLoading: loading } = useZoneDetail(entry)
 
@@ -127,11 +130,26 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
         setTab(s.kind === 'obj' ? 'objects' : 'npcs')
     }
 
+    // Marker entry -> name, so hovering a dot can show what it is. The active
+    // tab decides whether markers are creatures or objects.
+    const markerName = (showingObjects ? allObjects : allNpcs).reduce((m, e) => {
+        m.set(e.entry, e.name)
+        return m
+    }, new Map())
+    const markerKind = showingObjects ? 'object' : 'npc'
+
     const renderMarkers = (size) =>
         spawns.map((s, idx) => (
             <div
                 key={idx}
-                className={`absolute rounded-full border shadow ${markerClass}`}
+                onMouseEnter={() =>
+                    setHovered({ entry: s.entry, name: markerName.get(s.entry), x: s.x, y: s.y })
+                }
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onNavigate(markerKind, s.entry)
+                }}
+                className={`absolute cursor-pointer rounded-full border shadow ${markerClass}`}
                 style={{
                     width: size,
                     height: size,
@@ -142,6 +160,20 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                 }}
             />
         ))
+
+    // A single floating tooltip at the hovered dot — cheap regardless of how many
+    // markers a dense zone has. Rendered inside each map container (shares state).
+    const markerTooltip = hovered && (
+        <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded border border-white/20 bg-black/90 px-2 py-1 text-xs text-white shadow-lg"
+            style={{ left: `${hovered.x}%`, top: `${hovered.y}%`, marginTop: -6 }}
+        >
+            <div className="font-semibold text-wow-gold">{hovered.name || `#${hovered.entry}`}</div>
+            <div className="font-mono text-gray-300">
+                {hovered.x.toFixed(1)}, {hovered.y.toFixed(1)}
+            </div>
+        </div>
+    )
 
     return (
         <>
@@ -227,6 +259,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                                 backgroundImage: mapImage.src ? `url(${mapImage.src})` : 'none',
                             }}
                             onClick={() => mapImage.src && setShowMapModal(true)}
+                            onMouseLeave={() => setHovered(null)}
                         >
                             {!mapImage.src && !mapImage.loading && (
                                 <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -240,6 +273,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                             )}
 
                             {mapImage.src && renderMarkers(8)}
+                            {mapImage.src && markerTooltip}
 
                             <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded bg-black/50 text-white/80 opacity-0 transition-opacity group-hover:opacity-100">
                                 ⤢
@@ -431,13 +465,17 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                         className="relative max-h-[90vh] max-w-[90vw]"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="relative inline-block">
+                        <div
+                            className="relative inline-block"
+                            onMouseLeave={() => setHovered(null)}
+                        >
                             <img
                                 src={mapImage.src}
                                 alt={detail.name}
                                 className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
                             />
                             {renderMarkers(10)}
+                            {markerTooltip}
                         </div>
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-black/80 px-4 py-2 font-bold text-white">
                             {detail.name}
