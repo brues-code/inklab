@@ -17,6 +17,19 @@ import {
     LootItem,
 } from '../../ui'
 
+// reactionColor maps a faction reaction ("friendly"/"hostile"/"neutral") to a
+// text color: friendly = green, hostile = red, neutral = gray.
+const reactionColor = (reaction) => {
+    switch (reaction) {
+        case 'friendly':
+            return 'text-green-400'
+        case 'hostile':
+            return 'text-red-400'
+        default:
+            return 'text-gray-500'
+    }
+}
+
 // Helper component for Icon Header
 const ItemIconHeader = ({ iconName, iconPath, imgError, fixing, handleFixIcon, qualityColor }) => {
     // Determine icon name to use
@@ -509,14 +522,35 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                 onClick={() => onNavigate('npc', npc.entry)}
                             >
                                 <div>
-                                    <div className="font-bold text-white hover:text-wow-gold">
-                                        {npc.name}
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-white hover:text-wow-gold">
+                                            {npc.name}
+                                        </span>
+                                        {(npc.reactionA || npc.reactionH) && (
+                                            <span className="flex gap-0.5 font-mono text-[11px] font-bold">
+                                                <span
+                                                    className={reactionColor(npc.reactionA)}
+                                                    title={`Alliance: ${npc.reactionA}`}
+                                                >
+                                                    A
+                                                </span>
+                                                <span
+                                                    className={reactionColor(npc.reactionH)}
+                                                    title={`Horde: ${npc.reactionH}`}
+                                                >
+                                                    H
+                                                </span>
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                         Level {npc.levelMin}
                                         {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
                                         {npc.stock > 0 ? ` · ${npc.stock} in stock` : ''}
                                     </div>
+                                    {npc.location && (
+                                        <div className="text-xs text-wow-rare">{npc.location}</div>
+                                    )}
                                 </div>
                                 {m && (
                                     <div className="whitespace-nowrap font-mono text-sm">

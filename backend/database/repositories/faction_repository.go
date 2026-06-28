@@ -71,7 +71,7 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 
 	// Get quests that reward reputation with this faction
 	questRows, _ := r.db.Query(`
-		SELECT entry, Title, QuestLevel
+		SELECT entry, Title, QuestLevel, IFNULL(RequiredRaces,0)
 		FROM quest_template
 		WHERE RewRepFaction1 = ? OR RewRepFaction2 = ? OR RewRepFaction3 = ? OR RewRepFaction4 = ?
 		ORDER BY QuestLevel
@@ -81,7 +81,9 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 		defer questRows.Close()
 		for questRows.Next() {
 			qr := &models.QuestRelation{}
-			if err := questRows.Scan(&qr.Entry, &qr.Title, &qr.Level); err == nil {
+			var reqRaces int
+			if err := questRows.Scan(&qr.Entry, &qr.Title, &qr.Level, &reqRaces); err == nil {
+				qr.Side, _ = resolveSideAndRaces(reqRaces)
 				f.Quests = append(f.Quests, qr)
 			}
 		}

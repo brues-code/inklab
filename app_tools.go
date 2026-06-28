@@ -65,6 +65,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"talents", "Talents", "Talent.dbc + TalentTab.dbc", "table", a.countRows("talent")},
 		{"itemSets", "Item sets", "ItemSet.dbc", "table", a.countRows("itemsets")},
 		{"factions", "Factions", "Faction.dbc", "table", a.countRows("factions")},
+		{"factionTemplates", "Faction templates (NPC reactions)", "FactionTemplate.dbc", "table", a.countRows("faction_template")},
 		{"taxi", "Flight (taxi) nodes", "TaxiNodes.dbc", "table", a.countRows("taxi_node")},
 		{"creatureFamilies", "Creature families", "CreatureFamily.dbc", "table", a.countRows("creature_family")},
 		{"locks", "Locks", "Lock.dbc", "table", a.countRows("locks")},

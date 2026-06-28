@@ -115,6 +115,7 @@ type QuestRelation struct {
 	Title string `json:"title,omitempty"` // Quest title (alias for Name in some contexts)
 	Level int    `json:"level,omitempty"` // Quest level
 	Type  string `json:"type"`            // "npc", "object", "quest", "starts", "ends"
+	Side  string `json:"side,omitempty"`  // "Alliance"/"Horde"/"Both" for quest relations
 }
 
 // QuestCategoryGroup represents a top-level quest category group

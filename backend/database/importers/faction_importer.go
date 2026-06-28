@@ -54,6 +54,9 @@ func (f *FactionImporter) ImportFromJSON(jsonPath string) error {
 type factionTemplateJSON struct {
 	TemplateID int `json:"id"`
 	FactionID  int `json:"faction"`
+	OurMask    int `json:"ourMask"`
+	FriendMask int `json:"friendMask"`
+	EnemyMask  int `json:"enemyMask"`
 }
 
 // ImportTemplatesFromJSON loads faction_templates.json (FactionTemplate.dbc:
@@ -74,13 +77,13 @@ func (f *FactionImporter) ImportTemplatesFromJSON(jsonPath string) error {
 	}
 	defer tx.Rollback()
 	tx.Exec("DELETE FROM faction_template")
-	stmt, err := tx.Prepare("INSERT OR REPLACE INTO faction_template (template_id, faction_id) VALUES (?, ?)")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO faction_template (template_id, faction_id, our_mask, friend_mask, enemy_mask) VALUES (?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, t := range rows {
-		stmt.Exec(t.TemplateID, t.FactionID)
+		stmt.Exec(t.TemplateID, t.FactionID, t.OurMask, t.FriendMask, t.EnemyMask)
 	}
 	return tx.Commit()
 }

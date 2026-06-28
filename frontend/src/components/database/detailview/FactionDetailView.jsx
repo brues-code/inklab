@@ -156,9 +156,21 @@ const FactionDetailView = ({ id, onBack, onNavigate }) => {
                                     <div
                                         key={q.entry}
                                         onClick={() => onNavigate('quest', q.entry)}
-                                        className="cursor-pointer rounded border border-white/5 bg-white/[0.02] p-3 transition-colors hover:bg-white/5"
+                                        className="flex cursor-pointer items-center gap-2 rounded border border-white/5 bg-white/[0.02] p-3 transition-colors hover:bg-white/5"
                                     >
-                                        <span className="font-medium text-wow-gold hover:text-yellow-300">
+                                        {(q.side === 'Horde' || q.side === 'Alliance') && (
+                                            <img
+                                                src={
+                                                    q.side === 'Horde'
+                                                        ? '/Horde_15.webp'
+                                                        : '/Alliance_15.webp'
+                                                }
+                                                className="h-4 w-4 flex-shrink-0 object-contain"
+                                                alt={q.side}
+                                                title={q.side}
+                                            />
+                                        )}
+                                        <span className="min-w-0 truncate font-medium text-wow-gold hover:text-yellow-300">
                                             [{q.level}] {q.title}
                                         </span>
                                     </div>

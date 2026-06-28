@@ -924,6 +924,7 @@ export namespace models {
 	    title?: string;
 	    level?: number;
 	    type: string;
+	    side?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new QuestRelation(source);
@@ -936,6 +937,7 @@ export namespace models {
 	        this.title = source["title"];
 	        this.level = source["level"];
 	        this.type = source["type"];
+	        this.side = source["side"];
 	    }
 	}
 	export class LootItem {
@@ -1663,6 +1665,9 @@ export namespace models {
 	    levelMax: number;
 	    cost: number;
 	    stock: number;
+	    location: string;
+	    reactionA: string;
+	    reactionH: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemVendor(source);
@@ -1676,6 +1681,9 @@ export namespace models {
 	        this.levelMax = source["levelMax"];
 	        this.cost = source["cost"];
 	        this.stock = source["stock"];
+	        this.location = source["location"];
+	        this.reactionA = source["reactionA"];
+	        this.reactionH = source["reactionH"];
 	    }
 	}
 	export class ItemDrop {

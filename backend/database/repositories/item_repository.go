@@ -1450,9 +1450,19 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 		       COALESCE(NULLIF(c.name, ''), iv.npc_name),
 		       COALESCE(NULLIF(c.level_min, 0), iv.level_min),
 		       COALESCE(NULLIF(c.level_max, 0), iv.level_max),
-		       iv.cost, iv.stock
+		       iv.cost, iv.stock,
+		       COALESCE((
+		           SELECT GROUP_CONCAT(z, ', ') FROM (
+		               SELECT DISTINCT zone_name AS z
+		               FROM creature_spawn
+		               WHERE creature_entry = iv.npc_entry AND zone_name <> ''
+		               ORDER BY zone_name
+		           )
+		       ), ''),
+		       COALESCE(ft.our_mask, 0), COALESCE(ft.friend_mask, 0), COALESCE(ft.enemy_mask, 0)
 		FROM item_vendor iv
 		LEFT JOIN creature_template c ON iv.npc_entry = c.entry
+		LEFT JOIN faction_template ft ON c.faction = ft.template_id
 		WHERE iv.item_entry = ?
 		ORDER BY iv.npc_name
 	`, entry)
@@ -1460,7 +1470,13 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 		defer rows4.Close()
 		for rows4.Next() {
 			v := &models.ItemVendor{}
-			rows4.Scan(&v.Entry, &v.Name, &v.LevelMin, &v.LevelMax, &v.Cost, &v.Stock)
+			var ourMask, friendMask, enemyMask int
+			rows4.Scan(&v.Entry, &v.Name, &v.LevelMin, &v.LevelMax, &v.Cost, &v.Stock, &v.Location,
+				&ourMask, &friendMask, &enemyMask)
+			if ourMask != 0 || friendMask != 0 || enemyMask != 0 {
+				v.ReactionA = helpers.GetFactionReaction(ourMask, friendMask, enemyMask, helpers.FactionMaskAlliance)
+				v.ReactionH = helpers.GetFactionReaction(ourMask, friendMask, enemyMask, helpers.FactionMaskHorde)
+			}
 			detail.SoldBy = append(detail.SoldBy, v)
 		}
 	}

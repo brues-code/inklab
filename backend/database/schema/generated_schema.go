@@ -580,6 +580,9 @@ func GeneratedSchema() string {
     CREATE TABLE IF NOT EXISTS faction_template (
         template_id INTEGER NOT NULL,
         faction_id INTEGER DEFAULT 0,
+        our_mask INTEGER DEFAULT 0,
+        friend_mask INTEGER DEFAULT 0,
+        enemy_mask INTEGER DEFAULT 0,
         PRIMARY KEY (template_id)
     );
 

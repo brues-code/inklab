@@ -399,6 +399,31 @@ func DecodeSpellAttributes(fields [6]uint32) []string {
 	return out
 }
 
+// Faction group masks from FactionTemplate.dbc (FACTION_MASK_*).
+const (
+	FactionMaskPlayer   = 1
+	FactionMaskAlliance = 2
+	FactionMaskHorde    = 4
+	FactionMaskMonster  = 8
+)
+
+// GetFactionReaction derives an NPC's reaction toward a player faction group
+// (target = FactionMaskAlliance or FactionMaskHorde) from its FactionTemplate
+// group masks. Returns "hostile", "friendly", or "neutral". Enemy takes
+// precedence over friend; an NPC in the target's own group counts as friendly.
+func GetFactionReaction(ourMask, friendMask, enemyMask, target int) string {
+	switch {
+	case enemyMask&target != 0:
+		return "hostile"
+	case friendMask&target != 0:
+		return "friendly"
+	case ourMask&target != 0:
+		return "friendly"
+	default:
+		return "neutral"
+	}
+}
+
 // GetSchoolName returns the magic school name for damage types
 func GetSchoolName(school int) string {
 	switch school {

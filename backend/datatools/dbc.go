@@ -796,14 +796,19 @@ func factionSide(id, parent uint32) int {
 }
 
 // factionTemplateOut maps a FactionTemplate id (creature.faction) to its
-// Faction.dbc id.
+// Faction.dbc id, plus the group masks used to derive Alliance/Horde reaction.
 type factionTemplateOut struct {
 	TemplateID int `json:"id"`
 	FactionID  int `json:"faction"`
+	OurMask    int `json:"ourMask"`    // factionGroup the template belongs to
+	FriendMask int `json:"friendMask"` // groups it's friendly toward
+	EnemyMask  int `json:"enemyMask"`  // groups it's hostile toward
 }
 
-// writeFactionTemplates emits FactionTemplate.dbc as {id, faction} pairs. In
-// vanilla the layout is field 0 = template id, field 1 = Faction.dbc id.
+// writeFactionTemplates emits FactionTemplate.dbc rows. In vanilla the layout is
+// field 0 = template id, 1 = Faction.dbc id, 3 = factionGroup (ourMask),
+// 4 = friendGroup, 5 = enemyGroup. The group masks drive the A/H reaction shown
+// for NPCs (FACTION_MASK_ALLIANCE=2, FACTION_MASK_HORDE=4).
 func writeFactionTemplates(cf ClientFiles, outPath string) error {
 	d, err := openDBCFrom(cf, "FactionTemplate.dbc")
 	if err != nil {
@@ -814,6 +819,9 @@ func writeFactionTemplates(cf ClientFiles, outPath string) error {
 		out = append(out, factionTemplateOut{
 			TemplateID: int(d.U32(rec, 0)),
 			FactionID:  int(d.U32(rec, 1)),
+			OurMask:    int(d.U32(rec, 3)),
+			FriendMask: int(d.U32(rec, 4)),
+			EnemyMask:  int(d.U32(rec, 5)),
 		})
 	}
 	b, err := json.Marshal(out)

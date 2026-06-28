@@ -189,28 +189,28 @@ type TooltipEffect struct {
 }
 
 type TooltipData struct {
-	Entry         int          `json:"entry"`
-	Name          string       `json:"name"`
-	Quality       int          `json:"quality"`
-	ItemLevel     int          `json:"itemLevel,omitempty"`
-	Binding       string       `json:"binding,omitempty"`
-	Unique        bool         `json:"unique,omitempty"`
-	ItemType      string       `json:"typeName,omitempty"`
-	Slot          string       `json:"slotName,omitempty"`
-	Armor         int          `json:"armor,omitempty"`
-	DamageRange   string       `json:"damageText,omitempty"`
-	AttackSpeed   string       `json:"speedText,omitempty"`
-	DPS           string       `json:"dps,omitempty"`
+	Entry         int             `json:"entry"`
+	Name          string          `json:"name"`
+	Quality       int             `json:"quality"`
+	ItemLevel     int             `json:"itemLevel,omitempty"`
+	Binding       string          `json:"binding,omitempty"`
+	Unique        bool            `json:"unique,omitempty"`
+	ItemType      string          `json:"typeName,omitempty"`
+	Slot          string          `json:"slotName,omitempty"`
+	Armor         int             `json:"armor,omitempty"`
+	DamageRange   string          `json:"damageText,omitempty"`
+	AttackSpeed   string          `json:"speedText,omitempty"`
+	DPS           string          `json:"dps,omitempty"`
 	Stats         []string        `json:"stats,omitempty"`
 	Resistances   []string        `json:"resistances,omitempty"`
 	Effects       []TooltipEffect `json:"effects,omitempty"`
-	RequiredLevel int          `json:"requiredLevel,omitempty"`
-	SellPrice     int          `json:"sellPrice,omitempty"`
-	Durability    string       `json:"durability,omitempty"`
-	Classes       string       `json:"classes,omitempty"`
-	Races         string       `json:"races,omitempty"`
-	SetInfo       *ItemSetInfo `json:"setInfo,omitempty"`
-	Description   string       `json:"description,omitempty"`
+	RequiredLevel int             `json:"requiredLevel,omitempty"`
+	SellPrice     int             `json:"sellPrice,omitempty"`
+	Durability    string          `json:"durability,omitempty"`
+	Classes       string          `json:"classes,omitempty"`
+	Races         string          `json:"races,omitempty"`
+	SetInfo       *ItemSetInfo    `json:"setInfo,omitempty"`
+	Description   string          `json:"description,omitempty"`
 }
 
 // ItemClass represents a WoW item class (Weapon, Armor, etc.)
@@ -250,22 +250,22 @@ type ItemDetail struct {
 	// re-declared here: they already come from the embedded *Item (populated by
 	// the repository). Re-declaring them as zero-valued outer fields shadowed
 	// the embedded values in JSON, zeroing them out for the frontend.
-	DisplayID  int             `json:"displayId"`
-	Flags      int             `json:"flags"`
-	BuyCount   int             `json:"buyCount"`
-	Stackable  int             `json:"stackable"`
-	Material   int             `json:"material"`
-	DroppedBy   []*CreatureDrop    `json:"droppedBy"`
-	RewardFrom  []*QuestReward     `json:"rewardFrom"`
-	Contains    []*ItemDrop        `json:"contains"`
-	SoldBy      []*ItemVendor      `json:"soldBy"`
-	CreatedBy   []*ItemCraftSource `json:"createdBy"`
-	ReagentFor  []*ItemReagentUse  `json:"reagentFor"`
-	ContainedIn     []*ItemContainer `json:"containedIn"`     // gameobject chests
-	ContainedInItem []*ItemContainer `json:"containedInItem"` // container items
-	GatheredFrom []*ItemContainer  `json:"gatheredFrom"`
-	ObjectiveOf []*QuestReward     `json:"objectiveOf"`
-	StartsQuest *QuestReward       `json:"startsQuest,omitempty"`
+	DisplayID       int                `json:"displayId"`
+	Flags           int                `json:"flags"`
+	BuyCount        int                `json:"buyCount"`
+	Stackable       int                `json:"stackable"`
+	Material        int                `json:"material"`
+	DroppedBy       []*CreatureDrop    `json:"droppedBy"`
+	RewardFrom      []*QuestReward     `json:"rewardFrom"`
+	Contains        []*ItemDrop        `json:"contains"`
+	SoldBy          []*ItemVendor      `json:"soldBy"`
+	CreatedBy       []*ItemCraftSource `json:"createdBy"`
+	ReagentFor      []*ItemReagentUse  `json:"reagentFor"`
+	ContainedIn     []*ItemContainer   `json:"containedIn"`     // gameobject chests
+	ContainedInItem []*ItemContainer   `json:"containedInItem"` // container items
+	GatheredFrom    []*ItemContainer   `json:"gatheredFrom"`
+	ObjectiveOf     []*QuestReward     `json:"objectiveOf"`
+	StartsQuest     *QuestReward       `json:"startsQuest,omitempty"`
 }
 
 // ItemContainer is a container (gameobject chest or other item) whose loot
@@ -323,12 +323,15 @@ type CraftReagent struct {
 // "sold by" list). Cost is the money price in copper (0 when bought with an
 // extended-cost currency); Stock is -1 for unlimited.
 type ItemVendor struct {
-	Entry    int    `json:"entry"`
-	Name     string `json:"name"`
-	LevelMin int    `json:"levelMin"`
-	LevelMax int    `json:"levelMax"`
-	Cost     int    `json:"cost"`
-	Stock    int    `json:"stock"`
+	Entry     int    `json:"entry"`
+	Name      string `json:"name"`
+	LevelMin  int    `json:"levelMin"`
+	LevelMax  int    `json:"levelMax"`
+	Cost      int    `json:"cost"`
+	Stock     int    `json:"stock"`
+	Location  string `json:"location"`  // vendor's spawn zone(s), comma-joined
+	ReactionA string `json:"reactionA"` // "friendly"/"hostile"/"neutral" toward Alliance
+	ReactionH string `json:"reactionH"` // "friendly"/"hostile"/"neutral" toward Horde
 }
 
 // ItemDrop represents an item dropped by another item (e.g. from chest/clam)
