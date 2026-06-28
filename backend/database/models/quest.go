@@ -44,6 +44,7 @@ type QuestDetail struct {
 	Side            string             `json:"side"`
 	RaceNames       string             `json:"raceNames"`
 	RequiredClasses int                `json:"requiredClasses,omitempty"`
+	Classes         []*QuestClass      `json:"classes"`
 	RewardXP        int                `json:"rewardXp"`
 	RewardMoney     int                `json:"rewardMoney"`
 	RewardSpell     int                `json:"rewardSpell,omitempty"`
@@ -66,6 +67,13 @@ type QuestRewardSpell struct {
 	SpellID  int    `json:"spellId"`
 	Name     string `json:"name"`
 	IconName string `json:"iconName"`
+}
+
+// QuestClass is one class a quest is restricted to, with its UI color (#rrggbb
+// from class_info / RAID_CLASS_COLORS) so the frontend can tint the name.
+type QuestClass struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 // QuestSeriesItem represents a quest in a quest chain

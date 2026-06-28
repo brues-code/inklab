@@ -397,6 +397,7 @@ func (r *QuestRepository) GetQuestDetail(entry int) (*models.QuestDetail, error)
 
 	// Resolve Side and Races
 	q.Side, q.RaceNames = resolveSideAndRaces(q.RequiredRaces)
+	q.Classes = r.resolveClasses(q.RequiredClasses)
 
 	// Reputation rewards (faction id -> name).
 	for i := 0; i < 5; i++ {
@@ -738,4 +739,33 @@ func resolveSideAndRaces(mask int) (string, string) {
 	}
 
 	return side, strings.Join(raceNames, ", ")
+}
+
+// resolveClasses turns a quest's RequiredClasses bitmask into the list of
+// restricted classes (name + UI color). The mask bit for a class is
+// 1<<(classId-1), so names/colors come straight from class_info (ChrClasses.dbc),
+// ordered by class id. Mask 0 = no class restriction.
+func (r *QuestRepository) resolveClasses(mask int) []*models.QuestClass {
+	if mask == 0 {
+		return nil
+	}
+
+	rows, err := r.db.Query("SELECT id, name, COALESCE(color,'') FROM class_info ORDER BY id")
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var classes []*models.QuestClass
+	for rows.Next() {
+		var id int
+		var name, color string
+		if rows.Scan(&id, &name, &color) != nil {
+			continue
+		}
+		if mask&(1<<(id-1)) != 0 {
+			classes = append(classes, &models.QuestClass{Name: name, Color: color})
+		}
+	}
+	return classes
 }

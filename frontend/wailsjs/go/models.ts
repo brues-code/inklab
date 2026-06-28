@@ -2104,6 +2104,20 @@ export namespace models {
 	        this.name = source["name"];
 	    }
 	}
+	export class QuestClass {
+	    name: string;
+	    color: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuestClass(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.color = source["color"];
+	    }
+	}
 	export class QuestSeriesItem {
 	    entry: number;
 	    title: string;
@@ -2206,6 +2220,7 @@ export namespace models {
 	    side: string;
 	    raceNames: string;
 	    requiredClasses?: number;
+	    classes: QuestClass[];
 	    rewardXp: number;
 	    rewardMoney: number;
 	    rewardSpell?: number;
@@ -2242,6 +2257,7 @@ export namespace models {
 	        this.side = source["side"];
 	        this.raceNames = source["raceNames"];
 	        this.requiredClasses = source["requiredClasses"];
+	        this.classes = this.convertValues(source["classes"], QuestClass);
 	        this.rewardXp = source["rewardXp"];
 	        this.rewardMoney = source["rewardMoney"];
 	        this.rewardSpell = source["rewardSpell"];

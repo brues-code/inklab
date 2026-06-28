@@ -205,7 +205,17 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                     </span>
                                     <span>
                                         {rep.value >= 0 ? '+' : ''}
-                                        {rep.value} {rep.name}
+                                        {rep.value}{' '}
+                                        {rep.factionId ? (
+                                            <span
+                                                className="cursor-pointer hover:underline"
+                                                onClick={() => onNavigate?.('faction', rep.factionId)}
+                                            >
+                                                {rep.name}
+                                            </span>
+                                        ) : (
+                                            rep.name
+                                        )}
                                     </span>
                                 </div>
                             ))}
@@ -330,11 +340,20 @@ const QuestDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                     </span>
                                 </div>
                             )}
-                            {detail.requiredClasses > 0 && (
+                            {(detail.classes?.length > 0 || detail.requiredClasses > 0) && (
                                 <div className="flex justify-between border-b border-white/5 pb-1">
                                     <span>Classes:</span>
-                                    <span className="font-mono text-white">
-                                        {detail.requiredClasses}
+                                    <span className="max-w-[200px] pl-4 text-right font-mono text-xs leading-tight text-white">
+                                        {detail.classes?.length > 0
+                                            ? detail.classes.map((c, i) => (
+                                                  <React.Fragment key={c.name}>
+                                                      {i > 0 && ', '}
+                                                      <span style={c.color ? { color: c.color } : undefined}>
+                                                          {c.name}
+                                                      </span>
+                                                  </React.Fragment>
+                                              ))
+                                            : detail.requiredClasses}
                                     </span>
                                 </div>
                             )}
