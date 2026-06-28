@@ -1,8 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { queryKeys } from './keys'
 import { BrowseItemsByClassAndSlot } from '../../utils/databaseApi'
-import { GetItemClasses, BrowseItemsByClass, GetItemStatTypes } from '../../../wailsjs/go/main/App'
+import {
+    GetItemClasses,
+    BrowseItemsByClass,
+    GetItemStatTypes,
+    BrowseItems,
+} from '../../../wailsjs/go/main/App'
 import { GetItemDetail, IsFavorite } from '../../services/api'
+import { models } from '../../../wailsjs/go/models'
 
 export const useItemClasses = () =>
     useQuery({ queryKey: queryKeys.itemClasses, queryFn: GetItemClasses, staleTime: Infinity })
@@ -45,6 +51,17 @@ export const useItems = (
         enabled,
     })
 }
+
+// Paginated, filtered item browse powering the Items page. The full filter
+// (including paging + sort) is the query key, so each distinct view is cached;
+// placeholderData keeps the previous page visible while the next loads (no
+// flicker on sort/page changes).
+export const useBrowseItems = (filter: models.SearchFilter) =>
+    useQuery({
+        queryKey: queryKeys.itemBrowse(filter),
+        queryFn: () => BrowseItems(filter),
+        placeholderData: keepPreviousData,
+    })
 
 export const useItemDetail = (entry: number) =>
     useQuery({

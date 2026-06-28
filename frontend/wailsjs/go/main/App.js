@@ -22,6 +22,10 @@ export function BrowseCreaturesByTypePaged(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['BrowseCreaturesByTypePaged'](arg1, arg2, arg3, arg4);
 }
 
+export function BrowseItems(arg1) {
+  return window['go']['main']['App']['BrowseItems'](arg1);
+}
+
 export function BrowseItemsByClass(arg1, arg2, arg3) {
   return window['go']['main']['App']['BrowseItemsByClass'](arg1, arg2, arg3);
 }

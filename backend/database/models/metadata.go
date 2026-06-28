@@ -33,6 +33,12 @@ type SkillLineAbilityEntry struct {
 	ReqSkillValue int `json:"req_skill_value"`
 }
 
+// StatFilter requires an item to have at least Min of a given stat_type.
+type StatFilter struct {
+	Stat int `json:"stat"` // stat_type id (matches GetItemStatTypes)
+	Min  int `json:"min"`  // minimum summed value across the item's stat slots
+}
+
 // SearchFilter defines criteria for advanced item search
 type SearchFilter struct {
 	Query         string `json:"query"`
@@ -44,8 +50,20 @@ type SearchFilter struct {
 	MaxLevel      int    `json:"maxLevel,omitempty"`
 	MinReqLevel   int    `json:"minReqLevel,omitempty"`
 	MaxReqLevel   int    `json:"maxReqLevel,omitempty"`
-	Limit         int    `json:"limit"`
-	Offset        int    `json:"offset"`
+
+	// Stats: each entry requires the item to carry at least Min of that stat.
+	Stats []StatFilter `json:"stats,omitempty"`
+	// UsableByClass (1..N, 0 = any) keeps only items the given class can equip.
+	UsableByClass int `json:"usableByClass,omitempty"`
+	// Sources: keep items obtainable via any of these — "drop","vendor","quest","crafted".
+	Sources []string `json:"sources,omitempty"`
+
+	// Sort field ("name","itemLevel","requiredLevel","quality") + direction.
+	Sort    string `json:"sort,omitempty"`
+	SortDir string `json:"sortDir,omitempty"` // "asc" | "desc"
+
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
 }
 
 // SearchResult represents the search output

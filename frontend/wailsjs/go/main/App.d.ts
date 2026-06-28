@@ -14,6 +14,8 @@ export function BrowseCreaturesByType(arg1:number,arg2:string):Promise<Array<mod
 
 export function BrowseCreaturesByTypePaged(arg1:number,arg2:string,arg3:number,arg4:number):Promise<main.CreaturePageResult>;
 
+export function BrowseItems(arg1:models.SearchFilter):Promise<models.SearchResult>;
+
 export function BrowseItemsByClass(arg1:number,arg2:number,arg3:string):Promise<Array<models.Item>>;
 
 export function BrowseItemsByClassAndSlot(arg1:number,arg2:number,arg3:number,arg4:string):Promise<Array<models.Item>>;

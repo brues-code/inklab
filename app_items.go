@@ -174,6 +174,22 @@ func (a *App) AdvancedSearch(filter database.SearchFilter) *database.SearchResul
 	return result
 }
 
+// BrowseItems is the items-only paginated/filtered search powering the Items
+// page. Unlike AdvancedSearch (which also fans out to spells/creatures/quests
+// for the global search bar), this returns just the matching items plus the
+// total count for pagination — driven entirely by the SearchFilter (name,
+// quality, class/subclass/slot, level ranges, stats, usable-by-class, source,
+// sort).
+func (a *App) BrowseItems(filter database.SearchFilter) *database.SearchResult {
+	result, err := a.itemRepo.AdvancedSearch(filter)
+	if err != nil {
+		fmt.Printf("[API] Error in BrowseItems: %v\n", err)
+		return &database.SearchResult{Items: []*database.Item{}, TotalCount: 0}
+	}
+	result.Items = a.enrichItemsWithIcons(result.Items)
+	return result
+}
+
 // GetTooltipData returns detailed item information (no Wails binding generation)
 func (a *App) GetTooltipData(itemID int) *database.TooltipData {
 	data, err := a.itemRepo.GetTooltipData(itemID)

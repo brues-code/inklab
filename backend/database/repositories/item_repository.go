@@ -501,14 +501,43 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		args = append(args, filter.MaxReqLevel)
 	}
 
+	// Stat filters: each requires the item to carry at least Min of that stat,
+	// summed across its 10 stat slots (a stat almost never repeats, but summing
+	// is correct if it does).
+	for _, sf := range filter.Stats {
+		if sf.Stat <= 0 {
+			continue
+		}
+		var parts []string
+		for i := 1; i <= 10; i++ {
+			parts = append(parts, fmt.Sprintf("CASE WHEN stat_type%d = ? THEN stat_value%d ELSE 0 END", i, i))
+			args = append(args, sf.Stat)
+		}
+		conditions = append(conditions, "("+strings.Join(parts, " + ")+") >= ?")
+		args = append(args, sf.Min)
+	}
+
+	// Usable-by-class: allowable_class is a class bitmask (-1 = all classes).
+	if filter.UsableByClass > 0 {
+		conditions = append(conditions, "(allowable_class = -1 OR (allowable_class & ?) != 0)")
+		args = append(args, 1<<(uint(filter.UsableByClass)-1))
+	}
+
+	// Source filters: keep items obtainable via ANY selected source (OR'd), then
+	// AND'd with the rest. Each maps to an EXISTS against the relevant table(s).
+	if srcCond, srcArgs := buildSourceCondition(filter.Sources); srcCond != "" {
+		conditions = append(conditions, srcCond)
+		args = append(args, srcArgs...)
+	}
+
 	// Build WHERE clause
 	whereClause := ""
 	if len(conditions) > 0 {
 		whereClause = "WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	// Count query
-	countQuery := "SELECT COUNT(*) FROM item_template " + whereClause
+	// Count query (same alias `t` so source EXISTS subqueries resolve).
+	countQuery := "SELECT COUNT(*) FROM item_template t " + whereClause
 	var totalCount int
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
 	if err != nil {
@@ -521,9 +550,9 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		FROM item_template t
 		LEFT JOIN item_display_info d ON t.display_id = d.ID
 		%s
-		ORDER BY quality DESC, item_level DESC
+		ORDER BY %s
 		LIMIT ? OFFSET ?
-	`, whereClause)
+	`, whereClause, orderByClause(filter.Sort, filter.SortDir))
 
 	// Add limit/offset args
 	args = append(args, filter.Limit, filter.Offset)
@@ -551,6 +580,58 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		Items:      items,
 		TotalCount: totalCount,
 	}, nil
+}
+
+// buildSourceCondition turns a set of source keys into a single OR'd EXISTS
+// clause (matching the item-detail relation logic) plus its args. Unknown keys
+// are ignored; an empty/all-unknown set returns "".
+func buildSourceCondition(sources []string) (string, []interface{}) {
+	var ors []string
+	var args []interface{}
+	for _, s := range sources {
+		switch s {
+		case "drop": // dropped by creatures or objects, directly or via a referenced table
+			ors = append(ors, `(EXISTS (SELECT 1 FROM creature_loot_template WHERE item = t.entry)
+				OR EXISTS (SELECT 1 FROM gameobject_loot_template WHERE item = t.entry)
+				OR EXISTS (SELECT 1 FROM reference_loot_template WHERE item = t.entry))`)
+		case "vendor": // sold by an NPC vendor
+			ors = append(ors, "EXISTS (SELECT 1 FROM item_vendor WHERE item_entry = t.entry)")
+		case "quest": // rewarded by a quest (fixed or choice reward)
+			ors = append(ors, `EXISTS (SELECT 1 FROM quest_template q WHERE
+				q.RewItemId1 = t.entry OR q.RewItemId2 = t.entry OR q.RewItemId3 = t.entry OR q.RewItemId4 = t.entry
+				OR q.RewChoiceItemId1 = t.entry OR q.RewChoiceItemId2 = t.entry OR q.RewChoiceItemId3 = t.entry
+				OR q.RewChoiceItemId4 = t.entry OR q.RewChoiceItemId5 = t.entry OR q.RewChoiceItemId6 = t.entry)`)
+		case "crafted": // created by a spell (SPELL_EFFECT_CREATE_ITEM = 24)
+			ors = append(ors, `EXISTS (SELECT 1 FROM spell_template st WHERE
+				(st.effect1 = 24 AND st.effectItemType1 = t.entry)
+				OR (st.effect2 = 24 AND st.effectItemType2 = t.entry)
+				OR (st.effect3 = 24 AND st.effectItemType3 = t.entry))`)
+		}
+	}
+	if len(ors) == 0 {
+		return "", nil
+	}
+	return "(" + strings.Join(ors, " OR ") + ")", args
+}
+
+// orderByClause maps a sort field + direction to a safe ORDER BY (whitelisted —
+// never interpolates user input). Falls back to the quality/ilvl default.
+func orderByClause(sort, dir string) string {
+	col, ok := map[string]string{
+		"name":          "name",
+		"itemLevel":     "item_level",
+		"requiredLevel": "required_level",
+		"quality":       "quality",
+	}[sort]
+	if !ok {
+		return "quality DESC, item_level DESC"
+	}
+	d := "ASC"
+	if strings.EqualFold(dir, "desc") {
+		d = "DESC"
+	}
+	// Stable tiebreaker on entry so paging is deterministic.
+	return fmt.Sprintf("%s %s, entry ASC", col, d)
 }
 
 // GetItemSets returns all item sets for browsing
