@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"inklab/backend/database/helpers"
 )
@@ -482,27 +481,27 @@ func (a *App) MatchFlightmasters() {
 		return
 	}
 
-	// Candidate creatures = anything with a gossip or flightmaster flag. Octo's DB
-	// doesn't reliably set the flightmaster bit (e.g. Dungar Longdrink / Gryth
-	// Thurden are npc_flags=11, no 0x2000), so we can't depend on it alone. We
-	// prefer a flagged flightmaster when one stands at the node, but fall back to
-	// the nearest gossip NPC there — a taxi node sits on the flight master's exact
-	// spot, so the closest gossip creature is almost always them.
-	type cand struct {
-		faction int
-		isFM    bool
+	// Per-creature faction + flag class, for every creature template. Octo's DB
+	// doesn't reliably flag flight masters: some have the flightmaster bit, some
+	// only gossip (Dungar Longdrink = npc_flags 11), and custom-zone ones have no
+	// flags at all (Nundir Feathersoar = 0). So we can't filter by flag — we keep
+	// the flag only as a *preference* and otherwise rely on proximity, since a taxi
+	// node sits on the flight master's exact spot.
+	type cinfo struct {
+		faction          int
+		isFM, hasGossip  bool
 	}
-	candInfo := map[int]cand{}
-	if r, err := a.db.DB().Query("SELECT entry, COALESCE(faction,0), COALESCE(npc_flags,0) FROM creature_template WHERE npc_flags & 8193 != 0"); err == nil {
+	info := map[int]cinfo{}
+	if r, err := a.db.DB().Query("SELECT entry, COALESCE(faction,0), COALESCE(npc_flags,0) FROM creature_template"); err == nil {
 		for r.Next() {
 			var e, f, fl int
 			if r.Scan(&e, &f, &fl) == nil {
-				candInfo[e] = cand{faction: f, isFM: fl&8192 != 0}
+				info[e] = cinfo{faction: f, isFM: fl&8192 != 0, hasGossip: fl&1 != 0}
 			}
 		}
 		r.Close()
 	}
-	if len(candInfo) == 0 {
+	if len(info) == 0 {
 		return
 	}
 
@@ -525,18 +524,14 @@ func (a *App) MatchFlightmasters() {
 		return helpers.GetFactionReaction(m[0], m[1], m[2], target) != "hostile"
 	}
 
-	// Flightmaster spawn coords from MySQL (the world DB).
+	// All creature spawn coords from MySQL (the world DB) — we need any creature,
+	// not just flagged ones, for the pure-proximity tier.
 	type spawn struct {
 		id, mapID int
 		x, y      float64
 	}
 	var spawns []spawn
-	ids := make([]string, 0, len(candInfo))
-	for e := range candInfo {
-		ids = append(ids, strconv.Itoa(e))
-	}
-	q := "SELECT id, map, position_x, position_y FROM creature WHERE id IN (" + strings.Join(ids, ",") + ")"
-	if r, err := a.mysqlDB.DB().Query(q); err == nil {
+	if r, err := a.mysqlDB.DB().Query("SELECT id, map, position_x, position_y FROM creature"); err == nil {
 		for r.Next() {
 			var s spawn
 			if r.Scan(&s.id, &s.mapID, &s.x, &s.y) == nil {
@@ -564,27 +559,31 @@ func (a *App) MatchFlightmasters() {
 		r.Close()
 	}
 
-	// A flagged flightmaster is trusted out to fmR; a plain gossip NPC must be much
-	// closer (gossipR) to be taken as the flight master — it has to be standing on
-	// the node, not merely nearby.
+	// Three tiers of trust by how far we'll believe a creature is the flight master:
+	// a flagged flightmaster out to fmR; a gossip NPC must be closer; an unflagged
+	// creature must be right on the node (custom-zone flight masters like Nundir
+	// Feathersoar carry no flags, so proximity is the only signal).
 	const fmR2 = 120.0 * 120.0
 	const gossipR2 = 45.0 * 45.0
+	const anyR2 = 25.0 * 25.0
 	upd, err := a.db.DB().Prepare("UPDATE taxi_node SET alliance_npc = ?, horde_npc = ? WHERE id = ?")
 	if err != nil {
 		return
 	}
 	defer upd.Close()
 
-	// pick returns the best flight-master spawn for one node+faction: the nearest
-	// flagged flightmaster within fmR, else the nearest gossip NPC within gossipR.
+	// pick returns the best flight-master spawn for one node+faction: nearest
+	// flagged flightmaster, else nearest gossip NPC, else nearest creature of any
+	// kind standing on the node.
 	pick := func(n node, target int) int {
 		bestFM, bestFMd := 0, fmR2
 		bestG, bestGd := 0, gossipR2
+		bestAny, bestAnyd := 0, anyR2
 		for _, s := range spawns {
 			if s.mapID != n.mapID {
 				continue
 			}
-			c := candInfo[s.id]
+			c := info[s.id]
 			if !usableBy(c.faction, target) {
 				continue
 			}
@@ -593,14 +592,20 @@ func (a *App) MatchFlightmasters() {
 			if c.isFM && d < bestFMd {
 				bestFM, bestFMd = s.id, d
 			}
-			if d < bestGd {
+			if c.hasGossip && d < bestGd {
 				bestG, bestGd = s.id, d
+			}
+			if d < bestAnyd {
+				bestAny, bestAnyd = s.id, d
 			}
 		}
 		if bestFM != 0 {
 			return bestFM
 		}
-		return bestG
+		if bestG != 0 {
+			return bestG
+		}
+		return bestAny
 	}
 
 	matched := 0
