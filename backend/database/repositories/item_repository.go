@@ -1374,6 +1374,11 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 
 	detail := &models.ItemDetail{Item: item}
 
+	// Buy stack (items received per purchase) and stackable, for the Sold By table.
+	r.db.QueryRow(
+		"SELECT COALESCE(buy_count, 1), COALESCE(stackable, 1) FROM item_template WHERE entry = ?", entry,
+	).Scan(&detail.BuyCount, &detail.Stackable)
+
 	// Get dropped by creatures (including reference loot)
 	// Note: We assume c.loot_id matches creature_loot_template.entry.
 	rows, err := r.db.Query(`

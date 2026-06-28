@@ -8,14 +8,7 @@ import { FixSingleItemIcon, SyncSingleItem } from '../../../../wailsjs/go/main/A
 import { getQualityColor, formatMoney, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { useIcon } from '../../../services/useImage'
-import {
-    DetailPageLayout,
-    DetailHeader,
-    DetailLoading,
-    DetailError,
-    ItemTooltip,
-    LootItem,
-} from '../../ui'
+import { DetailPageLayout, DetailHeader, DetailLoading, DetailError, ItemTooltip } from '../../ui'
 
 // reactionColor maps a faction reaction ("friendly"/"hostile"/"neutral") to a
 // text color: friendly = green, hostile = red, neutral = gray.
@@ -28,6 +21,69 @@ const reactionColor = (reaction) => {
         default:
             return 'text-gray-500'
     }
+}
+
+// RelTable / RelRow: the shared table shell for the item's relation tabs, so
+// Sold By, Dropped By, Created By, etc. all render as consistent tables. columns
+// is [{ label, align }]; the first cell is left-padded-right, the last is
+// left-padded, the rest get horizontal padding.
+const cellPad = (i, n) => (i === 0 ? 'pr-2' : i === n - 1 ? 'pl-2' : 'px-2')
+const alignClass = (a) =>
+    a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
+
+const RelTable = ({ columns, children }) => (
+    <table className="w-full text-sm">
+        <thead>
+            <tr className="border-b border-white/10 text-[11px] uppercase tracking-wider text-gray-500">
+                {columns.map((c, i) => (
+                    <th
+                        key={i}
+                        className={`py-1.5 font-semibold ${alignClass(c.align)} ${cellPad(i, columns.length)}`}
+                    >
+                        {c.label}
+                    </th>
+                ))}
+            </tr>
+        </thead>
+        <tbody>{children}</tbody>
+    </table>
+)
+
+const RelRow = ({ onClick, children }) => (
+    <tr
+        className="cursor-pointer border-b border-white/5 transition-colors hover:bg-white/5"
+        onClick={onClick}
+    >
+        {children}
+    </tr>
+)
+
+// ReagentIcon: a compact icon-only reagent (with count badge) for the Reagents
+// column of the Created By table. Clicking opens the reagent's item page without
+// triggering the row's own navigation.
+const ReagentIcon = ({ reagent, onNavigate, tooltipHook }) => {
+    const handlers = tooltipHook?.getItemHandlers?.(reagent.entry) || {}
+    return (
+        <div
+            className="relative h-7 w-7 shrink-0 cursor-pointer"
+            title={reagent.name || `Item #${reagent.entry}`}
+            onClick={(e) => {
+                e.stopPropagation()
+                onNavigate?.('item', reagent.entry)
+            }}
+            {...handlers}
+        >
+            <IconImg
+                name={reagent.iconPath}
+                className="h-full w-full rounded border border-black/40 object-cover"
+            />
+            {reagent.count > 1 && (
+                <span className="absolute -bottom-0.5 -right-0.5 rounded bg-black/80 px-0.5 text-[10px] font-bold leading-none text-white">
+                    {reagent.count}
+                </span>
+            )}
+        </div>
+    )
 }
 
 // Helper component for Icon Header
@@ -75,75 +131,6 @@ const IconImg = ({ name, className }) => {
     const icon = useIcon(name)
     return <img src={icon.src || QUESTION_MARK_ICON} className={className} alt="" />
 }
-
-// A crafting reagent chip: icon + count badge + quality-colored name, linking to
-// the reagent's item page with a hover tooltip.
-const Reagent = ({ reagent, onNavigate, tooltipHook }) => {
-    const handlers = tooltipHook?.getItemHandlers?.(reagent.entry) || {}
-    return (
-        <div
-            className="flex cursor-pointer items-center gap-1.5 rounded border border-white/5 bg-white/[0.03] py-1 pl-1 pr-2 transition-colors hover:bg-white/[0.07]"
-            onClick={() => onNavigate?.('item', reagent.entry)}
-            {...handlers}
-        >
-            <div className="relative h-7 w-7 shrink-0">
-                <IconImg
-                    name={reagent.iconPath}
-                    className="h-full w-full rounded border border-black/40 object-cover"
-                />
-                {reagent.count > 1 && (
-                    <span className="absolute -bottom-0.5 -right-0.5 rounded bg-black/80 px-0.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                        {reagent.count}
-                    </span>
-                )}
-            </div>
-            <span className="text-xs" style={{ color: getQualityColor(reagent.quality) }}>
-                {reagent.name || `Item #${reagent.entry}`}
-            </span>
-        </div>
-    )
-}
-
-// One recipe that produces this item: the craft spell (link + tooltip), its
-// profession requirement and produced count, and the reagents consumed.
-const CreatedBySource = ({ source, onNavigate, tooltipHook }) => (
-    <div className="rounded border border-white/5 bg-white/[0.02] p-2.5">
-        <div className="flex items-center gap-2">
-            <IconImg
-                name={source.spellIcon}
-                className="h-8 w-8 rounded border border-black/40 object-cover"
-            />
-            <span
-                className="cursor-pointer font-bold text-wow-rare hover:underline"
-                onClick={() => onNavigate?.('spell', source.spellId)}
-                {...(tooltipHook?.getSpellHandlers?.(source.spellId) || {})}
-            >
-                {source.spellName}
-            </span>
-            {source.producedCount > 1 && (
-                <span className="text-xs text-gray-500">creates {source.producedCount}</span>
-            )}
-            {source.skillName && (
-                <span className="ml-auto whitespace-nowrap text-xs text-gray-400">
-                    Requires {source.skillName}
-                    {source.reqSkill > 0 ? ` (${source.reqSkill})` : ''}
-                </span>
-            )}
-        </div>
-        {source.reagents?.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-                {source.reagents.map((rg) => (
-                    <Reagent
-                        key={rg.entry}
-                        reagent={rg}
-                        onNavigate={onNavigate}
-                        tooltipHook={tooltipHook}
-                    />
-                ))}
-            </div>
-        )}
-    </div>
-)
 
 const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     // The item's tooltip payload, from the shared Query cache (warmed by hover
@@ -303,16 +290,60 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Created By',
             count: detail.createdBy.length,
             content: (
-                <div className="space-y-2">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Skill' },
+                        { label: 'Creates', align: 'right' },
+                        { label: 'Reagents' },
+                    ]}
+                >
                     {detail.createdBy.map((source) => (
-                        <CreatedBySource
+                        <RelRow
                             key={source.spellId}
-                            source={source}
-                            onNavigate={onNavigate}
-                            tooltipHook={tooltipHook}
-                        />
+                            onClick={() => onNavigate?.('spell', source.spellId)}
+                        >
+                            <td className="py-1.5 pr-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <IconImg
+                                        name={source.spellIcon}
+                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                    />
+                                    <span
+                                        className="truncate font-bold text-wow-rare hover:underline"
+                                        {...(tooltipHook?.getSpellHandlers?.(source.spellId) || {})}
+                                    >
+                                        {source.spellName}
+                                    </span>
+                                </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-gray-400">
+                                {source.skillName
+                                    ? `${source.skillName}${source.reqSkill > 0 ? ` (${source.reqSkill})` : ''}`
+                                    : '—'}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                {source.producedCount > 1 ? source.producedCount : '1'}
+                            </td>
+                            <td className="py-1.5 pl-2">
+                                {source.reagents?.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                        {source.reagents.map((rg) => (
+                                            <ReagentIcon
+                                                key={rg.entry}
+                                                reagent={rg}
+                                                onNavigate={onNavigate}
+                                                tooltipHook={tooltipHook}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-600">—</span>
+                                )}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.reagentFor?.length && {
@@ -320,56 +351,65 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Reagent For',
             count: detail.reagentFor.length,
             content: (
-                <div className="space-y-1">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Skill' },
+                        { label: 'Creates', align: 'right' },
+                        { label: 'Uses', align: 'right' },
+                    ]}
+                >
                     {detail.reagentFor.map((use) => {
                         // Prefer the produced item as the row (clickable to it);
                         // fall back to the spell when the recipe makes no item.
                         const toItem = use.producedItem > 0
                         return (
-                            <div
+                            <RelRow
                                 key={use.spellId}
-                                className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
                                 onClick={() =>
                                     toItem
                                         ? onNavigate('item', use.producedItem)
                                         : onNavigate('spell', use.spellId)
                                 }
-                                {...(toItem
-                                    ? {}
-                                    : tooltipHook?.getSpellHandlers?.(use.spellId) || {})}
                             >
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <IconImg
-                                        name={toItem ? use.producedIcon : use.spellIcon}
-                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
-                                    />
-                                    <span
-                                        className="truncate font-bold hover:text-wow-gold"
-                                        style={{
-                                            color: toItem
-                                                ? getQualityColor(use.producedQuality)
-                                                : '#a335ee',
-                                        }}
+                                <td className="py-1.5 pr-2">
+                                    <div
+                                        className="flex min-w-0 items-center gap-2"
+                                        {...(toItem
+                                            ? {}
+                                            : tooltipHook?.getSpellHandlers?.(use.spellId) || {})}
                                     >
-                                        {toItem ? use.producedName : use.spellName}
-                                        {use.producedCount > 1 ? ` ×${use.producedCount}` : ''}
-                                    </span>
-                                    {use.skillName && (
-                                        <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
-                                            {use.skillName}
-                                            {use.reqSkill > 0 ? ` ${use.reqSkill}` : ''}
+                                        <IconImg
+                                            name={toItem ? use.producedIcon : use.spellIcon}
+                                            className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                        />
+                                        <span
+                                            className="truncate font-bold hover:underline"
+                                            style={{
+                                                color: toItem
+                                                    ? getQualityColor(use.producedQuality)
+                                                    : '#a335ee',
+                                            }}
+                                        >
+                                            {toItem ? use.producedName : use.spellName}
                                         </span>
-                                    )}
-                                </div>
-                                {use.reagentCount > 1 && (
-                                    <div className="shrink-0 font-mono text-xs text-gray-500">
-                                        ×{use.reagentCount}
                                     </div>
-                                )}
-                            </div>
+                                </td>
+                                <td className="px-2 py-1.5 text-gray-400">
+                                    {use.skillName
+                                        ? `${use.skillName}${use.reqSkill > 0 ? ` (${use.reqSkill})` : ''}`
+                                        : '—'}
+                                </td>
+                                <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                    {use.producedCount > 1 ? use.producedCount : '1'}
+                                </td>
+                                <td className="py-1.5 pl-2 text-right font-mono text-gray-300">
+                                    {use.reagentCount > 1 ? use.reagentCount : '1'}
+                                </td>
+                            </RelRow>
                         )
                     })}
-                </div>
+                </RelTable>
             ),
         },
         detail.gatheredFrom?.length && {
@@ -377,35 +417,36 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Gathered From',
             count: detail.gatheredFrom.length,
             content: (
-                <div className="space-y-1">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Skill' },
+                        { label: 'Chance', align: 'right' },
+                    ]}
+                >
                     {detail.gatheredFrom.map((c) => (
-                        <div
-                            key={c.entry}
-                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('object', c.entry)}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
-                                    OBJ
-                                </span>
-                                <span className="truncate font-bold text-[#00B4FF] hover:text-wow-gold">
-                                    {c.name}
-                                </span>
-                                {c.skill && (
-                                    <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
-                                        {c.skill}
-                                        {c.skillReq > 0 ? ` ${c.skillReq}` : ''}
+                        <RelRow key={c.entry} onClick={() => onNavigate('object', c.entry)}>
+                            <td className="py-1.5 pr-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
+                                        OBJ
                                     </span>
-                                )}
-                            </div>
-                            {c.chance > 0 && (
-                                <div className="shrink-0 font-mono text-sm text-wow-gold">
-                                    {c.chance.toFixed(1)}%
+                                    <span className="truncate font-bold text-[#00B4FF] hover:underline">
+                                        {c.name}
+                                    </span>
                                 </div>
-                            )}
-                        </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-gray-400">
+                                {c.skill
+                                    ? `${c.skill}${c.skillReq > 0 ? ` (${c.skillReq})` : ''}`
+                                    : '—'}
+                            </td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-wow-gold">
+                                {c.chance > 0 ? `${c.chance.toFixed(1)}%` : '—'}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.containedIn?.length && {
@@ -413,35 +454,36 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Contained In',
             count: detail.containedIn.length,
             content: (
-                <div className="space-y-1">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Skill' },
+                        { label: 'Chance', align: 'right' },
+                    ]}
+                >
                     {detail.containedIn.map((c) => (
-                        <div
-                            key={c.entry}
-                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('object', c.entry)}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
-                                    OBJ
-                                </span>
-                                <span className="truncate font-bold text-[#00B4FF] hover:text-wow-gold">
-                                    {c.name}
-                                </span>
-                                {c.skill && (
-                                    <span className="shrink-0 rounded border border-white/10 px-1.5 text-[10px] uppercase text-gray-400">
-                                        {c.skill}
-                                        {c.skillReq > 0 ? ` ${c.skillReq}` : ''}
+                        <RelRow key={c.entry} onClick={() => onNavigate('object', c.entry)}>
+                            <td className="py-1.5 pr-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00B4FF]/40 bg-[#00B4FF]/20 text-[9px] font-bold text-[#00B4FF]">
+                                        OBJ
                                     </span>
-                                )}
-                            </div>
-                            {c.chance > 0 && (
-                                <div className="shrink-0 font-mono text-sm text-wow-gold">
-                                    {c.chance.toFixed(1)}%
+                                    <span className="truncate font-bold text-[#00B4FF] hover:underline">
+                                        {c.name}
+                                    </span>
                                 </div>
-                            )}
-                        </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-gray-400">
+                                {c.skill
+                                    ? `${c.skill}${c.skillReq > 0 ? ` (${c.skillReq})` : ''}`
+                                    : '—'}
+                            </td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-wow-gold">
+                                {c.chance > 0 ? `${c.chance.toFixed(1)}%` : '—'}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.containedInItem?.length && {
@@ -449,33 +491,29 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Contained In Item',
             count: detail.containedInItem.length,
             content: (
-                <div className="space-y-1">
+                <RelTable columns={[{ label: 'Name' }, { label: 'Chance', align: 'right' }]}>
                     {detail.containedInItem.map((c) => (
-                        <div
-                            key={c.entry}
-                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('item', c.entry)}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <IconImg
-                                    name={c.iconPath}
-                                    className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
-                                />
-                                <span
-                                    className="truncate font-bold hover:text-wow-gold"
-                                    style={{ color: getQualityColor(c.quality) }}
-                                >
-                                    {c.name}
-                                </span>
-                            </div>
-                            {c.chance > 0 && (
-                                <div className="shrink-0 font-mono text-sm text-wow-gold">
-                                    {c.chance.toFixed(1)}%
+                        <RelRow key={c.entry} onClick={() => onNavigate('item', c.entry)}>
+                            <td className="py-1.5 pr-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <IconImg
+                                        name={c.iconPath}
+                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                    />
+                                    <span
+                                        className="truncate font-bold hover:underline"
+                                        style={{ color: getQualityColor(c.quality) }}
+                                    >
+                                        {c.name}
+                                    </span>
                                 </div>
-                            )}
-                        </div>
+                            </td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-wow-gold">
+                                {c.chance > 0 ? `${c.chance.toFixed(1)}%` : '—'}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.droppedBy?.length && {
@@ -483,28 +521,26 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Dropped By',
             count: detail.droppedBy.length,
             content: (
-                <div className="space-y-1">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Level', align: 'right' },
+                        { label: 'Chance', align: 'right' },
+                    ]}
+                >
                     {detail.droppedBy.map((npc) => (
-                        <div
-                            key={npc.entry}
-                            className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('npc', npc.entry)}
-                        >
-                            <div>
-                                <div className="font-bold text-white hover:text-wow-gold">
-                                    {npc.name}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                    Level {npc.levelMin}
-                                    {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
-                                </div>
-                            </div>
-                            <div className="font-mono text-sm text-wow-gold">
+                        <RelRow key={npc.entry} onClick={() => onNavigate('npc', npc.entry)}>
+                            <td className="py-1.5 pr-2 font-bold text-white">{npc.name}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                {npc.levelMin}
+                                {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
+                            </td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-wow-gold">
                                 {npc.chance.toFixed(1)}%
-                            </div>
-                        </div>
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.soldBy?.length && {
@@ -512,22 +548,39 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Sold By',
             count: detail.soldBy.length,
             content: (
-                <div className="space-y-1">
-                    {detail.soldBy.map((npc) => {
-                        const m = npc.cost > 0 ? formatMoney(npc.cost) : null
-                        return (
-                            <div
-                                key={npc.entry}
-                                className="flex cursor-pointer items-center justify-between border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                                onClick={() => onNavigate('npc', npc.entry)}
-                            >
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-white hover:text-wow-gold">
-                                            {npc.name}
-                                        </span>
-                                        {(npc.reactionA || npc.reactionH) && (
-                                            <span className="flex gap-0.5 font-mono text-[11px] font-bold">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-gray-500">
+                            <th className="py-1.5 pr-2 font-semibold">Name</th>
+                            <th className="px-2 py-1.5 font-semibold">Location</th>
+                            <th className="px-2 py-1.5 text-center font-semibold">React</th>
+                            <th className="px-2 py-1.5 text-right font-semibold">Stock</th>
+                            <th className="px-2 py-1.5 text-right font-semibold">Stack</th>
+                            <th className="py-1.5 pl-2 text-right font-semibold">Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {detail.soldBy.map((npc) => {
+                            const m = npc.cost > 0 ? formatMoney(npc.cost) : null
+                            return (
+                                <tr
+                                    key={npc.entry}
+                                    className="cursor-pointer border-b border-white/5 transition-colors hover:bg-white/5"
+                                    onClick={() => onNavigate('npc', npc.entry)}
+                                >
+                                    <td className="py-1.5 pr-2">
+                                        <div className="font-bold text-white">{npc.name}</div>
+                                        <div className="text-xs text-gray-500">
+                                            Level {npc.levelMin}
+                                            {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
+                                        </div>
+                                    </td>
+                                    <td className="px-2 py-1.5 text-wow-rare">
+                                        {npc.location || '—'}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-center">
+                                        {npc.reactionA || npc.reactionH ? (
+                                            <span className="inline-flex gap-0.5 font-mono text-[11px] font-bold">
                                                 <span
                                                     className={reactionColor(npc.reactionA)}
                                                     title={`Alliance: ${npc.reactionA}`}
@@ -541,32 +594,36 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                                     H
                                                 </span>
                                             </span>
+                                        ) : (
+                                            <span className="text-gray-600">—</span>
                                         )}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                        Level {npc.levelMin}
-                                        {npc.levelMax > npc.levelMin ? `-${npc.levelMax}` : ''}
-                                        {npc.stock > 0 ? ` · ${npc.stock} in stock` : ''}
-                                    </div>
-                                    {npc.location && (
-                                        <div className="text-xs text-wow-rare">{npc.location}</div>
-                                    )}
-                                </div>
-                                {m && (
-                                    <div className="whitespace-nowrap font-mono text-sm">
-                                        {m.g > 0 && (
-                                            <span className="text-yellow-400">{m.g}g </span>
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                        {npc.stock > 0 ? npc.stock : '∞'}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                        {detail.buyCount || 1}
+                                    </td>
+                                    <td className="py-1.5 pl-2 text-right">
+                                        {m ? (
+                                            <span className="whitespace-nowrap font-mono">
+                                                {m.g > 0 && (
+                                                    <span className="text-yellow-400">{m.g}g </span>
+                                                )}
+                                                {(m.g > 0 || m.s > 0) && (
+                                                    <span className="text-gray-300">{m.s}s </span>
+                                                )}
+                                                <span className="text-orange-400">{m.c}c</span>
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-600">—</span>
                                         )}
-                                        {(m.g > 0 || m.s > 0) && (
-                                            <span className="text-gray-300">{m.s}s </span>
-                                        )}
-                                        <span className="text-orange-400">{m.c}c</span>
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
             ),
         },
         detail.rewardFrom?.length && {
@@ -574,27 +631,25 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Reward From',
             count: detail.rewardFrom.length,
             content: (
-                <div className="space-y-1">
+                <RelTable
+                    columns={[
+                        { label: 'Quest' },
+                        { label: 'Level', align: 'right' },
+                        { label: 'Type', align: 'right' },
+                    ]}
+                >
                     {detail.rewardFrom.map((q) => (
-                        <div
-                            key={q.entry}
-                            className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('quest', q.entry)}
-                        >
-                            <div className="min-w-0 flex-1">
-                                <div className="truncate font-bold text-wow-gold">{q.title}</div>
-                                <div className="text-xs text-gray-500">
-                                    Level {q.level}
-                                    {q.isChoice && (
-                                        <span className="ml-2 rounded border border-white/10 px-1 text-[10px] uppercase">
-                                            Choice
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                        <RelRow key={q.entry} onClick={() => onNavigate('quest', q.entry)}>
+                            <td className="py-1.5 pr-2 font-bold text-wow-gold">{q.title}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                {q.level}
+                            </td>
+                            <td className="py-1.5 pl-2 text-right text-xs text-gray-400">
+                                {q.isChoice ? 'Choice' : 'Reward'}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.startsQuest && {
@@ -602,19 +657,16 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Starts Quest',
             count: 1,
             content: (
-                <div
-                    className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                    onClick={() => onNavigate('quest', detail.startsQuest.entry)}
-                >
-                    <div className="min-w-0 flex-1">
-                        <div className="truncate font-bold text-wow-gold">
+                <RelTable columns={[{ label: 'Quest' }, { label: 'Level', align: 'right' }]}>
+                    <RelRow onClick={() => onNavigate('quest', detail.startsQuest.entry)}>
+                        <td className="py-1.5 pr-2 font-bold text-wow-gold">
                             {detail.startsQuest.title}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                            Level {detail.startsQuest.level}
-                        </div>
-                    </div>
-                </div>
+                        </td>
+                        <td className="py-1.5 pl-2 text-right font-mono text-gray-300">
+                            {detail.startsQuest.level}
+                        </td>
+                    </RelRow>
+                </RelTable>
             ),
         },
         detail.objectiveOf?.length && {
@@ -622,20 +674,16 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Objective Of',
             count: detail.objectiveOf.length,
             content: (
-                <div className="space-y-1">
+                <RelTable columns={[{ label: 'Quest' }, { label: 'Level', align: 'right' }]}>
                     {detail.objectiveOf.map((q) => (
-                        <div
-                            key={q.entry}
-                            className="flex cursor-pointer items-center gap-3 border-b border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
-                            onClick={() => onNavigate('quest', q.entry)}
-                        >
-                            <div className="min-w-0 flex-1">
-                                <div className="truncate font-bold text-wow-gold">{q.title}</div>
-                                <div className="text-xs text-gray-500">Level {q.level}</div>
-                            </div>
-                        </div>
+                        <RelRow key={q.entry} onClick={() => onNavigate('quest', q.entry)}>
+                            <td className="py-1.5 pr-2 font-bold text-wow-gold">{q.title}</td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-gray-300">
+                                {q.level}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
         detail.contains?.length && {
@@ -643,19 +691,40 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             label: 'Contains',
             count: detail.contains.length,
             content: (
-                <div className="grid grid-cols-1 gap-1">
+                <RelTable
+                    columns={[
+                        { label: 'Name' },
+                        { label: 'Qty', align: 'right' },
+                        { label: 'Chance', align: 'right' },
+                    ]}
+                >
                     {detail.contains.map((item) => (
-                        <LootItem
-                            key={item.entry}
-                            item={{
-                                ...item,
-                                dropChance: item.chance ? item.chance.toFixed(1) + '%' : null,
-                            }}
-                            showDropChance={true}
-                            onClick={() => onNavigate('item', item.entry)}
-                        />
+                        <RelRow key={item.entry} onClick={() => onNavigate('item', item.entry)}>
+                            <td className="py-1.5 pr-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <IconImg
+                                        name={item.iconPath}
+                                        className="h-7 w-7 shrink-0 rounded border border-black/40 object-cover"
+                                    />
+                                    <span
+                                        className="truncate font-bold hover:underline"
+                                        style={{ color: getQualityColor(item.quality) }}
+                                    >
+                                        {item.name}
+                                    </span>
+                                </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono text-gray-300">
+                                {item.maxCount > item.minCount
+                                    ? `${item.minCount}-${item.maxCount}`
+                                    : item.minCount || 1}
+                            </td>
+                            <td className="py-1.5 pl-2 text-right font-mono text-wow-gold">
+                                {item.chance > 0 ? `${item.chance.toFixed(1)}%` : '—'}
+                            </td>
+                        </RelRow>
                     ))}
-                </div>
+                </RelTable>
             ),
         },
     ].filter(Boolean)
