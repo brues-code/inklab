@@ -20,6 +20,8 @@ type SpellEffectInfo struct {
 	Radius       string `json:"radius,omitempty"`
 	Mechanic     string `json:"mechanic,omitempty"`
 	TriggerSpell int    `json:"triggerSpell,omitempty"`
+	// CreatedItem is set for Create Item effects (24): the item this spell crafts.
+	CreatedItem *SpellUsedByItem `json:"createdItem,omitempty"`
 }
 
 type SpellDetail struct {

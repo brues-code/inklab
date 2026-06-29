@@ -322,7 +322,8 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
             sp.effectMechanic1, sp.effectMechanic2, sp.effectMechanic3,
             sp.effectRadiusIndex1, sp.effectRadiusIndex2, sp.effectRadiusIndex3,
             sp.effectTriggerSpell1, sp.effectTriggerSpell2, sp.effectTriggerSpell3,
-            sp.effectMiscValue1, sp.effectMiscValue2, sp.effectMiscValue3
+            sp.effectMiscValue1, sp.effectMiscValue2, sp.effectMiscValue3,
+            sp.effectItemType1, sp.effectItemType2, sp.effectItemType3
 		FROM spell_template sp
 		LEFT JOIN spell_icons si ON sp.spellIconId = si.id
 		WHERE sp.entry = ?
@@ -334,7 +335,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 	var bp1, bp2, bp3, ds1, ds2, ds3, bd1, bd2, bd3 int
 	var mechanic, dispel, recoveryTime, catRecovery, startRecovery, procChance, procCharges, maxTargets int
 	var attr [6]int64
-	var eff, auraN, amp, effMech, radIdx, trig, misc [3]int
+	var eff, auraN, amp, effMech, radIdx, trig, misc, effItem [3]int
 	var coeff [3]float64
 	err := r.db.QueryRow(query, entry).Scan(
 		&s.Entry, &s.Name, &desc, &s.Durationindex, &s.Rangeindex,
@@ -352,6 +353,7 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		&radIdx[0], &radIdx[1], &radIdx[2],
 		&trig[0], &trig[1], &trig[2],
 		&misc[0], &misc[1], &misc[2],
+		&effItem[0], &effItem[1], &effItem[2],
 	)
 
 	if err != nil {
@@ -501,6 +503,15 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 		}
 		if effMech[i] > 0 {
 			r.db.QueryRow("SELECT name FROM spell_mechanics WHERE id = ?", effMech[i]).Scan(&e.Mechanic)
+		}
+		// Create Item (24): link the crafted item so the spell page mirrors the
+		// item page's "Created By".
+		if eff[i] == 24 && effItem[i] > 0 {
+			ci := &models.SpellUsedByItem{Entry: effItem[i]}
+			r.db.QueryRow(`SELECT t.name, t.quality, COALESCE(d.icon, '')
+				FROM item_template t LEFT JOIN item_display_info d ON t.display_id = d.ID
+				WHERE t.entry = ?`, effItem[i]).Scan(&ci.Name, &ci.Quality, &ci.IconPath)
+			e.CreatedItem = ci
 		}
 		e.TriggerSpell = trig[i]
 		detail.Effects = append(detail.Effects, e)

@@ -200,6 +200,33 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                                 )}
                                             </div>
                                         )}
+                                        {e.createdItem && (
+                                            <div
+                                                className="mt-1.5 flex cursor-pointer items-center gap-2 rounded p-1 transition-colors hover:bg-white/5"
+                                                onClick={() =>
+                                                    onNavigate?.('item', e.createdItem.entry)
+                                                }
+                                                onMouseEnter={() =>
+                                                    tooltipHook?.onHover?.(e.createdItem.entry)
+                                                }
+                                                onMouseLeave={() => tooltipHook?.onLeave?.()}
+                                            >
+                                                <span className="text-[11px] text-gray-500">
+                                                    Creates
+                                                </span>
+                                                <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded bg-black">
+                                                    <ItemIcon iconName={e.createdItem.iconPath} />
+                                                </div>
+                                                <span
+                                                    className="truncate text-sm font-medium"
+                                                    style={{
+                                                        color: getQualityColor(e.createdItem.quality),
+                                                    }}
+                                                >
+                                                    {e.createdItem.name}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
