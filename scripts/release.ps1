@@ -42,13 +42,18 @@ try {
 }
 
 # 1. Bump embeddedDBVersion so users' extracted DBs refresh-merge to this build.
-$embed = Get-Content $embedFile -Raw
+#    Read/write via .NET as UTF-8 *without* a BOM. Get-Content/Set-Content under
+#    Windows PowerShell 5.1 default to the ANSI code page on read and emit a BOM
+#    on `-Encoding utf8` write, which mangles every non-ASCII char in this file
+#    (em dashes, ✓/⚠/📦 in comments and log strings). .NET round-trips it cleanly
+#    on both powershell.exe and pwsh.
+$embed = [System.IO.File]::ReadAllText($embedFile)
 $m = [regex]::Match($embed, 'const embeddedDBVersion = (\d+)')
 if (-not $m.Success) { throw "Could not find 'const embeddedDBVersion = N' in embedded_data.go" }
 $oldVer = [int]$m.Groups[1].Value
 $newVer = $oldVer + 1
 $embed = [regex]::Replace($embed, 'const embeddedDBVersion = \d+', "const embeddedDBVersion = $newVer")
-Set-Content $embedFile $embed -NoNewline -Encoding utf8
+[System.IO.File]::WriteAllText($embedFile, $embed, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Bumped embeddedDBVersion: $oldVer -> $newVer"
 
 # 2. Snapshot the working (local-tagged) DB, then promote local -> official.
