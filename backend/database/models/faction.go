@@ -30,6 +30,19 @@ type FactionDetail struct {
 	Quests      []*QuestRelation `json:"quests,omitempty"`
 	QuestGivers []*FactionNpc    `json:"questGivers,omitempty"` // NPCs offering this faction's rep quests
 	Members     []*FactionNpc    `json:"members,omitempty"`     // NPCs belonging to this faction (FactionTemplate)
+	// Items gated behind reputation with this faction (required_reputation_faction).
+	RequiredByItems []*FactionItemReq `json:"requiredByItems,omitempty"`
+}
+
+// FactionItemReq is an item that requires reputation with a faction, with the
+// standing needed (e.g. "Revered").
+type FactionItemReq struct {
+	Entry    int    `json:"entry"`
+	Name     string `json:"name"`
+	Quality  int    `json:"quality"`
+	IconPath string `json:"iconPath"`
+	Standing string `json:"standing"`
+	Rank     int    `json:"rank"` // raw standing index, for sorting
 }
 
 // FactionNpc is a creature associated with a faction (quest giver or member).

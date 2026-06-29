@@ -2,6 +2,32 @@ import React, { useState } from 'react'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
 import { useFactionDetail } from '../../../hooks/queries/factions'
 import { DetailPageLayout, DetailHeader, DetailSection, DetailLoading, DetailError } from '../../ui'
+import { useIcon } from '../../../services/useImage'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow'
+
+// One reputation-gated item: icon (quality border), name (quality color), and
+// the standing it requires. Split out so each can call useIcon for its icon.
+const FactionItemCard = ({ item, onNavigate }) => {
+    const icon = useIcon(item.iconPath)
+    const color = getQualityColor(item.quality)
+    return (
+        <div
+            onClick={() => onNavigate('item', item.entry)}
+            className="flex cursor-pointer items-center gap-2 rounded border border-white/5 bg-white/[0.02] p-2 transition-colors hover:bg-white/5"
+        >
+            <img
+                src={icon.src || QUESTION_MARK_ICON}
+                alt=""
+                className="h-8 w-8 flex-shrink-0 rounded border bg-black/40 object-cover"
+                style={{ borderColor: color }}
+            />
+            <span className="min-w-0 flex-1 truncate font-medium" style={{ color }}>
+                {item.name}
+            </span>
+            <span className="whitespace-nowrap text-xs text-gray-400">{item.standing}</span>
+        </div>
+    )
+}
 
 const FactionDetailView = ({ id, onBack, onNavigate, activeTab, onTabChange }) => {
     // Active tab. When the route supplies it (activeTab/onTabChange) it lives in
@@ -18,10 +44,12 @@ const FactionDetailView = ({ id, onBack, onNavigate, activeTab, onTabChange }) =
     const quests = detail.quests || []
     const questGivers = detail.questGivers || []
     const members = detail.members || []
+    const repItems = detail.requiredByItems || []
 
     // Tabs for the relationship tables (only those with data).
     const tabs = [
         quests.length > 0 && { id: 'quests', label: `Reputation Quests (${quests.length})` },
+        repItems.length > 0 && { id: 'items', label: `Required for Items (${repItems.length})` },
         questGivers.length > 0 && { id: 'givers', label: `Quest Givers (${questGivers.length})` },
         members.length > 0 && { id: 'members', label: `Faction Members (${members.length})` },
     ].filter(Boolean)
@@ -179,6 +207,17 @@ const FactionDetailView = ({ id, onBack, onNavigate, activeTab, onTabChange }) =
                                             [{q.level}] {q.title}
                                         </span>
                                     </div>
+                                ))}
+                            </div>
+                        )}
+                        {currentTab === 'items' && (
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                {repItems.map((it) => (
+                                    <FactionItemCard
+                                        key={it.entry}
+                                        item={it}
+                                        onNavigate={onNavigate}
+                                    />
                                 ))}
                             </div>
                         )}

@@ -137,5 +137,25 @@ func (r *FactionRepository) GetFactionDetail(id int) (*models.FactionDetail, err
 		}
 	}
 
+	// Items gated behind reputation with this faction, highest standing first.
+	itemRows, _ := r.db.Query(`
+		SELECT t.entry, t.name, t.quality, COALESCE(d.icon, ''), t.required_reputation_rank
+		FROM item_template t
+		LEFT JOIN item_display_info d ON t.display_id = d.ID
+		WHERE t.required_reputation_faction = ?
+		ORDER BY t.required_reputation_rank DESC, t.quality DESC, t.name
+		LIMIT 300
+	`, id)
+	if itemRows != nil {
+		defer itemRows.Close()
+		for itemRows.Next() {
+			it := &models.FactionItemReq{}
+			if err := itemRows.Scan(&it.Entry, &it.Name, &it.Quality, &it.IconPath, &it.Rank); err == nil {
+				it.Standing = reputationRankName(it.Rank)
+				f.RequiredByItems = append(f.RequiredByItems, it)
+			}
+		}
+	}
+
 	return f, nil
 }

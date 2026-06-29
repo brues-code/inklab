@@ -1129,6 +1129,28 @@ export namespace models {
 	        this.categoryId = source["categoryId"];
 	    }
 	}
+	export class FactionItemReq {
+	    entry: number;
+	    name: string;
+	    quality: number;
+	    iconPath: string;
+	    standing: string;
+	    rank: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FactionItemReq(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.quality = source["quality"];
+	        this.iconPath = source["iconPath"];
+	        this.standing = source["standing"];
+	        this.rank = source["rank"];
+	    }
+	}
 	export class FactionNpc {
 	    entry: number;
 	    name: string;
@@ -1160,6 +1182,7 @@ export namespace models {
 	    quests?: QuestRelation[];
 	    questGivers?: FactionNpc[];
 	    members?: FactionNpc[];
+	    requiredByItems?: FactionItemReq[];
 	
 	    static createFrom(source: any = {}) {
 	        return new FactionDetail(source);
@@ -1177,6 +1200,7 @@ export namespace models {
 	        this.quests = this.convertValues(source["quests"], QuestRelation);
 	        this.questGivers = this.convertValues(source["questGivers"], FactionNpc);
 	        this.members = this.convertValues(source["members"], FactionNpc);
+	        this.requiredByItems = this.convertValues(source["requiredByItems"], FactionItemReq);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1197,6 +1221,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	export class FavoriteCategory {
 	    name: string;
