@@ -208,6 +208,7 @@ type TooltipData struct {
 	SellPrice     int             `json:"sellPrice,omitempty"`
 	Durability    string          `json:"durability,omitempty"`
 	Classes       string          `json:"classes,omitempty"`
+	ClassReqs     []*ItemClassReq `json:"classReqs,omitempty"` // colored class restriction (from allowable_class)
 	Races         string          `json:"races,omitempty"`
 	SetInfo       *ItemSetInfo    `json:"setInfo,omitempty"`
 	Description   string          `json:"description,omitempty"`
@@ -266,6 +267,13 @@ type ItemDetail struct {
 	GatheredFrom    []*ItemContainer   `json:"gatheredFrom"`
 	ObjectiveOf     []*QuestReward     `json:"objectiveOf"`
 	StartsQuest     *QuestReward       `json:"startsQuest,omitempty"`
+}
+
+// ItemClassReq is one class an item is restricted to (from allowable_class),
+// with its UI color (#rrggbb) from class_info.
+type ItemClassReq struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 // ItemContainer is a container (gameobject chest or other item) whose loot

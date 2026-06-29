@@ -602,6 +602,33 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 	}, nil
 }
 
+// resolveClasses decodes an allowable_class bitmask into the restricted classes
+// (name + UI color from class_info). Returns nil when there's no restriction
+// (mask <= 0, i.e. -1 = all classes).
+func (r *ItemRepository) resolveClasses(mask int) []*models.ItemClassReq {
+	if mask <= 0 {
+		return nil
+	}
+	rows, err := r.db.Query("SELECT id, name, COALESCE(color,'') FROM class_info ORDER BY id")
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var classes []*models.ItemClassReq
+	for rows.Next() {
+		var id int
+		var name, color string
+		if rows.Scan(&id, &name, &color) != nil {
+			continue
+		}
+		if mask&(1<<(uint(id)-1)) != 0 {
+			classes = append(classes, &models.ItemClassReq{Name: name, Color: color})
+		}
+	}
+	return classes
+}
+
 // forbiddenProficiencySubclasses returns the weapon (item class 2) and armor
 // (item class 4) subclasses the given player class CANNOT use, derived purely
 // from the client DBC: proficiency-granting spells (SPELL_EFFECT_PROFICIENCY =
@@ -893,6 +920,10 @@ func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error)
 
 	// Binding
 	tooltip.Binding = helpers.GetBondingName(item.Bonding)
+
+	// Class restriction (allowable_class), colored per class for the tooltip's
+	// "Classes:" line.
+	tooltip.ClassReqs = r.resolveClasses(item.AllowableClass)
 
 	// Item Type and Slot
 	itemType := helpers.GetSubClassName(item.Class, item.SubClass)

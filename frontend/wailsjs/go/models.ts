@@ -1574,6 +1574,20 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class ItemClassReq {
+	    name: string;
+	    color: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemClassReq(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.color = source["color"];
+	    }
+	}
 	export class ItemContainer {
 	    entry: number;
 	    name: string;
@@ -3104,6 +3118,7 @@ export namespace models {
 	    sellPrice?: number;
 	    durability?: string;
 	    classes?: string;
+	    classReqs?: ItemClassReq[];
 	    races?: string;
 	    setInfo?: ItemSetInfo;
 	    description?: string;
@@ -3133,6 +3148,7 @@ export namespace models {
 	        this.sellPrice = source["sellPrice"];
 	        this.durability = source["durability"];
 	        this.classes = source["classes"];
+	        this.classReqs = this.convertValues(source["classReqs"], ItemClassReq);
 	        this.races = source["races"];
 	        this.setInfo = this.convertValues(source["setInfo"], ItemSetInfo);
 	        this.description = source["description"];

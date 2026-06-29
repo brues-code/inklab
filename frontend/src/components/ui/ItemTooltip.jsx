@@ -78,8 +78,7 @@ const ItemTooltip = ({
                 ) : null
             })()}
 
-            {/* Classes / Races */}
-            {tooltip.classes && <div className="leading-tight text-white">{tooltip.classes}</div>}
+            {/* Races */}
             {tooltip.races && <div className="leading-tight text-white">{tooltip.races}</div>}
 
             {/* Damage */}
@@ -123,6 +122,23 @@ const ItemTooltip = ({
             {/* Durability */}
             {tooltip.durability && (
                 <div className="text-[11px] leading-tight text-white">{tooltip.durability}</div>
+            )}
+
+            {/* Class restriction. classReqs is the colored, structured form (one
+                span per allowed class, in its class color); fall back to the
+                legacy plain string if present. */}
+            {tooltip.classReqs?.length > 0 ? (
+                <div className="leading-tight text-white">
+                    Classes:{' '}
+                    {tooltip.classReqs.map((c, i) => (
+                        <span key={c.name}>
+                            <span style={{ color: c.color || undefined }}>{c.name}</span>
+                            {i < tooltip.classReqs.length - 1 ? ', ' : ''}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                tooltip.classes && <div className="leading-tight text-white">{tooltip.classes}</div>
             )}
 
             {/* Required Level */}
