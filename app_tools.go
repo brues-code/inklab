@@ -63,6 +63,7 @@ func (a *App) GetDataStatus() DataStatus {
 		{"itemIcons", "Item icon mappings", "ItemDisplayInfo.dbc", "table", a.countRows("item_display_info")},
 		{"spellIcons", "Spell icon mappings", "Spell.dbc + SpellIcon.dbc", "table", a.countRows("spell_icons")},
 		{"skills", "Skills", "SkillLine.dbc", "table", a.countRows("spell_skills")},
+		{"proficiencies", "Class proficiencies (weapon/armor usability)", "SkillLineAbility.dbc", "table", a.countRowsWhere("spell_skill_spells", "classmask > 0")},
 		{"zones", "Zones (localized names)", "WorldMapArea.dbc + AreaTable.dbc", "table", a.countRowsWhere("quest_categories_enhanced", "display_name != ''")},
 		{"talents", "Talents", "Talent.dbc + TalentTab.dbc", "table", a.countRows("talent")},
 		{"itemSets", "Item sets", "ItemSet.dbc", "table", a.countRows("itemsets")},

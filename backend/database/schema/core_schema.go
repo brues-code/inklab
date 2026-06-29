@@ -123,6 +123,7 @@ func CoreSchema() string {
 		skill_id INTEGER,
 		spell_id INTEGER,
 		req_skill_value INTEGER DEFAULT 0,
+		classmask INTEGER DEFAULT 0,
 		PRIMARY KEY (skill_id, spell_id)
 	);
 

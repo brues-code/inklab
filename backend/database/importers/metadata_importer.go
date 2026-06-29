@@ -110,7 +110,7 @@ func (m *MetadataImporter) importSkills(dataDir string) error {
 		return err
 	}
 
-	abilityStmt, _ := tx.Prepare("REPLACE INTO spell_skill_spells (skill_id, spell_id, req_skill_value) VALUES (?, ?, ?)")
+	abilityStmt, _ := tx.Prepare("REPLACE INTO spell_skill_spells (skill_id, spell_id, req_skill_value, classmask) VALUES (?, ?, ?, ?)")
 	defer abilityStmt.Close()
 
 	// Which skills are class skills (category 7) — only those get a class_id.
@@ -125,7 +125,7 @@ func (m *MetadataImporter) importSkills(dataDir string) error {
 	tally := make(map[int]map[int]int)
 
 	for _, a := range abilities {
-		abilityStmt.Exec(a.SkillID, a.SpellID, a.ReqSkillValue)
+		abilityStmt.Exec(a.SkillID, a.SpellID, a.ReqSkillValue, a.ClassMask)
 		if skillCat[a.SkillID] != 7 || a.ClassMask == 0 {
 			continue
 		}

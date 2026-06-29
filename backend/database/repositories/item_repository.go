@@ -517,10 +517,30 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		args = append(args, sf.Min)
 	}
 
-	// Usable-by-class: allowable_class is a class bitmask (-1 = all classes).
+	// Usable-by-class: both the explicit allowable_class bitmask AND weapon/armor
+	// proficiency (a mage can't wield a 2H sword even with no class flag). The
+	// proficiency rules come straight from the client DBC — see
+	// forbiddenProficiencySubclasses.
 	if filter.UsableByClass > 0 {
 		conditions = append(conditions, "(allowable_class = -1 OR (allowable_class & ?) != 0)")
 		args = append(args, 1<<(uint(filter.UsableByClass)-1))
+
+		fw, fa := r.forbiddenProficiencySubclasses(filter.UsableByClass)
+		for _, f := range []struct {
+			itemClass int
+			subs      []int
+		}{{2, fw}, {4, fa}} {
+			if len(f.subs) == 0 {
+				continue
+			}
+			ph := make([]string, len(f.subs))
+			for i, s := range f.subs {
+				ph[i] = "?"
+				args = append(args, s)
+			}
+			conditions = append(conditions,
+				fmt.Sprintf("NOT (class = %d AND subclass IN (%s))", f.itemClass, strings.Join(ph, ",")))
+		}
 	}
 
 	// Source filters: keep items obtainable via ANY selected source (OR'd), then
@@ -580,6 +600,69 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		Items:      items,
 		TotalCount: totalCount,
 	}, nil
+}
+
+// forbiddenProficiencySubclasses returns the weapon (item class 2) and armor
+// (item class 4) subclasses the given player class CANNOT use, derived purely
+// from the client DBC: proficiency-granting spells (SPELL_EFFECT_PROFICIENCY =
+// 60) carry the item class + a subclass bitmask, and SkillLineAbility.classmask
+// (imported into spell_skill_spells) says which classes may learn each. This
+// mirrors the server's IsSpellFitByClassAndRace gate that drives a weapon
+// trainer's per-class list.
+//
+// A subclass is forbidden iff some proficiency grants it AND none of the
+// proficiencies granting it are learnable by this class. A subclass no
+// proficiency mentions (e.g. Misc armor: rings/cloaks/trinkets) is never
+// forbidden. classmask 0 (or no SkillLineAbility row) means "all classes".
+func (r *ItemRepository) forbiddenProficiencySubclasses(class int) (weapon, armor []int) {
+	if class <= 0 {
+		return nil, nil
+	}
+	classBit := 1 << (uint(class) - 1)
+
+	rows, err := r.db.Query(`
+		SELECT st.equippedItemClass, st.equippedItemSubClassMask, COALESCE(ss.classmask, 0)
+		FROM spell_template st
+		LEFT JOIN spell_skill_spells ss ON ss.spell_id = st.entry
+		WHERE (st.effect1 = 60 OR st.effect2 = 60 OR st.effect3 = 60)
+		  AND st.equippedItemClass IN (2, 4)
+	`)
+	if err != nil {
+		return nil, nil
+	}
+	defer rows.Close()
+
+	// Per item class: which subclasses any proficiency grants, and which are
+	// learnable by this class.
+	restricted := map[int]map[int]bool{2: {}, 4: {}}
+	allowed := map[int]map[int]bool{2: {}, 4: {}}
+	for rows.Next() {
+		var itemClass, subMask, classMask int
+		if rows.Scan(&itemClass, &subMask, &classMask) != nil {
+			continue
+		}
+		learnable := classMask == 0 || classMask&classBit != 0
+		for s := 0; s < 32; s++ {
+			if subMask&(1<<uint(s)) == 0 {
+				continue
+			}
+			restricted[itemClass][s] = true
+			if learnable {
+				allowed[itemClass][s] = true
+			}
+		}
+	}
+
+	collect := func(itemClass int) []int {
+		var out []int
+		for s := range restricted[itemClass] {
+			if !allowed[itemClass][s] {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return collect(2), collect(4)
 }
 
 // buildSourceCondition turns a set of source keys into a single OR'd EXISTS
