@@ -124,6 +124,21 @@ func main() {
 	if err := gen.ImportLockTypes(filepath.Join(dataDir, "lock_types.json")); err != nil {
 		fmt.Println("  warn lock types:", err)
 	}
+	if err := gen.ImportItemClassNames(filepath.Join(dataDir, "item_class_names.json")); err != nil {
+		fmt.Println("  warn item class names:", err)
+	}
+	if err := gen.ImportItemSubclassNames(filepath.Join(dataDir, "item_subclass_names.json")); err != nil {
+		fmt.Println("  warn item subclass names:", err)
+	}
+	if err := gen.ImportInventoryTypes(filepath.Join(dataDir, "inventory_types.json")); err != nil {
+		fmt.Println("  warn inventory types:", err)
+	}
+	if err := gen.ImportCreatureTypeNames(filepath.Join(dataDir, "creature_types.json")); err != nil {
+		fmt.Println("  warn creature type names:", err)
+	}
+	if err := gen.ImportClientStrings(filepath.Join(dataDir, "client_strings.json")); err != nil {
+		fmt.Println("  warn client strings:", err)
+	}
 
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	fmt.Println("Resolving spell descriptions...")

@@ -12,6 +12,11 @@ type Item struct {
 	Class          int    `json:"class"`
 	SubClass       int    `json:"subClass"`
 	InventoryType  int    `json:"inventoryType"`
+	// TypeName/SlotName are the client-localized subclass + equip-slot labels,
+	// resolved server-side (so 2H weapons read correctly without client knowing
+	// the subclass hierarchy). Populated by the item browse query.
+	TypeName       string `json:"typeName,omitempty"`
+	SlotName       string `json:"slotName,omitempty"`
 	IconPath       string `json:"iconPath"`
 	SellPrice      int    `json:"sellPrice,omitempty"`
 	BuyPrice       int    `json:"buyPrice,omitempty"`

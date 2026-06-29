@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { useStickyState } from '../../../hooks/useStickyState'
 import { ContentGrid, ContentPanel } from '../../ui'
 import { useItemClasses, useItemStatTypes, useBrowseItems } from '../../../hooks/queries/items'
@@ -131,22 +130,9 @@ function ItemsTab({ tooltipHook, onNavigate }) {
     const items = data?.items || []
     const total = data?.totalCount || 0
 
-    // Name lookups for the Slot / Type columns, built from the class hierarchy.
-    const { slotNames, subClassNames } = useMemo(() => {
-        const slotNames = {}
-        const subClassNames = {}
-        for (const c of itemClasses) {
-            for (const sc of c.subClasses || []) {
-                subClassNames[`${c.class}:${sc.subClass}`] = sc.name
-                for (const sl of sc.inventorySlots || []) {
-                    if (sl.inventoryType > 0 && !slotNames[sl.inventoryType]) {
-                        slotNames[sl.inventoryType] = sl.name
-                    }
-                }
-            }
-        }
-        return { slotNames, subClassNames }
-    }, [itemClasses])
+    // Type/Slot labels are resolved server-side (item.typeName/item.slotName) from
+    // the client-localized name tables, so 2H weapons read correctly and the
+    // labels follow the client locale — no hierarchy lookup needed here.
 
     // Merge a partial filter patch; any change but paging resets to page 1.
     const update = (patch) =>
@@ -242,8 +228,8 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                                     <ItemRow
                                         key={id}
                                         item={item}
-                                        slotName={slotNames[item.inventoryType]}
-                                        typeName={subClassNames[`${item.class}:${item.subClass}`]}
+                                        slotName={item.slotName}
+                                        typeName={item.typeName}
                                         onClick={() => onNavigate?.('item', id)}
                                         handlers={tooltipHook?.getItemHandlers?.(id)}
                                     />

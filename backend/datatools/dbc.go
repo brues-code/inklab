@@ -11,7 +11,36 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// GlobalStrings.lua is read by several generators (spell schools, item stats,
+// inventory types, curated client strings). It's a large file, so memoize it per
+// ClientFiles for a generation run — one decompress/read instead of four.
+var (
+	gsMu     sync.Mutex
+	gsCf     ClientFiles
+	gsData   []byte
+	gsLoaded bool
+)
+
+// readGlobalStrings returns the client's FrameXML/GlobalStrings.lua bytes (or nil
+// when absent), reading it at most once per ClientFiles source.
+func readGlobalStrings(cf ClientFiles) []byte {
+	gsMu.Lock()
+	defer gsMu.Unlock()
+	if gsLoaded && gsCf == cf {
+		return gsData
+	}
+	gsCf, gsLoaded, gsData = cf, true, nil
+	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\GlobalStrings.lua`, `Interface\FrameXML\GlobalStrings.lua`} {
+		if b, err := cf.ReadFile(p); err == nil {
+			gsData = b
+			break
+		}
+	}
+	return gsData
+}
 
 // --- DBC reader (classic WDBC: 20-byte header, fixed records, string block) ---
 
@@ -130,6 +159,11 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"dispeltypes", "spell_dispel_types.json"},
 		{"enchantprocs", "enchant_proc_spells.json"},
 		{"locktypes", "lock_types.json"},
+		{"itemclassnames", "item_class_names.json"},
+		{"itemsubclassnames", "item_subclass_names.json"},
+		{"inventorytypes", "inventory_types.json"},
+		{"creaturetypes", "creature_types.json"},
+		{"clientstrings", "client_strings.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -181,6 +215,16 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genEnchantProcSpells(cf)
 	case "locktypes":
 		v, err = genLockTypes(cf)
+	case "itemclassnames":
+		v, err = genItemClassNames(cf)
+	case "itemsubclassnames":
+		v, err = genItemSubclassNames(cf)
+	case "inventorytypes":
+		v, err = genInventoryTypes(cf)
+	case "creaturetypes":
+		v, err = genIDName(cf, "CreatureType.dbc")
+	case "clientstrings":
+		v, err = genClientStrings(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -340,13 +384,7 @@ var spellSchoolRe = regexp.MustCompile(`SPELL_SCHOOL(\d+)_CAP\s*=\s*"([^"]*)"`)
 // Best-effort: returns an empty set if the file isn't present (callers fall back
 // to built-in English names).
 func genSpellSchools(cf ClientFiles) (interface{}, error) {
-	var b []byte
-	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\GlobalStrings.lua`, `Interface\FrameXML\GlobalStrings.lua`} {
-		if data, err := cf.ReadFile(p); err == nil {
-			b = data
-			break
-		}
-	}
+	b := readGlobalStrings(cf)
 	out := make([]map[string]interface{}, 0, 7)
 	if b == nil {
 		fmt.Printf("[dbc] spell schools skipped: GlobalStrings.lua not found\n")
@@ -378,13 +416,7 @@ var spellStatToItemMod = []int{4, 3, 7, 5, 6}
 // stats aren't in the client and keep their built-in names (helpers.StatNames).
 // Best-effort: returns an empty set if the file isn't present.
 func genItemMods(cf ClientFiles) (interface{}, error) {
-	var b []byte
-	for _, p := range []string{`BlizzardInterfaceCode\FrameXML\GlobalStrings.lua`, `Interface\FrameXML\GlobalStrings.lua`} {
-		if data, err := cf.ReadFile(p); err == nil {
-			b = data
-			break
-		}
-	}
+	b := readGlobalStrings(cf)
 	out := make([]map[string]interface{}, 0, len(spellStatToItemMod))
 	if b == nil {
 		fmt.Printf("[dbc] item mods skipped: GlobalStrings.lua not found\n")
@@ -596,6 +628,107 @@ func genEnchantProcSpells(cf ClientFiles) (interface{}, error) {
 			}
 			seen[spellID] = true
 			out = append(out, map[string]interface{}{"id": spellID})
+		}
+	}
+	return out, nil
+}
+
+// genItemClassNames reads ItemClass.dbc into [{id, name}]. Layout (verified
+// against the 1.12 client): ClassID(0), ClassName_Lang loc0/enUS at field 3.
+func genItemClassNames(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "ItemClass.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{"id": d.U32(r, 0), "name": d.Str(r, 3)})
+	}
+	return out, nil
+}
+
+// genItemSubclassNames reads ItemSubClass.dbc into [{class, subclass, name,
+// verbose}]. Layout (verified against the 1.12 client): ClassID(0),
+// SubClassID(1), DisplayName_Lang loc0/enUS at 10 (short, e.g. "Axe"),
+// VerboseName_Lang loc0/enUS at 19 (e.g. "One-Handed Axes" / "Two-Handed Axes"
+// — the verbose name is what distinguishes 1H vs 2H weapons).
+func genItemSubclassNames(cf ClientFiles) (interface{}, error) {
+	d, err := openDBCFrom(cf, "ItemSubClass.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		out = append(out, map[string]interface{}{
+			"class": d.U32(r, 0), "subclass": d.U32(r, 1),
+			"name": d.Str(r, 10), "verbose": d.Str(r, 19),
+		})
+	}
+	return out, nil
+}
+
+// invTypeToken maps a GlobalStrings INVTYPE_<TOKEN> to its item inventory_type
+// id. The id<->token relationship is structural (a fixed enum); only the
+// display strings are localized and come from the client (genInventoryTypes).
+var invTypeToken = map[string]int{
+	"HEAD": 1, "NECK": 2, "SHOULDER": 3, "BODY": 4, "CHEST": 5, "WAIST": 6,
+	"LEGS": 7, "FEET": 8, "WRIST": 9, "HAND": 10, "FINGER": 11, "TRINKET": 12,
+	"WEAPON": 13, "SHIELD": 14, "RANGED": 15, "CLOAK": 16, "2HWEAPON": 17,
+	"BAG": 18, "TABARD": 19, "ROBE": 20, "WEAPONMAINHAND": 21, "WEAPONOFFHAND": 22,
+	"HOLDABLE": 23, "AMMO": 24, "THROWN": 25, "RANGEDRIGHT": 26, "RELIC": 28,
+}
+
+var invTypeRe = regexp.MustCompile(`INVTYPE_(\w+)\s*=\s*"([^"]*)"`)
+
+// genInventoryTypes reads the inventory-slot display names from the client's
+// FrameXML/GlobalStrings.lua (INVTYPE_* -> localized name), keyed by item
+// inventory_type id. Slot names aren't in a DBC; they live in the UI strings,
+// so they follow the client locale. Best-effort: empty set if absent.
+func genInventoryTypes(cf ClientFiles) (interface{}, error) {
+	b := readGlobalStrings(cf)
+	out := make([]map[string]interface{}, 0, len(invTypeToken))
+	if b == nil {
+		fmt.Printf("[dbc] inventory types skipped: GlobalStrings.lua not found\n")
+		return out, nil
+	}
+	for _, m := range invTypeRe.FindAllStringSubmatch(string(b), -1) {
+		if id, ok := invTypeToken[m[1]]; ok {
+			out = append(out, map[string]interface{}{"id": id, "name": m[2]})
+		}
+	}
+	return out, nil
+}
+
+// clientStringKeys are the GlobalStrings.lua keys whose localized values back
+// the small UI-string resolvers (item quality, bind type, on-use/equip trigger
+// prefix, creature rank). Extracting them keeps those names client-localized
+// instead of hardcoded English.
+var clientStringKeys = []string{
+	"ITEM_QUALITY0_DESC", "ITEM_QUALITY1_DESC", "ITEM_QUALITY2_DESC", "ITEM_QUALITY3_DESC",
+	"ITEM_QUALITY4_DESC", "ITEM_QUALITY5_DESC", "ITEM_QUALITY6_DESC",
+	"ITEM_BIND_ON_PICKUP", "ITEM_BIND_ON_EQUIP", "ITEM_BIND_ON_USE", "ITEM_BIND_QUEST",
+	"ITEM_SPELL_TRIGGER_ONUSE", "ITEM_SPELL_TRIGGER_ONEQUIP", "ITEM_SPELL_TRIGGER_ONPROC",
+	"ELITE", "BOSS",
+}
+
+// genClientStrings extracts the curated clientStringKeys from the client's
+// FrameXML/GlobalStrings.lua into [{key, value}]. Best-effort: empty if absent.
+func genClientStrings(cf ClientFiles) (interface{}, error) {
+	b := readGlobalStrings(cf)
+	out := make([]map[string]interface{}, 0, len(clientStringKeys))
+	if b == nil {
+		fmt.Printf("[dbc] client strings skipped: GlobalStrings.lua not found\n")
+		return out, nil
+	}
+	want := make(map[string]bool, len(clientStringKeys))
+	for _, k := range clientStringKeys {
+		want[k] = true
+	}
+	// KEY = "value" (anchored at line start so KEY isn't matched as a substring).
+	re := regexp.MustCompile(`(?m)^(\w+)\s*=\s*"([^"]*)"`)
+	for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+		if want[m[1]] {
+			out = append(out, map[string]interface{}{"key": m[1], "value": m[2]})
 		}
 	}
 	return out, nil

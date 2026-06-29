@@ -1,8 +1,61 @@
 // Package helpers contains utility functions for database operations
 package helpers
 
+import "fmt"
+
+// Client-localized item type-name overrides, populated once at startup from the
+// DBC-derived reference tables (item_class_names / item_subclass_names /
+// inventory_type_names). When set, the Get* resolvers prefer these over their
+// built-in English maps, so type/slot labels follow the client locale. Nil
+// until loaded (or when a client import hasn't run) → built-in fallback.
+var (
+	itemClassNames      map[int]string
+	itemSubclassShort   map[[2]int]string // (class,subclass) -> short name ("Axe")
+	itemSubclassVerbose map[[2]int]string // (class,subclass) -> "One-Handed Axes"
+	inventoryTypeNames  map[int]string
+	creatureTypeNames   map[int]string    // CreatureType.dbc id -> name
+	clientStrings       map[string]string // GlobalStrings key -> localized value
+	schoolNames         map[int]string    // spell school index -> name (SPELL_SCHOOLn_CAP)
+)
+
+// SetSchoolNames installs client-localized spell-school names (from the
+// spell_schools table, sourced from GlobalStrings). Nil/empty → built-in fallback.
+func SetSchoolNames(m map[int]string) { schoolNames = m }
+
+// SetCreatureTypeNames installs client-localized creature type names (from
+// CreatureType.dbc). Nil/empty → built-in fallback.
+func SetCreatureTypeNames(m map[int]string) { creatureTypeNames = m }
+
+// SetClientStrings installs curated GlobalStrings UI values (item quality, bind
+// type, spell-trigger prefix, creature rank). Nil/empty → built-in fallback.
+func SetClientStrings(m map[string]string) { clientStrings = m }
+
+// clientString returns a loaded GlobalStrings value, or "" when not present.
+func clientString(key string) string {
+	if clientStrings != nil {
+		return clientStrings[key]
+	}
+	return ""
+}
+
+// SetItemNameTables installs the client-localized type-name lookups. Called once
+// after the reference tables are imported; safe to call with nil maps (no-op
+// override → built-in fallback). Not safe for concurrent use with the getters,
+// so call during single-threaded startup before serving requests.
+func SetItemNameTables(class map[int]string, subShort, subVerbose map[[2]int]string, inv map[int]string) {
+	itemClassNames = class
+	itemSubclassShort = subShort
+	itemSubclassVerbose = subVerbose
+	inventoryTypeNames = inv
+}
+
 // GetClassName returns the item class name
 func GetClassName(c int) string {
+	if itemClassNames != nil {
+		if n, ok := itemClassNames[c]; ok && n != "" {
+			return n
+		}
+	}
 	classNames := map[int]string{
 		0:  "Consumable",
 		1:  "Container",
@@ -27,20 +80,30 @@ func GetClassName(c int) string {
 	return "Unknown"
 }
 
-// GetSubClassName returns the item subclass name
+// GetSubClassName returns the item subclass name — the client's short form
+// ("Sword", "Mace"), matching how tooltips/lists pair it with the equip slot
+// ("Two-Hand" + "Sword"), like the game and Wowhead. The 1H/2H distinction
+// comes from the slot, not this name. (itemSubclassVerbose holds the long
+// "One-/Two-Handed Swords" form for a future standalone filter that lacks slot
+// context.) Falls back to built-in names.
 func GetSubClassName(c, sc int) string {
-	// Weapon subclasses
+	if itemSubclassShort != nil {
+		if n, ok := itemSubclassShort[[2]int{c, sc}]; ok && n != "" {
+			return n
+		}
+	}
+	// Weapon subclasses (short/family names; the slot carries One-/Two-Hand).
 	if c == 2 {
 		weaponSubclasses := map[int]string{
 			0:  "Axe",
-			1:  "Two-Handed Axe",
+			1:  "Axe",
 			2:  "Bow",
 			3:  "Gun",
 			4:  "Mace",
-			5:  "Two-Handed Mace",
+			5:  "Mace",
 			6:  "Polearm",
 			7:  "Sword",
-			8:  "Two-Handed Sword",
+			8:  "Sword",
 			9:  "Obsolete",
 			10: "Staff",
 			11: "Exotic",
@@ -79,156 +142,31 @@ func GetSubClassName(c, sc int) string {
 		}
 	}
 
-	// Container subclasses
-	if c == 1 {
-		containerSubclasses := map[int]string{
-			0: "Bag",
-			1: "Soul Bag",
-			2: "Herb Bag",
-			3: "Enchanting Bag",
-			4: "Engineering Bag",
-			5: "Gem Bag",
-			6: "Mining Bag",
-			7: "Leatherworking Bag",
-			8: "Inscription Bag",
-			9: "Fishing Bag",
-		}
-		if name, ok := containerSubclasses[sc]; ok {
-			return name
+	// Other item classes: their subclass names come from the client table
+	// (item_subclass_names); pre-import we fall back to the class name rather
+	// than maintaining exhaustive hardcoded maps.
+	return GetClassName(c)
+}
+
+// GetSubClassFamilyName returns the short, family-level subclass name ("Sword",
+// "Axe") rather than the verbose 1H/2H form — for the filter sidebar, which
+// groups 1H/2H weapons under one family. Prefers the client's short name.
+func GetSubClassFamilyName(c, sc int) string {
+	if itemSubclassShort != nil {
+		if n, ok := itemSubclassShort[[2]int{c, sc}]; ok && n != "" {
+			return n
 		}
 	}
-
-	// Consumable subclasses
-	if c == 0 {
-		consumableSubclasses := map[int]string{
-			0: "Consumable",
-			1: "Potion",
-			2: "Elixir",
-			3: "Flask",
-			4: "Scroll",
-			5: "Food & Drink",
-			6: "Item Enhancement",
-			7: "Bandage",
-			8: "Other",
-		}
-		if name, ok := consumableSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Reagent subclass
-	if c == 5 {
-		return "Reagent"
-	}
-
-	// Projectile subclasses
-	if c == 6 {
-		projectileSubclasses := map[int]string{
-			0: "Wand (OBSOLETE)",
-			1: "Bolt (OBSOLETE)",
-			2: "Arrow",
-			3: "Bullet",
-			4: "Thrown (OBSOLETE)",
-		}
-		if name, ok := projectileSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Trade Goods subclasses
-	if c == 7 {
-		tradeSubclasses := map[int]string{
-			0:  "Trade Goods",
-			1:  "Parts",
-			2:  "Explosives",
-			3:  "Devices",
-			4:  "Jewelcrafting",
-			5:  "Cloth",
-			6:  "Leather",
-			7:  "Metal & Stone",
-			8:  "Meat",
-			9:  "Herb",
-			10: "Elemental",
-			11: "Other",
-			12: "Enchanting",
-			13: "Materials",
-			14: "Armor Enchantment",
-			15: "Weapon Enchantment",
-		}
-		if name, ok := tradeSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Recipe subclasses
-	if c == 9 {
-		recipeSubclasses := map[int]string{
-			0:  "Book",
-			1:  "Leatherworking",
-			2:  "Tailoring",
-			3:  "Engineering",
-			4:  "Blacksmithing",
-			5:  "Cooking",
-			6:  "Alchemy",
-			7:  "First Aid",
-			8:  "Enchanting",
-			9:  "Fishing",
-			10: "Jewelcrafting",
-		}
-		if name, ok := recipeSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Quiver subclasses
-	if c == 11 {
-		quiverSubclasses := map[int]string{
-			0: "Quiver (OBSOLETE)",
-			1: "Quiver (OBSOLETE)",
-			2: "Quiver",
-			3: "Ammo Pouch",
-		}
-		if name, ok := quiverSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Quest subclass
-	if c == 12 {
-		return "Quest"
-	}
-
-	// Key subclasses
-	if c == 13 {
-		keySubclasses := map[int]string{
-			0: "Key",
-			1: "Lockpick",
-		}
-		if name, ok := keySubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	// Miscellaneous subclasses
-	if c == 15 {
-		miscSubclasses := map[int]string{
-			0: "Junk",
-			1: "Reagent",
-			2: "Pet",
-			3: "Holiday",
-			4: "Other",
-			5: "Mount",
-		}
-		if name, ok := miscSubclasses[sc]; ok {
-			return name
-		}
-	}
-
-	return "Unknown"
+	return GetSubClassName(c, sc)
 }
 
 // GetInventoryTypeName returns the inventory slot name
 func GetInventoryTypeName(invType int) string {
+	if inventoryTypeNames != nil {
+		if n, ok := inventoryTypeNames[invType]; ok && n != "" {
+			return n
+		}
+	}
 	invTypeNames := map[int]string{
 		0:  "Non-equippable",
 		1:  "Head",
@@ -266,8 +204,14 @@ func GetInventoryTypeName(invType int) string {
 	return "Unknown"
 }
 
-// GetBondingName returns the bonding type name
+// bondingKey maps a bonding id to its GlobalStrings key.
+var bondingKey = map[int]string{1: "ITEM_BIND_ON_PICKUP", 2: "ITEM_BIND_ON_EQUIP", 3: "ITEM_BIND_ON_USE", 4: "ITEM_BIND_QUEST"}
+
+// GetBondingName returns the bonding type name (client-localized when loaded).
 func GetBondingName(bonding int) string {
+	if v := clientString(bondingKey[bonding]); v != "" {
+		return v
+	}
 	switch bonding {
 	case 1:
 		return "Binds when picked up"
@@ -282,8 +226,11 @@ func GetBondingName(bonding int) string {
 	}
 }
 
-// GetQualityName returns the quality name
+// GetQualityName returns the quality name (client-localized when loaded).
 func GetQualityName(quality int) string {
+	if v := clientString(fmt.Sprintf("ITEM_QUALITY%d_DESC", quality)); v != "" {
+		return v
+	}
 	switch quality {
 	case 0:
 		return "Poor"
@@ -304,8 +251,14 @@ func GetQualityName(quality int) string {
 	}
 }
 
-// GetCreatureTypeName returns the creature type name
+// GetCreatureTypeName returns the creature type name (client-localized when
+// loaded from CreatureType.dbc).
 func GetCreatureTypeName(t int) string {
+	if creatureTypeNames != nil {
+		if n, ok := creatureTypeNames[t]; ok && n != "" {
+			return n
+		}
+	}
 	typeNames := map[int]string{
 		0:  "None",
 		1:  "Beast",
@@ -326,23 +279,43 @@ func GetCreatureTypeName(t int) string {
 	return "Unknown"
 }
 
-// GetCreatureRankName returns the creature rank name
+// GetCreatureRankName returns the creature rank name. "Elite"/"Boss" come from
+// the client (ELITE/BOSS GlobalStrings) when loaded; the composite ranks
+// ("Rare Elite") and "Normal"/"Rare" have no clean client string, so they keep
+// a minimal built-in fallback.
 func GetCreatureRankName(r int) string {
-	rankNames := map[int]string{
-		0: "Normal",
-		1: "Elite",
-		2: "Rare Elite",
-		3: "Boss",
-		4: "Rare",
+	elite := clientString("ELITE")
+	if elite == "" {
+		elite = "Elite"
 	}
-	if name, ok := rankNames[r]; ok {
-		return name
+	boss := clientString("BOSS")
+	if boss == "" {
+		boss = "Boss"
 	}
-	return "Normal"
+	switch r {
+	case 1:
+		return elite
+	case 2:
+		return "Rare " + elite
+	case 3:
+		return boss
+	case 4:
+		return "Rare"
+	default:
+		return "Normal"
+	}
 }
 
-// GetTriggerPrefix returns the spell trigger prefix
+// triggerKey maps a spell-trigger id to its GlobalStrings prefix key (the three
+// the client defines). Other triggers keep a built-in fallback below.
+var triggerKey = map[int]string{0: "ITEM_SPELL_TRIGGER_ONUSE", 1: "ITEM_SPELL_TRIGGER_ONEQUIP", 2: "ITEM_SPELL_TRIGGER_ONPROC"}
+
+// GetTriggerPrefix returns the spell trigger prefix (client-localized when
+// loaded for Use/Equip/Chance-on-hit).
 func GetTriggerPrefix(trigger int) string {
+	if v := clientString(triggerKey[trigger]); v != "" {
+		return v + " "
+	}
 	switch trigger {
 	case 0:
 		return "Use: "
@@ -424,8 +397,14 @@ func GetFactionReaction(ourMask, friendMask, enemyMask, target int) string {
 	}
 }
 
-// GetSchoolName returns the magic school name for damage types
+// GetSchoolName returns the magic school name (client-localized from
+// spell_schools when loaded; built-in English otherwise).
 func GetSchoolName(school int) string {
+	if schoolNames != nil {
+		if n, ok := schoolNames[school]; ok && n != "" {
+			return n
+		}
+	}
 	switch school {
 	case 0:
 		return "Physical"

@@ -566,6 +566,208 @@ func (i *GeneratedImporter) ImportLockTypes(jsonPath string) error {
 	return i.importIDName(jsonPath, "lock_types")
 }
 
+// LoadItemNameOverrides reads the localized item type-name tables and installs
+// them as overrides on the helpers resolvers, so type/slot labels follow the
+// client locale app-wide. No-op (built-in English fallback) for tables that are
+// empty — e.g. before a client import has run.
+func (i *GeneratedImporter) LoadItemNameOverrides() {
+	class := map[int]string{}
+	if rows, err := i.db.Query("SELECT id, name FROM item_class_names"); err == nil {
+		for rows.Next() {
+			var id int
+			var n string
+			if rows.Scan(&id, &n) == nil && n != "" {
+				class[id] = n
+			}
+		}
+		rows.Close()
+	}
+	short := map[[2]int]string{}
+	verbose := map[[2]int]string{}
+	if rows, err := i.db.Query("SELECT class, subclass, name, verbose FROM item_subclass_names"); err == nil {
+		for rows.Next() {
+			var c, sc int
+			var n, v string
+			if rows.Scan(&c, &sc, &n, &v) == nil {
+				if n != "" {
+					short[[2]int{c, sc}] = n
+				}
+				if v != "" {
+					verbose[[2]int{c, sc}] = v
+				}
+			}
+		}
+		rows.Close()
+	}
+	inv := map[int]string{}
+	if rows, err := i.db.Query("SELECT id, name FROM inventory_type_names"); err == nil {
+		for rows.Next() {
+			var id int
+			var n string
+			if rows.Scan(&id, &n) == nil && n != "" {
+				inv[id] = n
+			}
+		}
+		rows.Close()
+	}
+	if len(class) > 0 || len(short) > 0 || len(inv) > 0 {
+		helpers.SetItemNameTables(class, short, verbose, inv)
+	}
+
+	// Creature type names (CreatureType.dbc).
+	ctypes := map[int]string{}
+	if rows, err := i.db.Query("SELECT id, name FROM creature_type_names"); err == nil {
+		for rows.Next() {
+			var id int
+			var n string
+			if rows.Scan(&id, &n) == nil && n != "" {
+				ctypes[id] = n
+			}
+		}
+		rows.Close()
+	}
+	if len(ctypes) > 0 {
+		helpers.SetCreatureTypeNames(ctypes)
+	}
+
+	// Curated GlobalStrings UI values (quality / bind / trigger / rank).
+	strs := map[string]string{}
+	if rows, err := i.db.Query("SELECT key, value FROM client_strings"); err == nil {
+		for rows.Next() {
+			var k, v string
+			if rows.Scan(&k, &v) == nil && v != "" {
+				strs[k] = v
+			}
+		}
+		rows.Close()
+	}
+	if len(strs) > 0 {
+		helpers.SetClientStrings(strs)
+	}
+
+	// Spell-school names (already imported into spell_schools from GlobalStrings).
+	schools := map[int]string{}
+	if rows, err := i.db.Query("SELECT id, name FROM spell_schools"); err == nil {
+		for rows.Next() {
+			var id int
+			var n string
+			if rows.Scan(&id, &n) == nil && n != "" {
+				schools[id] = n
+			}
+		}
+		rows.Close()
+	}
+	if len(schools) > 0 {
+		helpers.SetSchoolNames(schools)
+	}
+}
+
+// ImportItemClassNames loads item_class_names.json (ItemClass.dbc) into
+// item_class_names — localized item class names (Weapon, Armor, ...).
+func (i *GeneratedImporter) ImportItemClassNames(jsonPath string) error {
+	return i.importIDName(jsonPath, "item_class_names")
+}
+
+// ImportCreatureTypeNames loads creature_types.json (CreatureType.dbc) into
+// creature_type_names — localized creature type names (Beast, Undead, ...).
+func (i *GeneratedImporter) ImportCreatureTypeNames(jsonPath string) error {
+	return i.importIDName(jsonPath, "creature_type_names")
+}
+
+// ImportClientStrings loads client_strings.json (curated GlobalStrings keys)
+// into client_strings (key -> localized value).
+func (i *GeneratedImporter) ImportClientStrings(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var rows []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(data, &rows); err != nil {
+		fmt.Printf("  ERROR parsing client_strings.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM client_strings")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO client_strings (key, value) VALUES (?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, r := range rows {
+		if r.Key == "" || r.Value == "" {
+			continue
+		}
+		if _, err := stmt.Exec(r.Key, r.Value); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d client strings\n", n)
+	return nil
+}
+
+// ImportInventoryTypes loads inventory_types.json (GlobalStrings INVTYPE_*) into
+// inventory_type_names — localized equip-slot names (Head, Two-Hand, ...).
+func (i *GeneratedImporter) ImportInventoryTypes(jsonPath string) error {
+	return i.importIDName(jsonPath, "inventory_type_names")
+}
+
+// ImportItemSubclassNames loads item_subclass_names.json (ItemSubClass.dbc) into
+// item_subclass_names — localized subclass names keyed by (class, subclass),
+// with both the short name and the verbose 1H/2H-distinguishing name.
+func (i *GeneratedImporter) ImportItemSubclassNames(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var rows []struct {
+		Class    int    `json:"class"`
+		SubClass int    `json:"subclass"`
+		Name     string `json:"name"`
+		Verbose  string `json:"verbose"`
+	}
+	if err := json.Unmarshal(data, &rows); err != nil {
+		fmt.Printf("  ERROR parsing item_subclass_names.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM item_subclass_names")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO item_subclass_names (class, subclass, name, verbose) VALUES (?,?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, r := range rows {
+		// Skip the DBC's -1 placeholder row (class/subclass = 0xFFFFFFFF).
+		if r.Class < 0 || r.Class > 1000 || r.Name == "" {
+			continue
+		}
+		if _, err := stmt.Exec(r.Class, r.SubClass, r.Name, r.Verbose); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d item subclass names\n", n)
+	return nil
+}
+
 // ImportEnchantProcSpells loads enchant_proc_spells.json (the on-hit enchant proc
 // spell ids from SpellItemEnchantment.dbc) into enchant_proc_spells. Optional.
 func (i *GeneratedImporter) ImportEnchantProcSpells(jsonPath string) error {

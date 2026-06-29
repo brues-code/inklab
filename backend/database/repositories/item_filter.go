@@ -92,7 +92,7 @@ func (r *ItemRepository) buildItemFilter(f models.SearchFilter) (string, []any) 
 	// Category + level ranges.
 	b.in("quality", f.Quality)
 	b.in("class", f.Class)
-	b.in("subclass", f.SubClass)
+	b.in("subclass", weaponSubclassesWith2H(f.Class, f.SubClass))
 	b.in("inventory_type", f.InventoryType)
 	b.gteI("item_level", f.MinLevel)
 	b.lteI("item_level", f.MaxLevel)
@@ -204,6 +204,35 @@ func (r *ItemRepository) buildItemFilter(f models.SearchFilter) (string, []any) 
 	}
 
 	return b.where(), b.args
+}
+
+// weaponSubclassesWith2H expands a weapon-family subclass filter to also match
+// its Two-Handed variant. GetItemClasses merges 2H weapon subclasses into their
+// base (Axe 1→0, Mace 5→4, Sword 8→7) for the filter sidebar, so a "Sword"
+// selection sends base subclass 7; without this, `subclass IN (7)` would miss
+// 2H swords (subclass 8). Only expands when weapons (class 2) are selected, so
+// it can't bleed into the armor subclasses that reuse ids 1/5/8.
+func weaponSubclassesWith2H(classes, subs []int) []int {
+	if len(subs) == 0 {
+		return subs
+	}
+	weapon := false
+	for _, c := range classes {
+		if c == 2 {
+			weapon = true
+		}
+	}
+	if !weapon {
+		return subs
+	}
+	base2h := map[int]int{0: 1, 4: 5, 7: 8}
+	out := append([]int{}, subs...)
+	for _, s := range subs {
+		if h, ok := base2h[s]; ok {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // resistColumn maps a resistance school id (matching spell_schools) to its

@@ -157,7 +157,7 @@ func (r *ItemRepository) GetItemClasses() ([]*models.ItemClass, error) {
 			sc := &models.ItemSubClass{
 				Class:          class,
 				SubClass:       displaySubclass,
-				Name:           helpers.GetSubClassName(class, displaySubclass),
+				Name:           helpers.GetSubClassFamilyName(class, displaySubclass),
 				InventorySlots: []*models.InventorySlot{},
 			}
 			subclassMap[subKey] = sc
@@ -464,6 +464,12 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		)
 		if err != nil {
 			continue
+		}
+		// Client-localized labels for the browse table (verbose subclass so 2H
+		// weapons read correctly; localized equip slot).
+		item.TypeName = helpers.GetSubClassName(item.Class, item.SubClass)
+		if item.InventoryType > 0 {
+			item.SlotName = helpers.GetInventoryTypeName(item.InventoryType)
 		}
 		items = append(items, item)
 	}

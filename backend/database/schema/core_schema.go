@@ -433,6 +433,38 @@ func CoreSchema() string {
 	);
 	CREATE INDEX IF NOT EXISTS idx_collection_mount_item ON collection_mount(itemId);
 
+	-- Localized item type names from the client (ItemClass.dbc / ItemSubClass.dbc
+	-- / GlobalStrings INVTYPE_*), so type/slot labels follow the client locale
+	-- instead of built-in English. subclass name is the short form (Axe);
+	-- verbose distinguishes 1H/2H (One-Handed Axes / Two-Handed Axes).
+	CREATE TABLE IF NOT EXISTS item_class_names (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL DEFAULT ''
+	);
+	CREATE TABLE IF NOT EXISTS item_subclass_names (
+		class INTEGER NOT NULL,
+		subclass INTEGER NOT NULL,
+		name TEXT NOT NULL DEFAULT '',
+		verbose TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (class, subclass)
+	);
+	CREATE TABLE IF NOT EXISTS inventory_type_names (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL DEFAULT ''
+	);
+	-- Localized creature type names (CreatureType.dbc): Beast, Undead, ...
+	CREATE TABLE IF NOT EXISTS creature_type_names (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL DEFAULT ''
+	);
+	-- Curated client UI strings (GlobalStrings.lua), key -> localized value, for
+	-- the small name resolvers (item quality, bind type, spell-trigger prefix,
+	-- creature rank).
+	CREATE TABLE IF NOT EXISTS client_strings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL DEFAULT ''
+	);
+
 	-- Boat/zeppelin transport routes (a->b hubs, possibly on different maps) and
 	-- their projected track waypoints (per-map continent %).
 	CREATE TABLE IF NOT EXISTS transport_route (

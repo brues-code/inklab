@@ -225,6 +225,11 @@ func (a *App) startup(ctx context.Context) {
 		a.importFullTables(a.DataDir)
 	}
 
+	// Install client-localized item type/slot names as resolver overrides. Runs
+	// every startup (not just dev/import) so the shipped DB's localized tables
+	// take effect; a no-op falls back to built-in English when absent.
+	database.NewGeneratedImporter(a.db.DB()).LoadItemNameOverrides()
+
 	// Icon downloading is now on-demand via fix button
 	// No need to auto-download on startup
 
@@ -339,6 +344,21 @@ func (a *App) importFullTables(dataDir string) {
 	}
 	if err := gen.ImportLockTypes(filepath.Join(dataDir, "lock_types.json")); err != nil {
 		fmt.Printf("⚠️ Lock type import failed: %v\n", err)
+	}
+	if err := gen.ImportItemClassNames(filepath.Join(dataDir, "item_class_names.json")); err != nil {
+		fmt.Printf("⚠️ Item class name import failed: %v\n", err)
+	}
+	if err := gen.ImportItemSubclassNames(filepath.Join(dataDir, "item_subclass_names.json")); err != nil {
+		fmt.Printf("⚠️ Item subclass name import failed: %v\n", err)
+	}
+	if err := gen.ImportInventoryTypes(filepath.Join(dataDir, "inventory_types.json")); err != nil {
+		fmt.Printf("⚠️ Inventory type import failed: %v\n", err)
+	}
+	if err := gen.ImportCreatureTypeNames(filepath.Join(dataDir, "creature_types.json")); err != nil {
+		fmt.Printf("⚠️ Creature type name import failed: %v\n", err)
+	}
+	if err := gen.ImportClientStrings(filepath.Join(dataDir, "client_strings.json")); err != nil {
+		fmt.Printf("⚠️ Client string import failed: %v\n", err)
 	}
 	// Resolve $-placeholders against the just-imported (DBC-authoritative) values.
 	services.NewSyncService(a.db.DB()).FullSyncSpells(0, false, "", 0, nil)

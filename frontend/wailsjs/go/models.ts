@@ -1409,6 +1409,8 @@ export namespace models {
 	    class: number;
 	    subClass: number;
 	    inventoryType: number;
+	    typeName?: string;
+	    slotName?: string;
 	    iconPath: string;
 	    sellPrice?: number;
 	    buyPrice?: number;
@@ -1476,6 +1478,8 @@ export namespace models {
 	        this.class = source["class"];
 	        this.subClass = source["subClass"];
 	        this.inventoryType = source["inventoryType"];
+	        this.typeName = source["typeName"];
+	        this.slotName = source["slotName"];
 	        this.iconPath = source["iconPath"];
 	        this.sellPrice = source["sellPrice"];
 	        this.buyPrice = source["buyPrice"];
@@ -1793,6 +1797,8 @@ export namespace models {
 	    class: number;
 	    subClass: number;
 	    inventoryType: number;
+	    typeName?: string;
+	    slotName?: string;
 	    iconPath: string;
 	    sellPrice?: number;
 	    buyPrice?: number;
@@ -1878,6 +1884,8 @@ export namespace models {
 	        this.class = source["class"];
 	        this.subClass = source["subClass"];
 	        this.inventoryType = source["inventoryType"];
+	        this.typeName = source["typeName"];
+	        this.slotName = source["slotName"];
 	        this.iconPath = source["iconPath"];
 	        this.sellPrice = source["sellPrice"];
 	        this.buyPrice = source["buyPrice"];
