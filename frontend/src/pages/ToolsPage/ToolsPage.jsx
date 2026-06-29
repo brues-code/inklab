@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import React, { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { PageLayout } from '../../components/ui'
+import { useDataStatus, useWhatsNew, whatsNewQuery } from '../../hooks/queries/app'
 import { DEFAULT_WOW_BASE } from '../../utils/constants'
 import { useEntityNavigate } from '../../utils/entityNav'
 
@@ -100,45 +101,12 @@ function ToolsPage() {
     const [base, setBase] = useState(() => localStorage.getItem('toolsBasePath') || DEFAULT_BASE)
     const [running, setRunning] = useState(null)
     const [reports, setReports] = useState({})
-    const [status, setStatus] = useState(null)
+    const { data: status } = useDataStatus()
 
-    // What's New is server-derived (a DB-vs-baseline diff). Back it with Query so
-    // it stays cached for the session — visiting an entity and coming back keeps
-    // the last result instead of forcing a regenerate. Lazy (enabled:false): only
-    // the Check button (refetch) runs it.
-    const {
-        data: whatsNew,
-        isFetching: wnLoading,
-        refetch: loadWhatsNew,
-    } = useQuery({
-        queryKey: ['whatsNew'],
-        queryFn: async () => {
-            const app = window?.go?.main?.App
-            if (!app?.WhatsNew) return { error: 'Binding not found (dev build?)' }
-            try {
-                return await app.WhatsNew()
-            } catch (e) {
-                return { error: String(e) }
-            }
-        },
-        enabled: false,
-        staleTime: Infinity,
-        gcTime: Infinity,
-    })
-
-    const refreshStatus = useCallback(async () => {
-        const app = window?.go?.main?.App
-        if (!app?.GetDataStatus) return
-        try {
-            setStatus(await app.GetDataStatus())
-        } catch {
-            /* ignore */
-        }
-    }, [])
-
-    useEffect(() => {
-        refreshStatus()
-    }, [refreshStatus])
+    const { data: whatsNew, isFetching: wnLoading } = useWhatsNew()
+    // staleTime: 0 forces a fresh diff on every Check; the cached result still
+    // persists across navigation via the hook's Infinity staleTime.
+    const loadWhatsNew = () => queryClient.fetchQuery({ ...whatsNewQuery, staleTime: 0 })
 
     const saveBase = (v) => {
         setBase(v)
@@ -169,9 +137,9 @@ function ToolsPage() {
             }))
         } finally {
             setRunning(null)
-            refreshStatus()
             // An import rewrites reference data, icons and maps; drop every cached
             // query so views refetch the fresh data (overrides staleTime: Infinity).
+            // This includes dataStatus, refreshing the inventory below.
             queryClient.invalidateQueries()
         }
     }

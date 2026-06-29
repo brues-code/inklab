@@ -82,6 +82,8 @@ export const queryKeys = {
     // App chrome
     updateCheck: ['updateCheck'] as const,
     dataStatus: ['dataStatus'] as const,
+    syncStats: ['syncStats'] as const,
+    whatsNew: ['whatsNew'] as const,
 
     // Images (data URLs from the local image service). reloadKey lets a forced
     // refresh produce a fresh key after the underlying file is regenerated.

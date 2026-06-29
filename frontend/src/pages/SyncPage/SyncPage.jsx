@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-    GetSyncStats,
     FullSyncNpcs,
     FullSyncItems,
     FullSyncQuests,
@@ -9,6 +8,8 @@ import {
 } from '../../../wailsjs/go/main/App'
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime'
 import { queryClient } from '../../queryClient'
+import { queryKeys } from '../../hooks/queries/keys'
+import { useSyncStats } from '../../hooks/queries/app'
 import { PageLayout } from '../../components/ui'
 
 const SYNC_TYPES = [
@@ -20,7 +21,7 @@ const SYNC_TYPES = [
 
 function SyncPage() {
     // Global stats
-    const [syncStats, setSyncStats] = useState(null)
+    const { data: syncStats } = useSyncStats()
 
     // Selection
     const [activeSyncType, setActiveSyncType] = useState(() => {
@@ -43,8 +44,6 @@ function SyncPage() {
     const [syncLog, setSyncLog] = useState([])
 
     useEffect(() => {
-        loadSyncStats()
-
         // NPC Progress
         EventsOn('sync:npc_full:progress', (data) => handleProgress('npc', data))
         EventsOn('sync:npc_full:error', (msg) => handleSyncError('npc', msg))
@@ -108,24 +107,15 @@ function SyncPage() {
     const handleSyncError = (type, msg) => {
         setSyncing(false)
         setSyncResult({ type, error: msg })
-        loadSyncStats()
+        queryClient.invalidateQueries({ queryKey: queryKeys.syncStats })
     }
 
     const handleSyncDone = (type, msg) => {
         setSyncing(false)
         setSyncResult({ type, message: msg || 'Sync complete!' })
-        loadSyncStats()
-        // A full sync rewrites many rows; drop the cache so every view refetches.
+        // A full sync rewrites many rows; drop the cache so every view refetches
+        // (this includes syncStats).
         queryClient.invalidateQueries()
-    }
-
-    const loadSyncStats = async () => {
-        try {
-            const stats = await GetSyncStats()
-            setSyncStats(stats)
-        } catch (error) {
-            console.error('Failed to load sync stats:', error)
-        }
     }
 
     const handleStartSync = async () => {
