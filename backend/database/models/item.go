@@ -210,6 +210,10 @@ type TooltipData struct {
 	Classes       string          `json:"classes,omitempty"`
 	ClassReqs     []*ItemClassReq `json:"classReqs,omitempty"` // colored class restriction (from allowable_class)
 	Races         string          `json:"races,omitempty"`
+	// Reputation requirement (required_reputation_faction/rank), e.g.
+	// faction "The League of Arathor" + standing "Revered".
+	ReqRepFaction  string `json:"reqRepFaction,omitempty"`
+	ReqRepStanding string `json:"reqRepStanding,omitempty"`
 	SetInfo       *ItemSetInfo    `json:"setInfo,omitempty"`
 	Description   string          `json:"description,omitempty"`
 }

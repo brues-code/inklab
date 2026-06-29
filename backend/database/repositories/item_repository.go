@@ -474,6 +474,16 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 	}, nil
 }
 
+// reputationRankName maps a reputation standing index (0..7) to its name, as
+// used by item_template.required_reputation_rank.
+func reputationRankName(rank int) string {
+	names := []string{"Hated", "Hostile", "Unfriendly", "Neutral", "Friendly", "Honored", "Revered", "Exalted"}
+	if rank >= 0 && rank < len(names) {
+		return names[rank]
+	}
+	return ""
+}
+
 // resolveClasses decodes an allowable_class bitmask into the restricted classes
 // (name + UI color from class_info). Returns nil when there's no restriction
 // (mask <= 0, i.e. -1 = all classes).
@@ -681,6 +691,20 @@ func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error)
 	// Class restriction (allowable_class), colored per class for the tooltip's
 	// "Classes:" line.
 	tooltip.ClassReqs = r.resolveClasses(item.AllowableClass)
+
+	// Reputation requirement, e.g. "Requires The League of Arathor - Revered".
+	var repFaction, repRank int
+	r.db.QueryRow(
+		"SELECT required_reputation_faction, required_reputation_rank FROM item_template WHERE entry = ?", itemID,
+	).Scan(&repFaction, &repRank)
+	if repFaction > 0 {
+		var fname string
+		r.db.QueryRow("SELECT name FROM factions WHERE id = ?", repFaction).Scan(&fname)
+		if fname != "" {
+			tooltip.ReqRepFaction = fname
+			tooltip.ReqRepStanding = reputationRankName(repRank)
+		}
+	}
 
 	// Item Type and Slot
 	itemType := helpers.GetSubClassName(item.Class, item.SubClass)

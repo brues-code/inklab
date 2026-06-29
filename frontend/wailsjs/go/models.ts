@@ -3188,6 +3188,8 @@ export namespace models {
 	    classes?: string;
 	    classReqs?: ItemClassReq[];
 	    races?: string;
+	    reqRepFaction?: string;
+	    reqRepStanding?: string;
 	    setInfo?: ItemSetInfo;
 	    description?: string;
 	
@@ -3218,6 +3220,8 @@ export namespace models {
 	        this.classes = source["classes"];
 	        this.classReqs = this.convertValues(source["classReqs"], ItemClassReq);
 	        this.races = source["races"];
+	        this.reqRepFaction = source["reqRepFaction"];
+	        this.reqRepStanding = source["reqRepStanding"];
 	        this.setInfo = this.convertValues(source["setInfo"], ItemSetInfo);
 	        this.description = source["description"];
 	    }

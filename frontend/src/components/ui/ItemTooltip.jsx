@@ -148,6 +148,14 @@ const ItemTooltip = ({
                 </div>
             )}
 
+            {/* Reputation requirement, e.g. "Requires The League of Arathor - Revered" */}
+            {tooltip.reqRepFaction && (
+                <div className="leading-tight text-white">
+                    Requires {tooltip.reqRepFaction}
+                    {tooltip.reqRepStanding ? ` - ${tooltip.reqRepStanding}` : ''}
+                </div>
+            )}
+
             {/* Spell Effects (green) - WoW style: after stats/durability. In the
                 interactive (detail-page) tooltip the spell is a link to its page. */}
             {tooltip.effects?.length > 0 && (
