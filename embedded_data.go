@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"database/sql"
@@ -27,7 +27,7 @@ var localMergeTables = []struct{ name, cols string }{
 // official baseline while carrying over the user's local scrapes. It writes the
 // embedded DB to a temp file, grafts local rows from the existing DB into it,
 // then atomically swaps it into place. If the graft fails (e.g. an old DB with
-// no `origin` column — nothing was tagged local anyway), it still ships the
+// no `origin` column â€” nothing was tagged local anyway), it still ships the
 // fresh official baseline rather than failing the launch.
 func refreshDBPreservingLocal(dbPath string) error {
 	tmpPath := dbPath + ".new"
@@ -37,7 +37,7 @@ func refreshDBPreservingLocal(dbPath string) error {
 	}
 
 	if err := graftLocalRows(tmpPath, dbPath); err != nil {
-		log.Printf("  ⚠ could not preserve local scrapes (%v); shipping fresh official data", err)
+		log.Printf("  âš  could not preserve local scrapes (%v); shipping fresh official data", err)
 	}
 
 	// Swap the new baseline in via a backup, so a failed rename never leaves the
@@ -73,10 +73,10 @@ func graftLocalRows(newPath, oldPath string) error {
 			"INSERT OR IGNORE INTO main.%s (%s) SELECT %s FROM old.%s WHERE origin='local'",
 			t.name, t.cols, t.cols, t.name)
 		if res, err := db.Exec(q); err != nil {
-			// Old DB predates the origin column (pre-Stage-1) — nothing tagged local.
+			// Old DB predates the origin column (pre-Stage-1) â€” nothing tagged local.
 			log.Printf("  (skip %s local graft: %v)", t.name, err)
 		} else if n, _ := res.RowsAffected(); n > 0 {
-			log.Printf("  ✓ preserved %d local %s row(s)", n, t.name)
+			log.Printf("  âœ“ preserved %d local %s row(s)", n, t.name)
 		}
 	}
 	return nil
@@ -88,7 +88,7 @@ var embeddedDB []byte
 // embeddedDBVersion identifies the embedded database's data revision. Bump it
 // whenever data/inklab.db is regenerated with fixes so production builds
 // overwrite a previously-extracted (stale) copy instead of keeping it forever.
-const embeddedDBVersion = 1
+const embeddedDBVersion = 2
 
 // dbVersionFile is the marker written next to the extracted database recording
 // which embeddedDBVersion produced it.
@@ -107,10 +107,10 @@ func writeExtractedDBVersion(dataDir string, v int) {
 	_ = os.WriteFile(filepath.Join(dataDir, dbVersionFile), []byte(strconv.Itoa(v)), 0644)
 }
 
-// Icons are not embedded — they're extracted locally from the client art via
+// Icons are not embedded â€” they're extracted locally from the client art via
 // the Tools tab, or downloaded on demand by the icon service.
 //
-// NPC model/map images are not embedded either — users build their own cache by
+// NPC model/map images are not embedded either â€” users build their own cache by
 // syncing NPCs (scraped from octowow.st), or share a data/npc_images folder.
 
 // InitializeData ensures data directory exists and extracts embedded database on first run
@@ -142,11 +142,11 @@ func InitializeData() (string, bool, error) {
 			return "", false, fmt.Errorf("failed to get working directory: %w", err)
 		}
 		baseDir = cwd
-		log.Println("🔧 Development mode detected, using project root:", baseDir)
+		log.Println("ðŸ”§ Development mode detected, using project root:", baseDir)
 	} else {
 		// Production mode: use executable directory
 		baseDir = filepath.Dir(exePath)
-		log.Println("📦 Production mode, using executable directory:", baseDir)
+		log.Println("ðŸ“¦ Production mode, using executable directory:", baseDir)
 	}
 
 	dataDir := filepath.Join(baseDir, "data")
@@ -159,7 +159,7 @@ func InitializeData() (string, bool, error) {
 	}
 
 	// Extract on first run, and in production also refresh when the embedded DB
-	// is a newer revision than the previously-extracted copy — otherwise data
+	// is a newer revision than the previously-extracted copy â€” otherwise data
 	// fixes never reach users who already have a data/inklab.db. Dev mode always
 	// uses the on-disk db as-is (it's managed via git / rebuilddb).
 	_, statErr := os.Stat(dbPath)
@@ -173,7 +173,7 @@ func InitializeData() (string, bool, error) {
 			return "", false, fmt.Errorf("failed to write database: %w", err)
 		}
 		writeExtractedDBVersion(dataDir, embeddedDBVersion)
-		log.Println("✓ Database ready at", dbPath)
+		log.Println("âœ“ Database ready at", dbPath)
 	case stale:
 		// Newer official data shipped: refresh to it, but graft the user's own
 		// scraped ('local') rows into the new baseline so an update never wipes
@@ -184,15 +184,15 @@ func InitializeData() (string, bool, error) {
 			return "", false, fmt.Errorf("failed to refresh database: %w", err)
 		}
 		writeExtractedDBVersion(dataDir, embeddedDBVersion)
-		log.Println("✓ Database refreshed at", dbPath)
+		log.Println("âœ“ Database refreshed at", dbPath)
 	default:
-		log.Println("✓ Using existing database:", dbPath)
+		log.Println("âœ“ Using existing database:", dbPath)
 	}
 
 	// Icons live in data/icons (extracted from client art via the Tools tab, or
 	// downloaded on demand). Nothing to extract from the binary.
 
-	// NPC images are built locally (synced/scraped from octowow.st) — just make
+	// NPC images are built locally (synced/scraped from octowow.st) â€” just make
 	// sure the directory exists for the sync to write into.
 	npcImagesDir := filepath.Join(dataDir, "npc_images")
 	if err := os.MkdirAll(npcImagesDir, 0755); err != nil {
