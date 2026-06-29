@@ -1860,6 +1860,8 @@ export namespace models {
 	    gatheredFrom: ItemContainer[];
 	    objectiveOf: QuestReward[];
 	    startsQuest?: QuestReward;
+	    mountSpellId?: number;
+	    mountDisplayId?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ItemDetail(source);
@@ -1943,6 +1945,8 @@ export namespace models {
 	        this.gatheredFrom = this.convertValues(source["gatheredFrom"], ItemContainer);
 	        this.objectiveOf = this.convertValues(source["objectiveOf"], QuestReward);
 	        this.startsQuest = this.convertValues(source["startsQuest"], QuestReward);
+	        this.mountSpellId = source["mountSpellId"];
+	        this.mountDisplayId = source["mountDisplayId"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2927,6 +2931,7 @@ export namespace models {
 	    mechanicName: string;
 	    dispelType: string;
 	    effects?: SpellEffectInfo[];
+	    mountDisplayId?: number;
 	    flags?: string[];
 	    usedByItems?: SpellUsedByItem[];
 	    taughtByNpcs?: SpellTrainerNpc[];
@@ -3101,6 +3106,7 @@ export namespace models {
 	        this.mechanicName = source["mechanicName"];
 	        this.dispelType = source["dispelType"];
 	        this.effects = this.convertValues(source["effects"], SpellEffectInfo);
+	        this.mountDisplayId = source["mountDisplayId"];
 	        this.flags = source["flags"];
 	        this.usedByItems = this.convertValues(source["usedByItems"], SpellUsedByItem);
 	        this.taughtByNpcs = this.convertValues(source["taughtByNpcs"], SpellTrainerNpc);

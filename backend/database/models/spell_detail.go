@@ -39,6 +39,10 @@ type SpellDetail struct {
 	MechanicName string            `json:"mechanicName"` // decoded from spell_mechanics (client)
 	DispelType  string             `json:"dispelType"`   // decoded from spell_dispel_types (client)
 	Effects     []SpellEffectInfo  `json:"effects,omitempty"`
+	// MountDisplayID is the creature display id for a Mounted (aura 78) spell —
+	// its misc value is a creature_template entry whose display_id1 is the model.
+	// Lets the spell page render the mount model (no Turtle collection data needed).
+	MountDisplayID int               `json:"mountDisplayId,omitempty"`
 	Flags       []string           `json:"flags,omitempty"`
 	UsedByItems []*SpellUsedByItem `json:"usedByItems,omitempty"`
 	TaughtByNpcs   []*SpellTrainerNpc `json:"taughtByNpcs,omitempty"`   // trainers (scraped)

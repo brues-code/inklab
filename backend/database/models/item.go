@@ -271,6 +271,10 @@ type ItemDetail struct {
 	GatheredFrom    []*ItemContainer   `json:"gatheredFrom"`
 	ObjectiveOf     []*QuestReward     `json:"objectiveOf"`
 	StartsQuest     *QuestReward       `json:"startsQuest,omitempty"`
+	// Mount: for a mount item, the spell it grants and that spell's creature
+	// display id (from the Mounted aura), so the UI can render the mount model.
+	MountSpellID   int `json:"mountSpellId,omitempty"`
+	MountDisplayID int `json:"mountDisplayId,omitempty"`
 }
 
 // ItemClassReq is one class an item is restricted to (from allowable_class),

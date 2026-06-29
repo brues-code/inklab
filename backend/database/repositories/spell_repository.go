@@ -513,6 +513,11 @@ func (r *SpellRepository) GetSpellDetail(entry int) *models.SpellDetail {
 				WHERE t.entry = ?`, effItem[i]).Scan(&ci.Name, &ci.Quality, &ci.IconPath)
 			e.CreatedItem = ci
 		}
+		// Mounted (aura 78): misc is the mount's creature_template entry; resolve
+		// its display_id1 so the page can render the mount model.
+		if auraN[i] == 78 && misc[i] > 0 && detail.MountDisplayID == 0 {
+			r.db.QueryRow("SELECT display_id1 FROM creature_template WHERE entry = ?", misc[i]).Scan(&detail.MountDisplayID)
+		}
 		e.TriggerSpell = trig[i]
 		detail.Effects = append(detail.Effects, e)
 	}

@@ -7,7 +7,7 @@ import { ToggleFavorite } from '../../../services/api'
 import { FixSingleItemIcon, SyncSingleItem } from '../../../../wailsjs/go/main/App'
 import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow'
 import { DATABASE_BASE_URL } from '../../../utils/constants'
-import { useIcon } from '../../../services/useImage'
+import { useIcon, useNpcModel } from '../../../services/useImage'
 import {
     DetailPageLayout,
     DetailHeader,
@@ -145,6 +145,10 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
     // elsewhere). The blanket invalidate in reloadData refetches this too.
     const { data: tooltip } = useQuery({ ...tooltipQuery(entry), enabled: !!entry })
     const { data: detail, isLoading: loading } = useItemDetail(entry)
+    // Mount model: for a mount item, detail.mountDisplayId is a creature display
+    // id we render the same way NPC pages do (entry 0 = shared display render).
+    // displayId 0 (non-mount) is a no-op in the hook.
+    const mountModel = useNpcModel(detail?.mountDisplayId || 0, 0, 0)
     const [imgError, setImgError] = useState(false)
     const [fixing, setFixing] = useState(false)
     const [syncing, setSyncing] = useState(false)
@@ -827,6 +831,29 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
             <div className="flex flex-wrap gap-10">
                 {/* Tooltip Block */}
                 {renderTooltipBlock()}
+
+                {/* Mount model (for mount items: collection_mount -> mount spell
+                    -> creature display id), rendered like NPC model pages. */}
+                {detail.mountDisplayId > 0 && (mountModel.loading || mountModel.src) && (
+                    <div className="w-56 flex-shrink-0">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Mount
+                        </div>
+                        {mountModel.loading ? (
+                            <div className="flex aspect-[3/4] animate-pulse items-center justify-center rounded border border-white/10 bg-black/40 text-xs text-gray-500">
+                                Loading…
+                            </div>
+                        ) : (
+                            <div className="overflow-hidden rounded border border-white/20 bg-black shadow-lg">
+                                <img
+                                    src={mountModel.src}
+                                    alt={detail.name}
+                                    className="h-auto w-full object-cover"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Relations — tabbed (Contained In / Dropped By can get long) */}
                 {relationTabs.length > 0 && currentTab && (

@@ -422,6 +422,17 @@ func CoreSchema() string {
 	);
 	CREATE INDEX IF NOT EXISTS idx_npc_trainer_template_spell ON npc_trainer_template(spell);
 
+	-- Maps a mount item to the mount spell it grants (Turtle's collection system;
+	-- the "Add Mount to Collection" item-use teaches collection_mount.spellId).
+	-- The mount spell's Mounted aura (78) carries the creature display id, so this
+	-- bridges item -> renderable mount model.
+	CREATE TABLE IF NOT EXISTS collection_mount (
+		itemId INTEGER NOT NULL,
+		spellId INTEGER NOT NULL,
+		PRIMARY KEY (itemId, spellId)
+	);
+	CREATE INDEX IF NOT EXISTS idx_collection_mount_item ON collection_mount(itemId);
+
 	-- Boat/zeppelin transport routes (a->b hubs, possibly on different maps) and
 	-- their projected track waypoints (per-map continent %).
 	CREATE TABLE IF NOT EXISTS transport_route (

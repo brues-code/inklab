@@ -474,6 +474,32 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 	}, nil
 }
 
+// resolveMountModel resolves a mount item to (mount spell id, creature display
+// id). collection_mount maps the item to the mount spell it grants; that
+// spell's Mounted aura (78) carries the mount's creature_template ENTRY (not a
+// display id — see the server's HandleAuraMounted, which does
+// GetCreatureTemplate(miscValue) then ChooseDisplayId). So we resolve the
+// creature's display_id1 for the actual model. Returns (0, 0) for non-mount
+// items or before collection_mount has been imported.
+func (r *ItemRepository) resolveMountModel(itemEntry int) (spellID, displayID int) {
+	if r.db.QueryRow("SELECT spellId FROM collection_mount WHERE itemId = ? LIMIT 1", itemEntry).Scan(&spellID) != nil || spellID == 0 {
+		return 0, 0
+	}
+	var aura, misc [3]int
+	r.db.QueryRow(`SELECT effectApplyAuraName1, effectApplyAuraName2, effectApplyAuraName3,
+		effectMiscValue1, effectMiscValue2, effectMiscValue3
+		FROM spell_template WHERE entry = ?`, spellID).
+		Scan(&aura[0], &aura[1], &aura[2], &misc[0], &misc[1], &misc[2])
+	for i := 0; i < 3; i++ {
+		if aura[i] == 78 && misc[i] > 0 { // SPELL_AURA_MOUNTED; misc = creature_template entry
+			var did int
+			r.db.QueryRow("SELECT display_id1 FROM creature_template WHERE entry = ?", misc[i]).Scan(&did)
+			return spellID, did
+		}
+	}
+	return spellID, 0
+}
+
 // reputationRankName maps a reputation standing index (0..7) to its name, as
 // used by item_template.required_reputation_rank.
 func reputationRankName(rank int) string {
@@ -1465,6 +1491,10 @@ func (r *ItemRepository) GetItemDetail(entry int) (*models.ItemDetail, error) {
 	// Get crafting recipes that create this item ("Created By").
 	detail.CreatedBy = r.getCreatedBy(entry)
 	detail.ReagentFor = r.getReagentFor(entry)
+
+	// Mount: collection_mount maps the item to the mount spell it grants; that
+	// spell's Mounted aura (78) carries the creature display id to render.
+	detail.MountSpellID, detail.MountDisplayID = r.resolveMountModel(entry)
 
 	// Get containers (gameobject chests + container items) whose loot holds this
 	// item — the reverse of Contains.

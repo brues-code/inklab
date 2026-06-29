@@ -3,7 +3,7 @@ import { queryClient } from '../../../queryClient'
 import { SyncSingleSpell } from '../../../services/api'
 import { useSpellDetail } from '../../../hooks/queries/spells'
 import { DetailPageLayout, DetailHeader, DetailSection, DetailLoading, DetailError } from '../../ui'
-import { useIcon } from '../../../services/useImage'
+import { useIcon, useNpcModel } from '../../../services/useImage'
 import {
     getQualityColor,
     getSchoolName,
@@ -64,6 +64,9 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
     const [syncing, setSyncing] = useState(false)
 
     const { data: detail, isLoading: loading, isError, error } = useSpellDetail(entry)
+    // Mount spells (aura 78) resolve a creature display id; render its model the
+    // same way NPC pages do. displayId 0 (non-mount) is a no-op.
+    const mountModel = useNpcModel(detail?.mountDisplayId || 0, 0, 0)
 
     const handleSync = async () => {
         setSyncing(true)
@@ -145,6 +148,27 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
             <div className="grid grid-cols-1 gap-10 lg:grid-cols-[2fr_1fr]">
                 {/* Main Content */}
                 <div className="space-y-8">
+                    {/* Mount model (Mounted aura -> creature display id) */}
+                    {detail.mountDisplayId > 0 && (mountModel.loading || mountModel.src) && (
+                        <DetailSection title="Mount">
+                            <div className="w-56">
+                                {mountModel.loading ? (
+                                    <div className="flex aspect-[3/4] animate-pulse items-center justify-center rounded border border-white/10 bg-black/40 text-xs text-gray-500">
+                                        Loading…
+                                    </div>
+                                ) : (
+                                    <div className="overflow-hidden rounded border border-white/20 bg-black shadow-lg">
+                                        <img
+                                            src={mountModel.src}
+                                            alt={detail.name}
+                                            className="h-auto w-full object-cover"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </DetailSection>
+                    )}
+
                     <DetailSection title="Description">
                         <p className="whitespace-pre-wrap leading-relaxed text-gray-300">
                             {detail.description || 'No description available.'}
