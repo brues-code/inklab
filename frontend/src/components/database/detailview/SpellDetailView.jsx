@@ -244,7 +244,9 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
                                                 <span
                                                     className="truncate text-sm font-medium"
                                                     style={{
-                                                        color: getQualityColor(e.createdItem.quality),
+                                                        color: getQualityColor(
+                                                            e.createdItem.quality,
+                                                        ),
                                                     }}
                                                 >
                                                     {e.createdItem.name}

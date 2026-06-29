@@ -88,7 +88,9 @@ function Field({ label, children }) {
 function Group({ title, children }) {
     return (
         <div className="space-y-3 border-t border-white/10 pt-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-wow-gold/80">{title}</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-wow-gold/80">
+                {title}
+            </div>
             {children}
         </div>
     )
@@ -187,9 +189,13 @@ export default function ItemBrowseFilters({
                             return (
                                 <button
                                     key={q.id}
-                                    onClick={() => onChange({ quality: toggle(filter.quality, q.id) })}
+                                    onClick={() =>
+                                        onChange({ quality: toggle(filter.quality, q.id) })
+                                    }
                                     className={`rounded border px-1.5 py-0.5 text-[11px] transition-colors ${
-                                        on ? 'border-current' : 'border-transparent bg-black/30 hover:bg-white/5'
+                                        on
+                                            ? 'border-current'
+                                            : 'border-transparent bg-black/30 hover:bg-white/5'
                                     }`}
                                     style={{ color: getQualityColor(q.id) }}
                                 >
@@ -300,7 +306,9 @@ export default function ItemBrowseFilters({
                                 return (
                                     <button
                                         key={b.id}
-                                        onClick={() => onChange({ bonding: toggle(filter.bonding, b.id) })}
+                                        onClick={() =>
+                                            onChange({ bonding: toggle(filter.bonding, b.id) })
+                                        }
                                         className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
                                             on
                                                 ? 'border-wow-gold bg-wow-gold/20 text-wow-gold'
@@ -460,7 +468,9 @@ export default function ItemBrowseFilters({
                                     />
                                     <button
                                         onClick={() =>
-                                            onChange({ resists: filter.resists.filter((_, j) => j !== i) })
+                                            onChange({
+                                                resists: filter.resists.filter((_, j) => j !== i),
+                                            })
                                         }
                                         className="flex-shrink-0 px-1 text-gray-500 hover:text-red-400"
                                         title="Remove"
@@ -471,7 +481,9 @@ export default function ItemBrowseFilters({
                             ))}
                             <button
                                 onClick={() =>
-                                    onChange({ resists: [...(filter.resists || []), { school: 2, min: 0 }] })
+                                    onChange({
+                                        resists: [...(filter.resists || []), { school: 2, min: 0 }],
+                                    })
                                 }
                                 className="w-full rounded border border-dashed border-gray-700 px-2 py-1 text-[11px] text-gray-400 hover:border-gray-500 hover:text-white"
                             >
@@ -528,7 +540,10 @@ export default function ItemBrowseFilters({
                             <button
                                 onClick={() =>
                                     onChange({
-                                        stats: [...(filter.stats || []), { stat: statTypes[0].id, min: 0 }],
+                                        stats: [
+                                            ...(filter.stats || []),
+                                            { stat: statTypes[0].id, min: 0 },
+                                        ],
                                     })
                                 }
                                 className="w-full rounded border border-dashed border-gray-700 px-2 py-1 text-[11px] text-gray-400 hover:border-gray-500 hover:text-white"
@@ -547,7 +562,9 @@ export default function ItemBrowseFilters({
                             return (
                                 <button
                                     key={s.key}
-                                    onClick={() => onChange({ sources: toggle(filter.sources, s.key) })}
+                                    onClick={() =>
+                                        onChange({ sources: toggle(filter.sources, s.key) })
+                                    }
                                     className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
                                         on
                                             ? 'border-wow-gold bg-wow-gold/20 text-wow-gold'

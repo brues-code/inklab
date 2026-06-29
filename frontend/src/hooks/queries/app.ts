@@ -10,9 +10,7 @@ const GetDataStatus = () =>
         : Promise.resolve(null)
 
 const GetSyncStats = () =>
-    window?.go?.main?.App?.GetSyncStats
-        ? window.go.main.App.GetSyncStats()
-        : Promise.resolve(null)
+    window?.go?.main?.App?.GetSyncStats ? window.go.main.App.GetSyncStats() : Promise.resolve(null)
 
 const WhatsNew = async () => {
     const app = window?.go?.main?.App

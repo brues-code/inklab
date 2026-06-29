@@ -37,9 +37,9 @@ export function DataStatusBanner({ onGoToTools }) {
     return (
         <div className="flex items-center justify-between gap-4 border-b border-amber-500/40 bg-amber-500/15 px-5 py-2 text-sm text-amber-300">
             <span>
-                ⚠️ Missing data:{' '}
-                <strong title={labels.join(', ')}>{summary}</strong> — InkLab builds these from your
-                WoW client. Affected pages will show placeholders until you import them.
+                ⚠️ Missing data: <strong title={labels.join(', ')}>{summary}</strong> — InkLab
+                builds these from your WoW client. Affected pages will show placeholders until you
+                import them.
             </span>
             <div className="flex items-center gap-4">
                 <button
