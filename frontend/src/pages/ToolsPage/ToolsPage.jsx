@@ -113,6 +113,12 @@ function ToolsPage() {
         localStorage.setItem('toolsBasePath', v)
     }
 
+    // Native folder picker (Wails). Returns "" on cancel — keep the current value.
+    const browseBase = () =>
+        window?.go?.main?.App?.SelectClientFolder?.(base)?.then(
+            (picked) => picked && saveBase(picked),
+        )
+
     const run = async (imp) => {
         const app = window?.go?.main?.App
         if (!app || !app[imp.fn]) {
@@ -178,13 +184,22 @@ function ToolsPage() {
                     <label className="mb-1 block text-[11px] font-bold uppercase text-gray-500">
                         WoW client folder
                     </label>
-                    <input
-                        value={base}
-                        onChange={(e) => saveBase(e.target.value)}
-                        spellCheck={false}
-                        className="w-full rounded border border-border-light bg-bg-dark px-3 py-2 font-mono text-sm text-gray-200 focus:border-wow-gold/50 focus:outline-none"
-                        placeholder={DEFAULT_BASE}
-                    />
+                    <div className="flex gap-2">
+                        <input
+                            value={base}
+                            onChange={(e) => saveBase(e.target.value)}
+                            spellCheck={false}
+                            className="w-full rounded border border-border-light bg-bg-dark px-3 py-2 font-mono text-sm text-gray-200 focus:border-wow-gold/50 focus:outline-none"
+                            placeholder={DEFAULT_BASE}
+                        />
+                        <button
+                            type="button"
+                            onClick={browseBase}
+                            className="shrink-0 rounded border border-border-light bg-bg-dark px-3 py-2 text-sm text-gray-200 hover:border-wow-gold/50 hover:text-wow-gold focus:border-wow-gold/50 focus:outline-none"
+                        >
+                            Browse…
+                        </button>
+                    </div>
                     <p className="mt-1 text-[11px] text-gray-600">
                         Reads <span className="font-mono">Data\*.MPQ</span> directly when present
                         (nothing is written back), plus <span className="font-mono">WDB\</span> for

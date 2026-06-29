@@ -330,6 +330,10 @@ export function SearchSpells(arg1) {
   return window['go']['main']['App']['SearchSpells'](arg1);
 }
 
+export function SelectClientFolder(arg1) {
+  return window['go']['main']['App']['SelectClientFolder'](arg1);
+}
+
 export function StopSync() {
   return window['go']['main']['App']['StopSync']();
 }

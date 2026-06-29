@@ -9,6 +9,8 @@ import (
 
 	"inklab/backend/database"
 	"inklab/backend/datatools"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ImportReport is the generic result of a Tools-tab data import.
@@ -223,6 +225,18 @@ func (a *App) RunCacheImport(baseDir string) ImportReport {
 // present and reuses them for all three steps; otherwise it falls back to the
 // loose extracted folders per category. Output only ever goes to InkLab's
 // data/ dir; the client directory is never written.
+// SelectClientFolder opens a native folder picker for the WoW client directory
+// and returns the chosen path. Returns "" if the user cancels (the caller keeps
+// the existing value). The optional current path seeds the dialog's start
+// location so it opens where the user last pointed it.
+func (a *App) SelectClientFolder(current string) (string, error) {
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:                "Select your WoW client folder",
+		DefaultDirectory:     current,
+		CanCreateDirectories: false,
+	})
+}
+
 func (a *App) RunClientImport(baseDir string) ImportReport {
 	mpqSrc, useMPQ := openClientMPQ(baseDir)
 	if useMPQ {

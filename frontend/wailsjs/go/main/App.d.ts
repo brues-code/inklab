@@ -168,6 +168,8 @@ export function SearchQuests(arg1:string):Promise<Array<models.Quest>>;
 
 export function SearchSpells(arg1:string):Promise<Array<models.Spell>>;
 
+export function SelectClientFolder(arg1:string):Promise<string>;
+
 export function StopSync():Promise<string>;
 
 export function SyncMissingAtlasLoot(arg1:number,arg2:number):Promise<services.ImportResult>;
