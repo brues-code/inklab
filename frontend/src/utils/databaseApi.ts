@@ -284,6 +284,13 @@ export const GetZoneNames = () => {
     return Promise.resolve([])
 }
 
+export const GetZoneLoot = (id: number) => {
+    if (window?.go?.main?.App?.GetZoneLoot) {
+        return window.go.main.App.GetZoneLoot(id)
+    }
+    return Promise.resolve([])
+}
+
 // Filter helper function
 export const filterItems = (items: any[], filter: string) => {
     if (!filter || !filter.trim()) return items || []

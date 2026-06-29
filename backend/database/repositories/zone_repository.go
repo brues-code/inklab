@@ -386,6 +386,132 @@ func (r *ZoneRepository) GetZoneDetail(id int) (*models.ZoneDetail, error) {
 	return d, nil
 }
 
+// GetZoneLoot returns every distinct item directly dropped by a creature or game
+// object that spawns in the zone, with the number of distinct sources and the
+// best drop chance. Reference/world-drop pools are excluded (see below). Loaded
+// lazily (its own binding) so the zone page stays responsive. Sorted by quality
+// then item level so the best gear surfaces first.
+func (r *ZoneRepository) GetZoneLoot(id int) ([]*models.ZoneLoot, error) {
+	zones, err := r.loadZoneInfos()
+	if err != nil {
+		return nil, err
+	}
+	creatureNames := r.spawnNamesForZone(id, zones)
+	objNames := r.spawnNamesForZoneTable("gameobject_spawn", id, zones)
+
+	// Build a UNION ALL of (item, source-key, chance) tuples, only including the
+	// creature/object halves that actually have spawns (an empty IN () is invalid
+	// SQL). The source key is prefixed by kind so a creature and an object with
+	// the same entry id count as two distinct sources.
+	var parts []string
+	var args []interface{}
+	inClause := func(names []string) string {
+		for _, n := range names {
+			args = append(args, n)
+		}
+		return strings.TrimSuffix(strings.Repeat("?,", len(names)), ",")
+	}
+	// Dedupe spawns to distinct creature/object entries *before* joining loot — a
+	// creature has many spawn points, so joining spawns straight to its loot table
+	// multiplies rows by spawn count.
+	//
+	// Loot is the item's direct rows (mincountOrRef >= 0) PLUS the items in any
+	// *boss-specific* reference table it points to. Negative rows are pointers
+	// into reference_loot_template; those tables come in two flavors: shared
+	// world-drop pools (Linen Cloth, world epics) referenced by hundreds of
+	// creatures, and per-boss loot pools referenced by only one or two. We expand
+	// only the latter (referenced by <= maxSharedRefSources loot tables) — that
+	// surfaces a boss's epics (e.g. Solnius) without dragging in the global pools,
+	// which are both slow to expand (~40x the rows) and pure noise in a zone list.
+	const maxSharedRefSources = 10
+	// creatureDist/objDist build the "distinct entries joined to their loot table"
+	// FROM clause. Called fresh per part (not shared) so each placeholder set gets
+	// its own args appended in the order they appear in the final SQL.
+	creatureDist := func() string {
+		return `(SELECT DISTINCT creature_entry AS e FROM creature_spawn WHERE zone_name IN (` + inClause(creatureNames) + `)) ze
+			JOIN creature_template c ON c.entry = ze.e
+			JOIN creature_loot_template cl ON cl.entry = c.loot_id`
+	}
+	objDist := func() string {
+		return `(SELECT DISTINCT gameobject_entry AS e FROM gameobject_spawn WHERE zone_name IN (` + inClause(objNames) + `)) ze
+			JOIN gameobject_template gt ON gt.entry = ze.e
+			JOIN gameobject_loot_template gl ON gl.entry = gt.data1`
+	}
+	if len(creatureNames) > 0 {
+		parts = append(parts, `
+			SELECT cl.item AS item, 'c' || ze.e AS src, cl.ChanceOrQuestChance AS chance
+			FROM `+creatureDist()+` AND cl.mincountOrRef >= 0`)
+		parts = append(parts, `
+			SELECT rl.item AS item, 'c' || ze.e AS src,
+			       cl.ChanceOrQuestChance * COALESCE(NULLIF(rl.ChanceOrQuestChance, 0), 100.0 / NULLIF(g.cnt, 0)) / 100.0 AS chance
+			FROM `+creatureDist()+` AND cl.mincountOrRef < 0
+			JOIN narrow_refs nr ON nr.mref = cl.mincountOrRef
+			JOIN reference_loot_template rl ON rl.entry = -cl.mincountOrRef
+			LEFT JOIN ref_group_counts g ON g.entry = rl.entry AND g.groupid = rl.groupid`)
+	}
+	if len(objNames) > 0 {
+		parts = append(parts, `
+			SELECT gl.item AS item, 'o' || ze.e AS src, gl.ChanceOrQuestChance AS chance
+			FROM `+objDist()+` AND gl.mincountOrRef >= 0`)
+		parts = append(parts, `
+			SELECT rl.item AS item, 'o' || ze.e AS src,
+			       gl.ChanceOrQuestChance * COALESCE(NULLIF(rl.ChanceOrQuestChance, 0), 100.0 / NULLIF(g.cnt, 0)) / 100.0 AS chance
+			FROM `+objDist()+` AND gl.mincountOrRef < 0
+			JOIN narrow_refs nr ON nr.mref = gl.mincountOrRef
+			JOIN reference_loot_template rl ON rl.entry = -gl.mincountOrRef
+			LEFT JOIN ref_group_counts g ON g.entry = rl.entry AND g.groupid = rl.groupid`)
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+
+	// narrow_refs: reference-table pointers (negative mincountOrRef values) used by
+	// at most maxSharedRefSources distinct loot tables — i.e. per-boss pools, not
+	// shared world-drop pools. Computed once and joined by the reference parts
+	// above. Its threshold placeholder is the first arg (it leads the SQL).
+	q := `
+		WITH narrow_refs AS (
+			SELECT mref FROM (
+				SELECT DISTINCT entry, mincountOrRef AS mref FROM creature_loot_template WHERE mincountOrRef < 0
+				UNION
+				SELECT DISTINCT entry, mincountOrRef AS mref FROM gameobject_loot_template WHERE mincountOrRef < 0
+			) GROUP BY mref HAVING COUNT(*) <= ?
+		),
+		-- Within a reference table, items sharing a group with chance 0 split the
+		-- group's roll equally (mangos loot semantics), so each item's share is
+		-- 100/cnt %. Used to turn a stored chance of 0 into a real drop %.
+		ref_group_counts AS (
+			SELECT entry, groupid, COUNT(*) AS cnt
+			FROM reference_loot_template
+			WHERE ChanceOrQuestChance = 0
+			GROUP BY entry, groupid
+		)
+		SELECT it.entry, it.name, it.quality, COALESCE(idi.icon, ''), it.item_level,
+		       COUNT(DISTINCT t.src) AS sources, MAX(t.chance) AS best
+		FROM (` + strings.Join(parts, "\n\t\t\tUNION ALL\n") + `) t
+		JOIN item_template it ON it.entry = t.item
+		LEFT JOIN item_display_info idi ON it.display_id = idi.ID
+		GROUP BY it.entry
+		ORDER BY it.quality DESC, it.item_level DESC, it.name
+		LIMIT 2000`
+
+	rows, err := r.db.Query(q, append([]interface{}{maxSharedRefSources}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*models.ZoneLoot
+	for rows.Next() {
+		l := &models.ZoneLoot{}
+		if err := rows.Scan(&l.Entry, &l.Name, &l.Quality, &l.IconPath, &l.ItemLevel, &l.Sources, &l.Chance); err != nil {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out, nil
+}
+
 // spawnNamesForZone returns the distinct creature_spawn.zone_name values that
 // resolve to the given zone id.
 func (r *ZoneRepository) spawnNamesForZone(id int, zones []zoneInfo) []string {

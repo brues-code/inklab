@@ -50,6 +50,19 @@ type ZoneObject struct {
 	TypeName string `json:"typeName"`
 }
 
+// ZoneLoot is one distinct item that drops from any creature or game object
+// spawning in the zone, with how many distinct sources drop it and the best
+// drop chance across them.
+type ZoneLoot struct {
+	Entry     int     `json:"entry"`
+	Name      string  `json:"name"`
+	Quality   int     `json:"quality"`
+	IconPath  string  `json:"iconPath"`
+	ItemLevel int     `json:"itemLevel"`
+	Sources   int     `json:"sources"` // distinct creatures/objects dropping it
+	Chance    float64 `json:"chance"`  // best drop chance across sources
+}
+
 // ZoneSpawn is a single creature spawn point in map-percentage coords (0-100),
 // used to plot markers on the zone map.
 type ZoneSpawn struct {

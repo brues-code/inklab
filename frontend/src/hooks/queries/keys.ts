@@ -52,6 +52,7 @@ export const queryKeys = {
     zones: ['zones'] as const,
     zoneNames: ['zoneNames'] as const,
     zoneDetail: (entry: unknown) => ['zoneDetail', entry] as const,
+    zoneLoot: (entry: unknown) => ['zoneLoot', entry] as const,
 
     // Races
     races: ['races'] as const,

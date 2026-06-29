@@ -3438,6 +3438,30 @@ export namespace models {
 	        this.questCount = source["questCount"];
 	    }
 	}
+	export class ZoneLoot {
+	    entry: number;
+	    name: string;
+	    quality: number;
+	    iconPath: string;
+	    itemLevel: number;
+	    sources: number;
+	    chance: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZoneLoot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.quality = source["quality"];
+	        this.iconPath = source["iconPath"];
+	        this.itemLevel = source["itemLevel"];
+	        this.sources = source["sources"];
+	        this.chance = source["chance"];
+	    }
+	}
 	export class ZoneNameInfo {
 	    key: string;
 	    id: number;

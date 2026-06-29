@@ -270,6 +270,10 @@ export function GetZoneDetail(arg1) {
   return window['go']['main']['App']['GetZoneDetail'](arg1);
 }
 
+export function GetZoneLoot(arg1) {
+  return window['go']['main']['App']['GetZoneLoot'](arg1);
+}
+
 export function GetZoneNames() {
   return window['go']['main']['App']['GetZoneNames']();
 }

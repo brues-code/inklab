@@ -39,3 +39,15 @@ func (a *App) GetZoneDetail(id int) (*database.ZoneDetail, error) {
 	}
 	return d, nil
 }
+
+// GetZoneLoot returns every distinct item dropped by a creature or game object
+// in the zone. Separate from GetZoneDetail so the page loads it lazily (heaviest
+// query) when the user opens the Loot tab.
+func (a *App) GetZoneLoot(id int) ([]*database.ZoneLoot, error) {
+	loot, err := a.zoneRepo.GetZoneLoot(id)
+	if err != nil {
+		fmt.Printf("[API] Error getting zone loot [%d]: %v\n", id, err)
+		return nil, err
+	}
+	return loot, nil
+}

@@ -1,9 +1,48 @@
 import React, { useState } from 'react'
-import { useZoneDetail } from '../../../hooks/queries/zones'
-import { useZoneMap, useZoneMinimap } from '../../../services/useImage'
+import { useZoneDetail, useZoneLoot } from '../../../hooks/queries/zones'
+import { useZoneMap, useZoneMinimap, useIcon } from '../../../services/useImage'
+import { useTooltipCtx } from '../../../hooks/useTooltipContext'
+import { getQualityColor, QUESTION_MARK_ICON } from '../../../utils/wow.ts'
 import { DetailPageLayout, DetailLoading, DetailError } from '../../ui'
 
 const ZONE_COLOR = '#4ADE80'
+
+// One loot row — split out so each can resolve its own icon. Drop chance is the
+// best across all sources in the zone; 0 means the chance wasn't recorded.
+function LootRow({ item, onClick, handlers }) {
+    const icon = useIcon(item.iconPath)
+    const color = getQualityColor(item.quality || 0)
+    return (
+        <tr
+            onClick={onClick}
+            {...handlers}
+            className="cursor-pointer border-b border-white/5 hover:bg-white/5"
+        >
+            <td className="py-1 pl-2 pr-3">
+                <div className="flex items-center gap-2">
+                    <div
+                        className="h-7 w-7 flex-shrink-0 overflow-hidden rounded border bg-black/40"
+                        style={{ borderColor: color }}
+                    >
+                        <img
+                            src={icon.src || QUESTION_MARK_ICON}
+                            alt=""
+                            className="h-full w-full object-cover"
+                        />
+                    </div>
+                    <span className="truncate font-medium" style={{ color }}>
+                        {item.name}
+                    </span>
+                </div>
+            </td>
+            <td className="px-3 text-right tabular-nums text-gray-300">{item.itemLevel || '—'}</td>
+            <td className="px-3 text-right tabular-nums text-gray-400">{item.sources}</td>
+            <td className="px-3 text-right tabular-nums text-gray-400">
+                {item.chance > 0 ? `${item.chance.toFixed(1)}%` : '—'}
+            </td>
+        </tr>
+    )
+}
 
 // Plotting every spawn point gets heavy in dense zones; cap the markers we draw.
 const MAX_MARKERS = 800
@@ -45,7 +84,13 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
     // single floating name tooltip (one element, not one per dot).
     const [hovered, setHovered] = useState(null)
 
+    // Shared item-tooltip hook (the floating tooltip layer lives at the app root).
+    const tooltip = useTooltipCtx()
+
     const { data: detail, isLoading: loading } = useZoneDetail(entry)
+    // Loot is fetched lazily — only once the Loot tab is the active tab.
+    const lootActive = (onTabChange ? activeTab : localTab) === 'loot'
+    const { data: loot, isFetching: lootLoading } = useZoneLoot(entry, lootActive)
 
     // Reset the service filter when the zone changes (render-time, no effect).
     const [zoneKey, setZoneKey] = useState(entry)
@@ -97,6 +142,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
         { id: 'npcs', label: `NPCs (${npcs.length})` },
         { id: 'quests', label: `Quests (${quests.length})` },
         { id: 'objects', label: `Objects (${objects.length})` },
+        { id: 'loot', label: `Loot${loot ? ` (${loot.length})` : ''}` },
     ]
 
     // Effective tab: the URL/local value if it's a real tab, else NPCs.
@@ -448,6 +494,43 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                             ) : (
                                 <div className="italic text-gray-500">
                                     No objects recorded in this zone.
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {currentTab === 'loot' && (
+                        <>
+                            {lootLoading ? (
+                                <div className="animate-pulse italic text-gray-500">
+                                    Gathering loot…
+                                </div>
+                            ) : loot && loot.length > 0 ? (
+                                <div className="bg-bg-sub overflow-hidden rounded border border-border-light">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-white/10 text-left text-[11px] uppercase text-gray-500">
+                                                <th className="py-2 pl-2 pr-3 font-bold">Item</th>
+                                                <th className="px-3 text-right font-bold">iLvl</th>
+                                                <th className="px-3 text-right font-bold">Sources</th>
+                                                <th className="px-3 text-right font-bold">Drop %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {loot.map((it) => (
+                                                <LootRow
+                                                    key={it.entry}
+                                                    item={it}
+                                                    onClick={() => onNavigate('item', it.entry)}
+                                                    handlers={tooltip?.getItemHandlers?.(it.entry)}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="italic text-gray-500">
+                                    No loot recorded for this zone.
                                 </div>
                             )}
                         </>
