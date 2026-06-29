@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
-	"math"
-	"os"
-	"path/filepath"
 	"inklab/backend/database"
 	"inklab/backend/datatools"
 	"inklab/backend/parsers"
+	"math"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -76,6 +76,7 @@ func (s *NpcService) ensureSchema() {
 			position_x REAL DEFAULT 0,
 			position_y REAL DEFAULT 0,
 			position_z REAL DEFAULT 0,
+			origin TEXT NOT NULL DEFAULT 'official',
 			UNIQUE(creature_entry, map_id, position_x, position_y)
 		)`)
 	for _, col := range []string{
@@ -85,6 +86,9 @@ func (s *NpcService) ensureSchema() {
 		"ALTER TABLE creature_metadata ADD COLUMN zone_name TEXT",
 		"ALTER TABLE creature_metadata ADD COLUMN x REAL",
 		"ALTER TABLE creature_metadata ADD COLUMN y REAL",
+		// origin provenance for spawn tables (Stage 1): 'official' vs 'local'.
+		"ALTER TABLE creature_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'",
+		"ALTER TABLE gameobject_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'",
 	} {
 		s.sqlite.Exec(col) // ignore "duplicate column" errors
 	}
@@ -129,8 +133,8 @@ type NpcFullDetails struct {
 	FactionName   string            `json:"factionName"` // resolved from the faction template
 	FactionID     int               `json:"factionId"`   // resolved Faction.dbc id
 	ZoneName      string            `json:"zoneName"`    // New
-	X             float64           `json:"x"`        // New
-	Y             float64           `json:"y"`        // New
+	X             float64           `json:"x"`           // New
+	Y             float64           `json:"y"`           // New
 	Loot          []NpcLoot         `json:"loot"`
 	Quests        []NpcQuest        `json:"quests"`
 	Abilities     []NpcAbility      `json:"abilities"`
@@ -536,23 +540,22 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 
 		if err == nil {
 			defer rows.Close()
-			s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
+			// Replace only OFFICIAL spawns from MySQL; the user's scraped ('local')
+			// spawns are never touched here, so a rebuild can't wipe custom-zone
+			// spawns (e.g. Balor) the local resolver can't identify.
+			s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ? AND origin != 'local'", entry)
 			for rows.Next() {
 				var mapId int
 				var worldX, worldY, z float64
 				if err := rows.Scan(&mapId, &worldX, &worldY, &z); err != nil {
 					continue
 				}
-
-				// Convert world coordinates to map percentage (0-100)
 				zoneName, mapX, mapY := s.convertWorldToMapCoords(mapId, 0, worldX, worldY)
 				zoneName, mapX, mapY = s.applyCityOverride(mapId, worldX, worldY, z, zoneName, mapX, mapY)
-
-				_, err = s.sqlite.Exec(`
-					INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-					VALUES (?, ?, ?, ?, ?, ?, ?)
-				`, entry, mapId, 0, zoneName, mapX, mapY, z)
-				if err == nil {
+				if _, err := s.sqlite.Exec(`
+					INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
+					VALUES (?, ?, ?, ?, ?, ?, ?, 'official')
+				`, entry, mapId, 0, zoneName, mapX, mapY, z); err == nil {
 					spawnCount++
 				}
 			}
@@ -585,10 +588,11 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 			}
 		}
 		fmt.Printf("  ⚠ No MySQL spawns for %d, falling back to scraped data: %s (%.1f, %.1f)\n", entry, zoneName, mapX, mapY)
-		s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
+		// Scraped octowow data is 'local' provenance — replace only prior local rows.
+		s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ? AND origin = 'local'", entry)
 		_, err = s.sqlite.Exec(`
-			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'local')
 		`, entry, 0, 0, zoneName, mapX, mapY, 0)
 		if err == nil {
 			fmt.Printf("  ✓ Created pseudo-spawn from web data for creature %d\n", entry)
@@ -1091,9 +1095,6 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 		return
 	}
 
-	// Replace existing spawns for this object.
-	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
-
 	rows, err := s.mysql.DB().Query(`
 		SELECT map, AVG(position_x) as avg_x, AVG(position_y) as avg_y, AVG(position_z) as avg_z
 		FROM gameobject
@@ -1107,6 +1108,10 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 	}
 	defer rows.Close()
 
+	// Replace only OFFICIAL spawns from MySQL; the user's scraped ('local') spawns
+	// are never touched, so a rebuild can't wipe custom-zone objects (e.g. Balor)
+	// the local resolver can't identify.
+	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ? AND origin != 'local'", entry)
 	spawnCount := 0
 	for rows.Next() {
 		var mapId int
@@ -1117,8 +1122,8 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 		zoneName, mapX, mapY := s.convertWorldToMapCoords(mapId, 0, worldX, worldY)
 		zoneName, mapX, mapY = s.applyCityOverride(mapId, worldX, worldY, z, zoneName, mapX, mapY)
 		if _, err := s.sqlite.Exec(`
-			INSERT INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'official')
 		`, entry, mapId, 0, zoneName, mapX, mapY, z); err == nil {
 			spawnCount++
 		}
@@ -1151,6 +1156,9 @@ func (s *NpcService) SyncObjectFromWeb(entry int) error {
 // already provides per-zone map percentages — and it groups by the authoritative
 // zone areatableID, which we resolve to a folder name.
 func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) int {
+	// A deliberate octowow re-scrape is authoritative for this object, so replace
+	// all of its spawns with the scraped ('local') data. Local provenance means a
+	// later MySQL RebuildSpawnZones won't wipe these (the Balor case).
 	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
 
 	n := 0
@@ -1159,8 +1167,8 @@ func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) i
 		// client area grid (its zone detection mis-tags octo's custom zones).
 		zoneName, x, y := s.resolveScrapedSpawn(p.ZoneID, p.ZoneName, p.X, p.Y)
 		if _, err := s.sqlite.Exec(`
-			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'local')
 		`, entry, 0, p.ZoneID, zoneName, x, y, 0); err == nil {
 			n++
 		}
@@ -1491,6 +1499,8 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 			return
 		}
 	}
+	// Authoritative octowow re-scrape (only reached when MySQL has no spawns for
+	// this creature) → 'local' provenance, immune to MySQL rebuilds.
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
 	inserted := 0
 	for _, sp := range data.Spawns {
@@ -1500,8 +1510,8 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 		// continent at zone 0).
 		zoneName, x, y := s.resolveScrapedSpawn(sp.ZoneID, sp.ZoneName, sp.X, sp.Y)
 		_, err := s.sqlite.Exec(`
-			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'local')
 			ON CONFLICT(creature_entry, map_id, position_x, position_y) DO NOTHING
 		`, entry, 0, sp.ZoneID, zoneName, x, y, 0)
 		if err == nil {

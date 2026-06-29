@@ -89,6 +89,10 @@ func (s *SQLiteDB) InitSchema() error {
 	s.db.Exec("ALTER TABLE taxi_node ADD COLUMN world_y REAL DEFAULT 0")                       // ignore error if exists
 	s.db.Exec("ALTER TABLE taxi_node ADD COLUMN alliance_npc INTEGER DEFAULT 0")               // ignore error if exists
 	s.db.Exec("ALTER TABLE taxi_node ADD COLUMN horde_npc INTEGER DEFAULT 0")                  // ignore error if exists
+	// Spawn provenance (Stage 1): 'official' (build/MySQL) vs 'local' (user scrape).
+	// Local rows are never wiped by imports/rebuilds.
+	s.db.Exec("ALTER TABLE creature_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'")   // ignore error if exists
+	s.db.Exec("ALTER TABLE gameobject_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'") // ignore error if exists
 
 	return nil
 }

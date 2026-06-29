@@ -475,6 +475,10 @@ func CoreSchema() string {
 	);
 
 	-- Creature Spawns (Synced from MySQL)
+	-- origin: 'official' (from a published build / MySQL rebuild) or 'local'
+	-- (the user's own scrapes). Local rows are never wiped by imports/rebuilds and
+	-- are preserved across official DB upgrades unless the new official includes
+	-- the same spawn. See data-distribution design (Stage 1).
 	CREATE TABLE IF NOT EXISTS creature_spawn (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		creature_entry INTEGER,
@@ -484,6 +488,7 @@ func CoreSchema() string {
 		position_x REAL,
 		position_y REAL,
 		position_z REAL,
+		origin TEXT NOT NULL DEFAULT 'official',
 		UNIQUE(creature_entry, map_id, position_x, position_y)
 	);
 	CREATE INDEX IF NOT EXISTS idx_creature_spawn_entry ON creature_spawn(creature_entry);
@@ -498,6 +503,7 @@ func CoreSchema() string {
 		position_x REAL,
 		position_y REAL,
 		position_z REAL,
+		origin TEXT NOT NULL DEFAULT 'official',
 		UNIQUE(gameobject_entry, map_id, position_x, position_y)
 	);
 	CREATE INDEX IF NOT EXISTS idx_gameobject_spawn_entry ON gameobject_spawn(gameobject_entry);
