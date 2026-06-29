@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"database/sql"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -439,10 +440,10 @@ func (r *ZoneRepository) GetZoneLoot(id int) ([]*models.ZoneLoot, error) {
 	}
 	if len(creatureNames) > 0 {
 		parts = append(parts, `
-			SELECT cl.item AS item, 'c' || ze.e AS src, cl.ChanceOrQuestChance AS chance
+			SELECT cl.item AS item, 'npc' AS kind, ze.e AS sentry, c.name AS sname, cl.ChanceOrQuestChance AS chance
 			FROM `+creatureDist()+` AND cl.mincountOrRef >= 0`)
 		parts = append(parts, `
-			SELECT rl.item AS item, 'c' || ze.e AS src,
+			SELECT rl.item AS item, 'npc' AS kind, ze.e AS sentry, c.name AS sname,
 			       cl.ChanceOrQuestChance * COALESCE(NULLIF(rl.ChanceOrQuestChance, 0), 100.0 / NULLIF(g.cnt, 0)) / 100.0 AS chance
 			FROM `+creatureDist()+` AND cl.mincountOrRef < 0
 			JOIN narrow_refs nr ON nr.mref = cl.mincountOrRef
@@ -451,10 +452,10 @@ func (r *ZoneRepository) GetZoneLoot(id int) ([]*models.ZoneLoot, error) {
 	}
 	if len(objNames) > 0 {
 		parts = append(parts, `
-			SELECT gl.item AS item, 'o' || ze.e AS src, gl.ChanceOrQuestChance AS chance
+			SELECT gl.item AS item, 'object' AS kind, ze.e AS sentry, gt.name AS sname, gl.ChanceOrQuestChance AS chance
 			FROM `+objDist()+` AND gl.mincountOrRef >= 0`)
 		parts = append(parts, `
-			SELECT rl.item AS item, 'o' || ze.e AS src,
+			SELECT rl.item AS item, 'object' AS kind, ze.e AS sentry, gt.name AS sname,
 			       gl.ChanceOrQuestChance * COALESCE(NULLIF(rl.ChanceOrQuestChance, 0), 100.0 / NULLIF(g.cnt, 0)) / 100.0 AS chance
 			FROM `+objDist()+` AND gl.mincountOrRef < 0
 			JOIN narrow_refs nr ON nr.mref = gl.mincountOrRef
@@ -487,13 +488,11 @@ func (r *ZoneRepository) GetZoneLoot(id int) ([]*models.ZoneLoot, error) {
 			GROUP BY entry, groupid
 		)
 		SELECT it.entry, it.name, it.quality, COALESCE(idi.icon, ''), it.item_level,
-		       COUNT(DISTINCT t.src) AS sources, MAX(t.chance) AS best
+		       t.kind, t.sentry, t.sname, t.chance
 		FROM (` + strings.Join(parts, "\n\t\t\tUNION ALL\n") + `) t
 		JOIN item_template it ON it.entry = t.item
 		LEFT JOIN item_display_info idi ON it.display_id = idi.ID
-		GROUP BY it.entry
-		ORDER BY it.quality DESC, it.item_level DESC, it.name
-		LIMIT 2000`
+		ORDER BY it.quality DESC, it.item_level DESC, it.name, it.entry`
 
 	rows, err := r.db.Query(q, append([]interface{}{maxSharedRefSources}, args...)...)
 	if err != nil {
@@ -501,13 +500,41 @@ func (r *ZoneRepository) GetZoneLoot(id int) ([]*models.ZoneLoot, error) {
 	}
 	defer rows.Close()
 
+	// Rows arrive ordered and contiguous per item (one row per source). Fold them
+	// into one ZoneLoot per item: collect distinct sources (capped) and track the
+	// best chance. The ORDER BY also fixes the display order, so first-seen order
+	// is the final order.
+	const (
+		maxItems         = 2000
+		maxSourcesPerRow = 25
+	)
+	byItem := map[int]*models.ZoneLoot{}
+	srcSeen := map[string]bool{}
 	var out []*models.ZoneLoot
 	for rows.Next() {
-		l := &models.ZoneLoot{}
-		if err := rows.Scan(&l.Entry, &l.Name, &l.Quality, &l.IconPath, &l.ItemLevel, &l.Sources, &l.Chance); err != nil {
+		var itemEntry, quality, ilvl, sentry int
+		var name, icon, kind, sname string
+		var chance sql.NullFloat64
+		if err := rows.Scan(&itemEntry, &name, &quality, &icon, &ilvl, &kind, &sentry, &sname, &chance); err != nil {
 			continue
 		}
-		out = append(out, l)
+		l := byItem[itemEntry]
+		if l == nil {
+			if len(out) >= maxItems {
+				continue
+			}
+			l = &models.ZoneLoot{Entry: itemEntry, Name: name, Quality: quality, IconPath: icon, ItemLevel: ilvl}
+			byItem[itemEntry] = l
+			out = append(out, l)
+		}
+		if chance.Valid && chance.Float64 > l.Chance {
+			l.Chance = chance.Float64
+		}
+		key := strconv.Itoa(itemEntry) + kind + strconv.Itoa(sentry)
+		if !srcSeen[key] && len(l.Sources) < maxSourcesPerRow {
+			srcSeen[key] = true
+			l.Sources = append(l.Sources, &models.ZoneLootSource{Entry: sentry, Name: sname, Kind: kind})
+		}
 	}
 	return out, nil
 }

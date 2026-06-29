@@ -9,9 +9,10 @@ const ZONE_COLOR = '#4ADE80'
 
 // One loot row — split out so each can resolve its own icon. Drop chance is the
 // best across all sources in the zone; 0 means the chance wasn't recorded.
-function LootRow({ item, onClick, handlers }) {
+function LootRow({ item, onClick, onNavigate, handlers }) {
     const icon = useIcon(item.iconPath)
     const color = getQualityColor(item.quality || 0)
+    const sources = item.sources || []
     return (
         <tr
             onClick={onClick}
@@ -36,9 +37,30 @@ function LootRow({ item, onClick, handlers }) {
                 </div>
             </td>
             <td className="px-3 text-right tabular-nums text-gray-300">{item.itemLevel || '—'}</td>
-            <td className="px-3 text-right tabular-nums text-gray-400">{item.sources}</td>
             <td className="px-3 text-right tabular-nums text-gray-400">
                 {item.chance > 0 ? `${item.chance.toFixed(1)}%` : '—'}
+            </td>
+            <td className="px-3 py-1 text-gray-400">
+                {sources.length ? (
+                    <span className="flex flex-wrap gap-x-1">
+                        {sources.map((s, i) => (
+                            <button
+                                key={`${s.kind}-${s.entry}`}
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onNavigate(s.kind, s.entry)
+                                }}
+                                className="hover:text-wow-gold hover:underline"
+                            >
+                                {s.name}
+                                {i < sources.length - 1 ? ',' : ''}
+                            </button>
+                        ))}
+                    </span>
+                ) : (
+                    '—'
+                )}
             </td>
         </tr>
     )
@@ -512,8 +534,8 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                                             <tr className="border-b border-white/10 text-left text-[11px] uppercase text-gray-500">
                                                 <th className="py-2 pl-2 pr-3 font-bold">Item</th>
                                                 <th className="px-3 text-right font-bold">iLvl</th>
-                                                <th className="px-3 text-right font-bold">Sources</th>
                                                 <th className="px-3 text-right font-bold">Drop %</th>
+                                                <th className="px-3 font-bold">Dropped By</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -522,6 +544,7 @@ const ZoneDetailView = ({ entry, onBack, onNavigate, activeTab, onTabChange }) =
                                                     key={it.entry}
                                                     item={it}
                                                     onClick={() => onNavigate('item', it.entry)}
+                                                    onNavigate={onNavigate}
                                                     handlers={tooltip?.getItemHandlers?.(it.entry)}
                                                 />
                                             ))}

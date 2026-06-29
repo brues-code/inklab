@@ -98,6 +98,7 @@ type ZoneQuest = models.ZoneQuest
 type ZoneSpawn = models.ZoneSpawn
 type ZoneDetail = models.ZoneDetail
 type ZoneLoot = models.ZoneLoot
+type ZoneLootSource = models.ZoneLootSource
 type SkillEntry = models.SkillEntry
 type SkillLineAbilityEntry = models.SkillLineAbilityEntry
 type SearchFilter = models.SearchFilter

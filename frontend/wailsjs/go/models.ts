@@ -3438,14 +3438,30 @@ export namespace models {
 	        this.questCount = source["questCount"];
 	    }
 	}
+	export class ZoneLootSource {
+	    entry: number;
+	    name: string;
+	    kind: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ZoneLootSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	    }
+	}
 	export class ZoneLoot {
 	    entry: number;
 	    name: string;
 	    quality: number;
 	    iconPath: string;
 	    itemLevel: number;
-	    sources: number;
 	    chance: number;
+	    sources: ZoneLootSource[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ZoneLoot(source);
@@ -3458,10 +3474,29 @@ export namespace models {
 	        this.quality = source["quality"];
 	        this.iconPath = source["iconPath"];
 	        this.itemLevel = source["itemLevel"];
-	        this.sources = source["sources"];
 	        this.chance = source["chance"];
+	        this.sources = this.convertValues(source["sources"], ZoneLootSource);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class ZoneNameInfo {
 	    key: string;
 	    id: number;
