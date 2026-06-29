@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	_ "embed" // for //go:embed on embeddedDB
 	"fmt"
 	"log"
@@ -8,7 +9,78 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	_ "modernc.org/sqlite"
 )
+
+// localMergeTables are the spawn tables that carry an `origin` column. On an
+// official DB upgrade their user-scraped ('local') rows are grafted into the
+// new baseline. `id` (AUTOINCREMENT) is intentionally excluded so it re-assigns;
+// INSERT OR IGNORE drops a local row when the new official already has the same
+// spawn (unique key), so a newer official always wins.
+var localMergeTables = []struct{ name, cols string }{
+	{"creature_spawn", "creature_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
+	{"gameobject_spawn", "gameobject_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
+}
+
+// refreshDBPreservingLocal replaces the extracted DB with the (newer) embedded
+// official baseline while carrying over the user's local scrapes. It writes the
+// embedded DB to a temp file, grafts local rows from the existing DB into it,
+// then atomically swaps it into place. If the graft fails (e.g. an old DB with
+// no `origin` column — nothing was tagged local anyway), it still ships the
+// fresh official baseline rather than failing the launch.
+func refreshDBPreservingLocal(dbPath string) error {
+	tmpPath := dbPath + ".new"
+	_ = os.Remove(tmpPath)
+	if err := os.WriteFile(tmpPath, embeddedDB, 0644); err != nil {
+		return err
+	}
+
+	if err := graftLocalRows(tmpPath, dbPath); err != nil {
+		log.Printf("  ⚠ could not preserve local scrapes (%v); shipping fresh official data", err)
+	}
+
+	// Swap the new baseline in via a backup, so a failed rename never leaves the
+	// user without a database (Windows can't rename over an existing file).
+	bak := dbPath + ".bak"
+	_ = os.Remove(bak)
+	if err := os.Rename(dbPath, bak); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, dbPath); err != nil {
+		_ = os.Rename(bak, dbPath) // restore the original on failure
+		return err
+	}
+	_ = os.Remove(bak)
+	return nil
+}
+
+// graftLocalRows copies origin='local' rows from oldPath into the new baseline
+// at newPath (INSERT OR IGNORE, so newer official rows win on key collision).
+func graftLocalRows(newPath, oldPath string) error {
+	db, err := sql.Open("sqlite", newPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if _, err := db.Exec("ATTACH DATABASE ? AS old", oldPath); err != nil {
+		return err
+	}
+	defer db.Exec("DETACH DATABASE old")
+
+	for _, t := range localMergeTables {
+		q := fmt.Sprintf(
+			"INSERT OR IGNORE INTO main.%s (%s) SELECT %s FROM old.%s WHERE origin='local'",
+			t.name, t.cols, t.cols, t.name)
+		if res, err := db.Exec(q); err != nil {
+			// Old DB predates the origin column (pre-Stage-1) — nothing tagged local.
+			log.Printf("  (skip %s local graft: %v)", t.name, err)
+		} else if n, _ := res.RowsAffected(); n > 0 {
+			log.Printf("  ✓ preserved %d local %s row(s)", n, t.name)
+		}
+	}
+	return nil
+}
 
 //go:embed data/inklab.db
 var embeddedDB []byte
@@ -93,18 +165,27 @@ func InitializeData() (string, bool, error) {
 	_, statErr := os.Stat(dbPath)
 	missing := os.IsNotExist(statErr)
 	stale := !isDevMode && !missing && readExtractedDBVersion(dataDir) < embeddedDBVersion
-	if missing || stale {
-		if stale {
-			log.Printf("Embedded database is newer (v%d); refreshing extracted copy...", embeddedDBVersion)
-		} else {
-			log.Println("Extracting embedded database...")
-		}
+	switch {
+	case missing:
+		// First run: nothing to preserve, write the embedded baseline as-is.
+		log.Println("Extracting embedded database...")
 		if err := os.WriteFile(dbPath, embeddedDB, 0644); err != nil {
 			return "", false, fmt.Errorf("failed to write database: %w", err)
 		}
 		writeExtractedDBVersion(dataDir, embeddedDBVersion)
 		log.Println("✓ Database ready at", dbPath)
-	} else {
+	case stale:
+		// Newer official data shipped: refresh to it, but graft the user's own
+		// scraped ('local') rows into the new baseline so an update never wipes
+		// their additions. A newer official row for the same spawn wins (the
+		// graft is INSERT OR IGNORE against the spawn's unique key).
+		log.Printf("Embedded database is newer (v%d); merging (preserving local scrapes)...", embeddedDBVersion)
+		if err := refreshDBPreservingLocal(dbPath); err != nil {
+			return "", false, fmt.Errorf("failed to refresh database: %w", err)
+		}
+		writeExtractedDBVersion(dataDir, embeddedDBVersion)
+		log.Println("✓ Database refreshed at", dbPath)
+	default:
 		log.Println("✓ Using existing database:", dbPath)
 	}
 
