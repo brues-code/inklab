@@ -2417,6 +2417,20 @@ export namespace models {
 	}
 	
 	
+	export class ResistFilter {
+	    school: number;
+	    min: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResistFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.school = source["school"];
+	        this.min = source["min"];
+	    }
+	}
 	export class StatFilter {
 	    stat: number;
 	    min: number;
@@ -2444,6 +2458,33 @@ export namespace models {
 	    stats?: StatFilter[];
 	    usableByClass?: number;
 	    sources?: string[];
+	    bonding?: number[];
+	    onlyUnique?: boolean;
+	    classSpecific?: boolean;
+	    raceSpecific?: boolean;
+	    startsQuest?: boolean;
+	    hasEffect?: boolean;
+	    requiresProf?: boolean;
+	    minSkillRank?: number;
+	    maxSkillRank?: number;
+	    requiresRep?: boolean;
+	    requiredRepFaction?: number;
+	    minBuyPrice?: number;
+	    maxBuyPrice?: number;
+	    minSellPrice?: number;
+	    maxSellPrice?: number;
+	    minDurability?: number;
+	    maxDurability?: number;
+	    minDps?: number;
+	    maxDps?: number;
+	    minSpeed?: number;
+	    maxSpeed?: number;
+	    damageSchool?: number;
+	    minArmor?: number;
+	    maxArmor?: number;
+	    minBlock?: number;
+	    maxBlock?: number;
+	    resists?: ResistFilter[];
 	    sort?: string;
 	    sortDir?: string;
 	    limit: number;
@@ -2467,6 +2508,33 @@ export namespace models {
 	        this.stats = this.convertValues(source["stats"], StatFilter);
 	        this.usableByClass = source["usableByClass"];
 	        this.sources = source["sources"];
+	        this.bonding = source["bonding"];
+	        this.onlyUnique = source["onlyUnique"];
+	        this.classSpecific = source["classSpecific"];
+	        this.raceSpecific = source["raceSpecific"];
+	        this.startsQuest = source["startsQuest"];
+	        this.hasEffect = source["hasEffect"];
+	        this.requiresProf = source["requiresProf"];
+	        this.minSkillRank = source["minSkillRank"];
+	        this.maxSkillRank = source["maxSkillRank"];
+	        this.requiresRep = source["requiresRep"];
+	        this.requiredRepFaction = source["requiredRepFaction"];
+	        this.minBuyPrice = source["minBuyPrice"];
+	        this.maxBuyPrice = source["maxBuyPrice"];
+	        this.minSellPrice = source["minSellPrice"];
+	        this.maxSellPrice = source["maxSellPrice"];
+	        this.minDurability = source["minDurability"];
+	        this.maxDurability = source["maxDurability"];
+	        this.minDps = source["minDps"];
+	        this.maxDps = source["maxDps"];
+	        this.minSpeed = source["minSpeed"];
+	        this.maxSpeed = source["maxSpeed"];
+	        this.damageSchool = source["damageSchool"];
+	        this.minArmor = source["minArmor"];
+	        this.maxArmor = source["maxArmor"];
+	        this.minBlock = source["minBlock"];
+	        this.maxBlock = source["maxBlock"];
+	        this.resists = this.convertValues(source["resists"], ResistFilter);
 	        this.sort = source["sort"];
 	        this.sortDir = source["sortDir"];
 	        this.limit = source["limit"];

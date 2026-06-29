@@ -39,7 +39,15 @@ type StatFilter struct {
 	Min  int `json:"min"`  // minimum summed value across the item's stat slots
 }
 
-// SearchFilter defines criteria for advanced item search
+// ResistFilter requires an item to have at least Min of a given resistance
+// school (1=Holy 2=Fire 3=Nature 4=Frost 5=Shadow 6=Arcane, matching spell_schools).
+type ResistFilter struct {
+	School int `json:"school"`
+	Min    int `json:"min"`
+}
+
+// SearchFilter defines criteria for advanced item search. Translated to SQL by
+// the item filter service (item_filter.go).
 type SearchFilter struct {
 	Query         string `json:"query"`
 	Quality       []int  `json:"quality,omitempty"`
@@ -55,8 +63,42 @@ type SearchFilter struct {
 	Stats []StatFilter `json:"stats,omitempty"`
 	// UsableByClass (1..N, 0 = any) keeps only items the given class can equip.
 	UsableByClass int `json:"usableByClass,omitempty"`
-	// Sources: keep items obtainable via any of these — "drop","vendor","quest","crafted".
+	// Sources: keep items obtainable via any of these — "drop","object",
+	// "container","vendor","quest","crafted","disenchant".
 	Sources []string `json:"sources,omitempty"`
+
+	// Item properties.
+	Bonding       []int `json:"bonding,omitempty"` // bonding values to include
+	OnlyUnique    bool  `json:"onlyUnique,omitempty"`
+	ClassSpecific bool  `json:"classSpecific,omitempty"`
+	RaceSpecific  bool  `json:"raceSpecific,omitempty"`
+	StartsQuest   bool  `json:"startsQuest,omitempty"`
+	HasEffect     bool  `json:"hasEffect,omitempty"` // has an on-use/equip spell
+
+	// Requirements & economy.
+	RequiresProf      bool `json:"requiresProf,omitempty"` // required_skill > 0
+	MinSkillRank      int  `json:"minSkillRank,omitempty"`
+	MaxSkillRank      int  `json:"maxSkillRank,omitempty"`
+	RequiresRep       bool `json:"requiresRep,omitempty"` // required_reputation_faction > 0
+	RequiredRepFaction int `json:"requiredRepFaction,omitempty"`
+	MinBuyPrice       int  `json:"minBuyPrice,omitempty"`
+	MaxBuyPrice       int  `json:"maxBuyPrice,omitempty"`
+	MinSellPrice      int  `json:"minSellPrice,omitempty"`
+	MaxSellPrice      int  `json:"maxSellPrice,omitempty"`
+	MinDurability     int  `json:"minDurability,omitempty"`
+	MaxDurability     int  `json:"maxDurability,omitempty"`
+
+	// Weapon & armor stats.
+	MinDps       float64        `json:"minDps,omitempty"`
+	MaxDps       float64        `json:"maxDps,omitempty"`
+	MinSpeed     float64        `json:"minSpeed,omitempty"`
+	MaxSpeed     float64        `json:"maxSpeed,omitempty"`
+	DamageSchool int            `json:"damageSchool,omitempty"` // dmg_type1; <0 = any
+	MinArmor     int            `json:"minArmor,omitempty"`
+	MaxArmor     int            `json:"maxArmor,omitempty"`
+	MinBlock     int            `json:"minBlock,omitempty"`
+	MaxBlock     int            `json:"maxBlock,omitempty"`
+	Resists      []ResistFilter `json:"resists,omitempty"`
 
 	// Sort field ("name","itemLevel","requiredLevel","quality") + direction.
 	Sort    string `json:"sort,omitempty"`
