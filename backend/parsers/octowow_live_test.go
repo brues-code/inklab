@@ -64,6 +64,39 @@ func TestOctowowItemLive(t *testing.T) {
 	if item.Class != 2 { // weapon
 		t.Errorf("Class = %d; want 2 (weapon)", item.Class)
 	}
+	if item.Bonding != 1 { // Binds when picked up
+		t.Errorf("Bonding = %d; want 1 (BoP)", item.Bonding)
+	}
+
+	// Quest items expose their bind as "Quest Item" (bonding 4) — must parse so a
+	// sync doesn't overwrite a cache-imported value with 0.
+	scythe := liveGet(t, octowowBase+"/?item=61759")
+	if qi, _, err := ParseItem(scythe, 61759); err != nil {
+		t.Fatalf("ParseItem(61759) error: %v", err)
+	} else if qi.Bonding != 4 {
+		t.Errorf("Scythe Bonding = %d; want 4 (Quest Item)", qi.Bonding)
+	}
+}
+
+func TestOctowowItemContainsLive(t *testing.T) {
+	// Dreamwind's Box contains The Scythe of Elune (61759) + Pure Worgen Blood
+	// (41422). This relation is server loot only on the item page's "contains"
+	// Listview — not in the world DB.
+	content := liveGet(t, octowowBase+"/?item=41423")
+	item, _, err := ParseItem(content, 41423)
+	if err != nil {
+		t.Fatalf("ParseItem error: %v", err)
+	}
+	got := map[int]bool{}
+	for _, c := range item.ContainsItems {
+		got[c.ItemID] = true
+	}
+	if !got[61759] {
+		t.Errorf("ContainsItems missing 61759 (Scythe of Elune); got %+v", item.ContainsItems)
+	}
+	if !got[41422] {
+		t.Errorf("ContainsItems missing 41422 (Pure Worgen Blood); got %+v", item.ContainsItems)
+	}
 }
 
 func TestOctowowTradeGoodLive(t *testing.T) {

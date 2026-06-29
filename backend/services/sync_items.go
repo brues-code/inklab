@@ -141,6 +141,9 @@ func (s *SyncService) CheckNewItems(maxChecks int, delayMs int, progressChan cha
 				}
 			}
 
+			// Store the "contains" list (container loot) scraped from the page.
+			s.storeItemContains(item.Entry, item.ContainsItems)
+
 			// Sync item set info
 			if itemSet != nil {
 				if err := s.UpsertItemSet(itemSet); err != nil {
@@ -302,6 +305,9 @@ func (s *SyncService) FetchAndImportItem(itemID int) *SyncItemResult {
 	// Store the "sold by" vendor list scraped from the item page.
 	s.storeItemVendors(itemID, item.Vendors)
 
+	// Store the "contains" list (container loot) scraped from the item page.
+	s.storeItemContains(itemID, item.ContainsItems)
+
 	// Auto-fix icon if needed
 	iconFixService := NewIconFixService(s.db, iconDir)
 	_, _, _ = iconFixService.FixSingleItem(s.db, itemID)
@@ -310,6 +316,28 @@ func (s *SyncService) FetchAndImportItem(itemID int) *SyncItemResult {
 		Success: true,
 		ItemID:  itemID,
 		Name:    item.Name,
+	}
+}
+
+// storeItemContains records the items a container/loot item holds (scraped from
+// the item page's "contains" Listview) into item_loot_template. Additive and
+// non-destructive (INSERT OR IGNORE, keyed on entry+item) so it never clobbers
+// official world-DB loot — it only fills in relations the world DB lacks, e.g.
+// Turtle-custom containers. Populating item_loot_template lights up both the
+// container's "Contains" tab and each contained item's "Contained In Item" tab.
+func (s *SyncService) storeItemContains(itemID int, contains []models.ContainedItem) {
+	for _, c := range contains {
+		if c.ItemID <= 0 {
+			continue
+		}
+		count := c.Count
+		if count < 1 {
+			count = 1
+		}
+		_, _ = s.db.Exec(
+			`INSERT OR IGNORE INTO item_loot_template (entry, item, ChanceOrQuestChance, groupid, mincountOrRef, maxcount)
+			 VALUES (?, ?, ?, 0, ?, ?)`,
+			itemID, c.ItemID, c.Percent, count, count)
 	}
 }
 
@@ -693,6 +721,9 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 
 				// Store the "sold by" vendor list scraped from the item page.
 				s.storeItemVendors(itemID, item.Vendors)
+
+				// Store the "contains" list (container loot) scraped from the page.
+				s.storeItemContains(itemID, item.ContainsItems)
 
 				// Fix icon for item
 				if fixIcons {

@@ -222,13 +222,17 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 		fmt.Sscanf(matches[2], "%d", &item.MaxDurability)
 	}
 
-	// Extract Bonding
+	// Extract Bonding. "Quest Item" is bonding 4 (ITEM_BIND_QUEST) and, like the
+	// other binds, is the only place the page exposes it — so it must be parsed
+	// here or a sync overwrites a cache-imported value with 0.
 	if strings.Contains(content, "Binds when picked up") {
 		item.Bonding = 1
 	} else if strings.Contains(content, "Binds when equipped") {
 		item.Bonding = 2
 	} else if strings.Contains(content, "Binds when used") {
 		item.Bonding = 3
+	} else if strings.Contains(content, "Quest Item") {
+		item.Bonding = 4
 	}
 
 	// Extract stats: "+7 Stamina", "+5 Agility". The name->id mapping comes from
@@ -502,8 +506,57 @@ func ParseItem(content string, itemID int) (*models.ItemTemplateFull, *models.It
 	}
 
 	item.Vendors = parseItemVendors(content)
+	item.ContainsItems = parseItemContains(content)
 
 	return item, itemSet, nil
+}
+
+// itemContainsAnchorRe locates the "contains" Listview on an item page (the
+// items a container/loot item holds). The data-array regexes are shared with
+// the object loot parser (same aowow Listview shape). containsCountRe pulls the
+// stack count aowow prefixes onto the name (e.g. "5Pure Worgen Blood").
+var (
+	itemContainsAnchorRe = regexp.MustCompile(`id:\s*'contains'`)
+	containsCountRe      = regexp.MustCompile(`name:\s*'(\d+)`)
+)
+
+// parseItemContains extracts the items a container/loot item holds from its
+// item page's id:'contains' Listview. Returns nil when the page has no such
+// list (i.e. the item isn't a container).
+func parseItemContains(content string) []models.ContainedItem {
+	anchor := itemContainsAnchorRe.FindStringIndex(content)
+	if anchor == nil {
+		return nil
+	}
+	m := lootDataRe.FindStringSubmatch(content[anchor[1]:])
+	if m == nil {
+		return nil
+	}
+
+	var out []models.ContainedItem
+	seen := map[int]bool{}
+	for _, obj := range lootObjRe.FindAllString(m[1], -1) {
+		idm := lootIDRe.FindStringSubmatch(obj)
+		if idm == nil {
+			continue
+		}
+		id, err := strconv.Atoi(idm[1])
+		if err != nil || id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		e := models.ContainedItem{ItemID: id, Count: 1}
+		if pm := lootPercentRe.FindStringSubmatch(obj); pm != nil {
+			e.Percent, _ = strconv.ParseFloat(pm[1], 64)
+		}
+		if cm := containsCountRe.FindStringSubmatch(obj); cm != nil {
+			if c, _ := strconv.Atoi(cm[1]); c > 0 {
+				e.Count = c
+			}
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // soldByRe isolates the "sold by" Listview's data array. The page has several

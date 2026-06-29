@@ -302,6 +302,16 @@ type ItemContainer struct {
 	SkillReq int     `json:"skillReq,omitempty"` // required skill level to gather (lock req value)
 }
 
+// ContainedItem is one entry from an item page's "contains" Listview (scraped
+// from octowow) — the items a container/loot item holds. Stored into
+// item_loot_template so both the container's "Contains" and the contained
+// item's "Contained In Item" sections resolve from the same table.
+type ContainedItem struct {
+	ItemID  int     `json:"itemId"`
+	Percent float64 `json:"percent"`
+	Count   int     `json:"count"` // stack size produced (defaults to 1)
+}
+
 // ItemCraftSource is a recipe/spell that creates this item (a tradeskill spell
 // with a Create Item effect), including its profession requirement and reagents.
 type ItemCraftSource struct {
