@@ -438,7 +438,7 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 
 	// Data query
 	dataQuery := fmt.Sprintf(`
-		SELECT entry, name, quality, item_level, required_level, class, subclass, inventory_type, COALESCE(d.icon, '')
+		SELECT entry, name, quality, item_level, required_level, class, subclass, inventory_type, COALESCE(d.icon, ''), container_slots
 		FROM item_template t
 		LEFT JOIN item_display_info d ON t.display_id = d.ID
 		%s
@@ -461,6 +461,7 @@ func (r *ItemRepository) AdvancedSearch(filter models.SearchFilter) (*models.Sea
 		err := rows.Scan(
 			&item.Entry, &item.Name, &item.Quality, &item.ItemLevel,
 			&item.RequiredLevel, &item.Class, &item.SubClass, &item.InventoryType, &item.IconPath,
+			&item.ContainerSlots,
 		)
 		if err != nil {
 			continue

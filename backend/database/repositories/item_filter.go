@@ -356,10 +356,11 @@ func buildSourceCondition(sources []string) (string, []any) {
 // never interpolates user input). Falls back to the quality/ilvl default.
 func orderByClause(sort, dir string) string {
 	col, ok := map[string]string{
-		"name":          "name",
-		"itemLevel":     "item_level",
-		"requiredLevel": "required_level",
-		"quality":       "quality",
+		"name":           "name",
+		"itemLevel":      "item_level",
+		"requiredLevel":  "required_level",
+		"quality":        "quality",
+		"containerSlots": "container_slots",
 	}[sort]
 	if !ok {
 		return "quality DESC, item_level DESC"

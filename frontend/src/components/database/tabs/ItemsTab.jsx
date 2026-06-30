@@ -60,8 +60,9 @@ const DEFAULT_FILTER = {
     offset: 0,
 }
 
-// One table row. Split out so each can call useIcon for its own icon.
-function ItemRow({ item, slotName, typeName, onClick, handlers }) {
+// One table row. Split out so each can call useIcon for its own icon. showSlots
+// adds the container-capacity column (only shown when filtering Containers).
+function ItemRow({ item, slotName, typeName, onClick, handlers, showSlots }) {
     const icon = useIcon(item.iconPath || item.iconName)
     const color = getQualityColor(item.quality || 0)
     return (
@@ -93,6 +94,11 @@ function ItemRow({ item, slotName, typeName, onClick, handlers }) {
             </td>
             <td className="px-3 text-gray-400">{slotName || '—'}</td>
             <td className="px-3 text-gray-400">{typeName || '—'}</td>
+            {showSlots && (
+                <td className="px-3 text-right tabular-nums text-gray-300">
+                    {item.containerSlots || '—'}
+                </td>
+            )}
         </tr>
     )
 }
@@ -129,6 +135,10 @@ function ItemsTab({ tooltipHook, onNavigate }) {
     const { data, isFetching } = useBrowseItems(filter)
     const items = data?.items || []
     const total = data?.totalCount || 0
+
+    // The Container item class (id 1) is the only one with a slot count, so the
+    // Slots column only appears when Containers are in the class filter.
+    const showSlots = (filter.class || []).includes(1)
 
     // Type/Slot labels are resolved server-side (item.typeName/item.slotName) from
     // the client-localized name tables, so 2H weapons read correctly and the
@@ -187,6 +197,7 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                             <col className="w-20" />
                             <col className="w-32" />
                             <col className="w-32" />
+                            {showSlots && <col className="w-20" />}
                         </colgroup>
                         <thead className="sticky top-0 z-10 bg-bg-dark text-[11px]">
                             <tr className="border-b border-white/10">
@@ -219,6 +230,16 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                                 <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-gray-500">
                                     Type
                                 </th>
+                                {showSlots && (
+                                    <SortHeader
+                                        label="Slots"
+                                        field="containerSlots"
+                                        filter={filter}
+                                        onSort={onSort}
+                                        align="right"
+                                        defaultDir="desc"
+                                    />
+                                )}
                             </tr>
                         </thead>
                         <tbody>
@@ -230,6 +251,7 @@ function ItemsTab({ tooltipHook, onNavigate }) {
                                         item={item}
                                         slotName={item.slotName}
                                         typeName={item.typeName}
+                                        showSlots={showSlots}
                                         onClick={() => onNavigate?.('item', id)}
                                         handlers={tooltipHook?.getItemHandlers?.(id)}
                                     />
