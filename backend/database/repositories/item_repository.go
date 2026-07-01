@@ -531,15 +531,21 @@ func (r *ItemRepository) resolveClasses(mask int) []*models.ItemClassReq {
 	defer rows.Close()
 
 	var classes []*models.ItemClassReq
+	total := 0
 	for rows.Next() {
 		var id int
 		var name, color string
 		if rows.Scan(&id, &name, &color) != nil {
 			continue
 		}
+		total++
 		if mask&(1<<(uint(id)-1)) != 0 {
 			classes = append(classes, &models.ItemClassReq{Name: name, Color: color})
 		}
+	}
+	// A mask that covers every known class isn't a real restriction — don't show it.
+	if len(classes) == total {
+		return nil
 	}
 	return classes
 }
