@@ -142,6 +142,23 @@ func GetSubClassName(c, sc int) string {
 		}
 	}
 
+	// Miscellaneous subclasses: the 1.12 client DBC only names subclass 0 (Junk) —
+	// companion pets and mounts predate those item categories, so the client has
+	// no name and they'd collapse to "Miscellaneous". Provide them, matching the
+	// data's layout (subclass 2 = companion pets, 4 = mounts).
+	if c == 15 {
+		miscSubclasses := map[int]string{
+			0: "Junk",
+			1: "Reagent",
+			2: "Companion",
+			3: "Holiday",
+			4: "Mount",
+		}
+		if name, ok := miscSubclasses[sc]; ok {
+			return name
+		}
+	}
+
 	// Other item classes: their subclass names come from the client table
 	// (item_subclass_names); pre-import we fall back to the class name rather
 	// than maintaining exhaustive hardcoded maps.

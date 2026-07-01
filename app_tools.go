@@ -510,6 +510,19 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	_ = gen.ImportDispelTypes(filepath.Join(a.DataDir, "spell_dispel_types.json"))
 	_ = gen.ImportEnchantProcSpells(filepath.Join(a.DataDir, "enchant_proc_spells.json"))
 	_ = gen.ImportLockTypes(filepath.Join(a.DataDir, "lock_types.json"))
+
+	// Client-localized item/creature type names (item class/subclass, inventory
+	// slot, creature type, curated GlobalStrings). Import from the freshly
+	// regenerated JSON, then reload the in-memory resolver overrides so a scan's
+	// new names take effect immediately (otherwise type/slot labels like the
+	// item filter's Container/Recipe subtypes stay stale until the next restart).
+	_ = gen.ImportItemClassNames(filepath.Join(a.DataDir, "item_class_names.json"))
+	_ = gen.ImportItemSubclassNames(filepath.Join(a.DataDir, "item_subclass_names.json"))
+	_ = gen.ImportInventoryTypes(filepath.Join(a.DataDir, "inventory_types.json"))
+	_ = gen.ImportCreatureTypeNames(filepath.Join(a.DataDir, "creature_types.json"))
+	_ = gen.ImportClientStrings(filepath.Join(a.DataDir, "client_strings.json"))
+	gen.LoadItemNameOverrides()
+
 	if a.syncService != nil {
 		a.syncService.FullSyncSpells(0, false, "", 0, nil)
 	}
