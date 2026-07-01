@@ -3229,6 +3229,9 @@ export namespace models {
 	    races?: string;
 	    reqRepFaction?: string;
 	    reqRepStanding?: string;
+	    reqSkill?: string;
+	    reqSkillRank?: number;
+	    reqSpell?: string;
 	    setInfo?: ItemSetInfo;
 	    description?: string;
 	    crafts?: TooltipData;
@@ -3262,6 +3265,9 @@ export namespace models {
 	        this.races = source["races"];
 	        this.reqRepFaction = source["reqRepFaction"];
 	        this.reqRepStanding = source["reqRepStanding"];
+	        this.reqSkill = source["reqSkill"];
+	        this.reqSkillRank = source["reqSkillRank"];
+	        this.reqSpell = source["reqSpell"];
 	        this.setInfo = this.convertValues(source["setInfo"], ItemSetInfo);
 	        this.description = source["description"];
 	        this.crafts = this.convertValues(source["crafts"], TooltipData);

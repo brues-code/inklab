@@ -219,6 +219,12 @@ type TooltipData struct {
 	// faction "The League of Arathor" + standing "Revered".
 	ReqRepFaction  string `json:"reqRepFaction,omitempty"`
 	ReqRepStanding string `json:"reqRepStanding,omitempty"`
+	// Skill/profession requirement (recipes): "Requires Blacksmithing (300)" from
+	// required_skill/required_skill_rank, plus a "Requires <spell>" (e.g. the
+	// Armorsmith specialization) from required_spell.
+	ReqSkill     string `json:"reqSkill,omitempty"`
+	ReqSkillRank int    `json:"reqSkillRank,omitempty"`
+	ReqSpell     string `json:"reqSpell,omitempty"`
 	SetInfo       *ItemSetInfo    `json:"setInfo,omitempty"`
 	Description   string          `json:"description,omitempty"`
 	// Crafts is the FULL tooltip of the item this recipe produces (recipe item ->

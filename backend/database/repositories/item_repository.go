@@ -747,6 +747,28 @@ func (r *ItemRepository) buildTooltip(itemID int, withCrafts bool) (*models.Tool
 		}
 	}
 
+	// Skill/profession requirement (recipes and skill-gated items):
+	// "Requires Blacksmithing (300)" from required_skill/required_skill_rank, plus
+	// "Requires Armorsmith" from required_spell (a specialization spell you must
+	// know). required_spell resolves to a spell name via spell_template.
+	var reqSkill, reqSkillRank, reqSpell int
+	r.db.QueryRow(
+		"SELECT required_skill, required_skill_rank, required_spell FROM item_template WHERE entry = ?", itemID,
+	).Scan(&reqSkill, &reqSkillRank, &reqSpell)
+	if reqSkill > 0 {
+		var sname string
+		r.db.QueryRow("SELECT name FROM spell_skills WHERE id = ?", reqSkill).Scan(&sname)
+		if sname != "" {
+			tooltip.ReqSkill = sname
+			tooltip.ReqSkillRank = reqSkillRank
+		}
+	}
+	if reqSpell > 0 {
+		var spname string
+		r.db.QueryRow("SELECT COALESCE(name, '') FROM spell_template WHERE entry = ?", reqSpell).Scan(&spname)
+		tooltip.ReqSpell = spname
+	}
+
 	// Item Type and Slot
 	itemType := helpers.GetSubClassName(item.Class, item.SubClass)
 	itemType = strings.ReplaceAll(itemType, " (One-Handed)", "")

@@ -174,6 +174,18 @@ const ItemTooltip = ({
                 </div>
             )}
 
+            {/* Profession/skill requirement, e.g. "Requires Blacksmithing (300)"
+                and a specialization like "Requires Armorsmith" (recipes). */}
+            {tooltip.reqSkill && (
+                <div className="leading-tight text-white">
+                    Requires {tooltip.reqSkill}
+                    {tooltip.reqSkillRank > 0 ? ` (${tooltip.reqSkillRank})` : ''}
+                </div>
+            )}
+            {tooltip.reqSpell && (
+                <div className="leading-tight text-white">Requires {tooltip.reqSpell}</div>
+            )}
+
             {/* Spell Effects (green) - WoW style: after stats/durability. In the
                 interactive (detail-page) tooltip the spell is a link to its page. */}
             {tooltip.effects?.length > 0 && (
