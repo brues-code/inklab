@@ -118,7 +118,21 @@ func (r *ItemRepository) buildItemFilter(f models.SearchFilter) (string, []any) 
 	// Usable-by-class: explicit allowable_class bitmask AND weapon/armor
 	// proficiency (a mage can't wield a 2H sword even with no class flag).
 	if f.UsableByClass > 0 {
-		b.raw("(allowable_class = -1 OR (allowable_class & ?) != 0)", 1<<(uint(f.UsableByClass)-1))
+		classBit := 1 << (uint(f.UsableByClass) - 1)
+		b.raw("(allowable_class = -1 OR (allowable_class & ?) != 0)", classBit)
+
+		// Quest-gated class restriction: items obtainable only via a class-
+		// restricted quest (e.g. the class Atiesh variants) aren't class-flagged
+		// themselves. If an item is a quest reward, require a rewarding quest that
+		// allows this class (RequiredClasses = 0 means any class). Items with no
+		// rewarding quest are unaffected.
+		const rewardPred = `t.entry IN (q.RewItemId1, q.RewItemId2, q.RewItemId3, q.RewItemId4,
+			q.RewChoiceItemId1, q.RewChoiceItemId2, q.RewChoiceItemId3, q.RewChoiceItemId4,
+			q.RewChoiceItemId5, q.RewChoiceItemId6)`
+		b.raw(`(NOT EXISTS (SELECT 1 FROM quest_template q WHERE `+rewardPred+`)
+			OR EXISTS (SELECT 1 FROM quest_template q WHERE `+rewardPred+`
+				AND (q.RequiredClasses = 0 OR (q.RequiredClasses & ?) != 0)))`, classBit)
+
 		fw, fa := r.forbiddenProficiencySubclasses(f.UsableByClass)
 		for _, x := range []struct {
 			cls  int

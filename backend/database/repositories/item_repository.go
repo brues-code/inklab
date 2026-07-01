@@ -550,6 +550,31 @@ func (r *ItemRepository) resolveClasses(mask int) []*models.ItemClassReq {
 	return classes
 }
 
+// questRewardClassMask returns the combined class restriction (allowable_class
+// bit convention) of the quests that award this item. Items like the class
+// Atiesh variants aren't class-restricted themselves but are only obtainable
+// via a class-restricted quest, so their real restriction lives on the quest.
+func (r *ItemRepository) questRewardClassMask(itemID int) int {
+	rows, err := r.db.Query(`
+		SELECT COALESCE(RequiredClasses, 0) FROM quest_template
+		WHERE ? IN (RewItemId1, RewItemId2, RewItemId3, RewItemId4,
+		            RewChoiceItemId1, RewChoiceItemId2, RewChoiceItemId3,
+		            RewChoiceItemId4, RewChoiceItemId5, RewChoiceItemId6)
+	`, itemID)
+	if err != nil {
+		return 0
+	}
+	defer rows.Close()
+	mask := 0
+	for rows.Next() {
+		var m int
+		if rows.Scan(&m) == nil {
+			mask |= m
+		}
+	}
+	return mask
+}
+
 // GetItemSets returns all item sets for browsing
 func (r *ItemRepository) GetItemSets() ([]*models.ItemSetBrowse, error) {
 	rows, err := r.db.Query(`
@@ -736,8 +761,15 @@ func (r *ItemRepository) buildTooltip(itemID int, withCrafts bool) (*models.Tool
 	tooltip.Binding = helpers.GetBondingName(item.Bonding)
 
 	// Class restriction (allowable_class), colored per class for the tooltip's
-	// "Classes:" line.
+	// "Classes:" line. When the item itself isn't class-restricted, derive it from
+	// the class-restricted quest(s) that award it — e.g. Atiesh (allowable_class =
+	// all) is only obtainable by Mages via a Mage-only quest.
 	tooltip.ClassReqs = r.resolveClasses(item.AllowableClass)
+	if len(tooltip.ClassReqs) == 0 {
+		if qmask := r.questRewardClassMask(itemID); qmask > 0 {
+			tooltip.ClassReqs = r.resolveClasses(qmask)
+		}
+	}
 
 	// Reputation requirement, e.g. "Requires The League of Arathor - Revered".
 	var repFaction, repRank int
