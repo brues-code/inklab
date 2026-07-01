@@ -3231,6 +3231,7 @@ export namespace models {
 	    reqRepStanding?: string;
 	    setInfo?: ItemSetInfo;
 	    description?: string;
+	    crafts?: TooltipData;
 	
 	    static createFrom(source: any = {}) {
 	        return new TooltipData(source);
@@ -3263,6 +3264,7 @@ export namespace models {
 	        this.reqRepStanding = source["reqRepStanding"];
 	        this.setInfo = this.convertValues(source["setInfo"], ItemSetInfo);
 	        this.description = source["description"];
+	        this.crafts = this.convertValues(source["crafts"], TooltipData);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

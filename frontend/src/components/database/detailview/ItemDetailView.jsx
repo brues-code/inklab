@@ -257,6 +257,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                     style={{ position: 'static' }}
                     interactive={true}
                     onSpellClick={(spellId) => onNavigate?.('spell', spellId)}
+                    onItemClick={(id) => onNavigate?.('item', id)}
                     tooltipHook={tooltipHook}
                 />
             </div>

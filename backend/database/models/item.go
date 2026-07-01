@@ -221,6 +221,10 @@ type TooltipData struct {
 	ReqRepStanding string `json:"reqRepStanding,omitempty"`
 	SetInfo       *ItemSetInfo    `json:"setInfo,omitempty"`
 	Description   string          `json:"description,omitempty"`
+	// Crafts is the FULL tooltip of the item this recipe produces (recipe item ->
+	// learn spell -> taught craft spell -> created item), rendered nested inside
+	// the recipe's tooltip like the in-game recipe tooltip.
+	Crafts *TooltipData `json:"crafts,omitempty"`
 }
 
 // ItemClass represents a WoW item class (Weapon, Armor, etc.)

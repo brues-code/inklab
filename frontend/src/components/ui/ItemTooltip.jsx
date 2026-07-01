@@ -13,7 +13,11 @@ const ItemTooltip = ({
     onMouseLeave = undefined,
     interactive = false,
     onSpellClick = undefined,
+    onItemClick = undefined,
     tooltipHook = undefined,
+    // Rendered inside another tooltip (a recipe's crafted item): drop the box
+    // chrome (border/bg/shadow/width) and just separate with a top divider.
+    nested = false,
 }) => {
     // Loading state
     if (!tooltip) {
@@ -37,17 +41,31 @@ const ItemTooltip = ({
     const interactionClass = interactive
         ? 'select-text pointer-events-auto cursor-auto'
         : 'select-none pointer-events-none'
+    const boxClass = nested
+        ? 'mt-2 border-t border-white/10 pt-2'
+        : 'rounded border border-border-light bg-[#070707] p-2.5 z-[1000] min-w-[240px] max-w-[320px] shadow-2xl'
 
     return (
         <div
-            className={`flex flex-col gap-0.5 rounded border border-border-light bg-[#070707] p-2.5 ${interactionClass} z-[1000] min-w-[240px] max-w-[320px] font-sans text-xs shadow-2xl`}
+            className={`flex flex-col gap-0.5 font-sans text-xs ${interactionClass} ${boxClass}`}
             style={style}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
-            {/* Name */}
+            {/* Name. In a nested subtooltip (a recipe's crafted item) it links to
+                that item's page; the top-level name isn't linked (you're already
+                on/hovering it). */}
             <div className="text-[14px] font-bold leading-tight" style={{ color: qualityColor }}>
-                {tooltip.name}
+                {nested && onItemClick && tooltip.entry ? (
+                    <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() => onItemClick(tooltip.entry)}
+                    >
+                        {tooltip.name}
+                    </span>
+                ) : (
+                    tooltip.name
+                )}
             </div>
 
             {/* Set Name */}
@@ -213,6 +231,21 @@ const ItemTooltip = ({
                     <span className="text-gray-500">Sell Price:</span>
                     <Money copper={tooltip.sellPrice} />
                 </div>
+            )}
+
+            {/* Crafts: the full tooltip of the item this recipe produces, nested
+                last (after the recipe's own fields) so it reads as its own block,
+                like the in-game recipe tooltip. */}
+            {tooltip.crafts && (
+                <ItemTooltip
+                    nested
+                    item={tooltip.crafts}
+                    tooltip={tooltip.crafts}
+                    interactive={interactive}
+                    onSpellClick={onSpellClick}
+                    onItemClick={onItemClick}
+                    tooltipHook={tooltipHook}
+                />
             )}
         </div>
     )

@@ -696,8 +696,16 @@ func (r *ItemRepository) GetItemSetDetail(itemSetID int) (*models.ItemSetDetail,
 	return detail, nil
 }
 
-// GetTooltipData generates tooltip information for an item
+// GetTooltipData generates tooltip information for an item, including the nested
+// tooltip of what it crafts (for recipes).
 func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error) {
+	return r.buildTooltip(itemID, true)
+}
+
+// buildTooltip builds an item's tooltip. When withCrafts is set (the top-level
+// call), a recipe also gets its produced item's full tooltip nested under
+// .Crafts; the nested build passes false so it doesn't recurse further.
+func (r *ItemRepository) buildTooltip(itemID int, withCrafts bool) (*models.TooltipData, error) {
 	item, err := r.GetItemByID(itemID)
 	if err != nil {
 		return nil, err
@@ -830,6 +838,22 @@ func (r *ItemRepository) GetTooltipData(itemID int) (*models.TooltipData, error)
 			effect := r.formatSpellEffect(sp.id, sp.trigger, sp.cd)
 			if effect != "" {
 				tooltip.Effects = append(tooltip.Effects, models.TooltipEffect{Text: effect, SpellID: sp.id})
+			}
+		}
+	}
+
+	// Recipe: nest the full tooltip of the item this pattern/plans/recipe teaches
+	// you to craft (e.g. Pattern: Bottomless Bag -> Bottomless Bag's tooltip).
+	// Only at the top level, and the nested build passes false to stop recursion.
+	if withCrafts {
+		for _, sp := range spellPairs {
+			if sp.id > 0 {
+				if cid := r.resolveCraftedItemID(sp.id); cid > 0 {
+					if nested, err := r.buildTooltip(cid, false); err == nil {
+						tooltip.Crafts = nested
+					}
+					break
+				}
 			}
 		}
 	}
@@ -1372,6 +1396,35 @@ func formatCooldown(ms int) string {
 	default:
 		return fmt.Sprintf("%g sec", float64(ms)/1000.0)
 	}
+}
+
+// resolveCraftedItemID returns the entry of the item a recipe teaches you to
+// craft: the recipe item's use-spell is a learn-spell (effect 36) whose taught
+// spell has a create-item effect (effect 24) — e.g. Pattern: Bottomless Bag
+// (spell 18529) teaches spell 18455, which crafts item 14156. Returns 0 when the
+// spell isn't such a recipe chain.
+func (r *ItemRepository) resolveCraftedItemID(spellID int) int {
+	const (
+		learnSpellEffect = 36 // SPELL_EFFECT_LEARN_SPELL
+		createItemEffect = 24 // SPELL_EFFECT_CREATE_ITEM
+	)
+	var craftedID int
+	r.db.QueryRow(`
+		SELECT ci.entry
+		FROM spell_template ls
+		JOIN spell_template cs ON cs.entry IN (ls.effectTriggerSpell1, ls.effectTriggerSpell2, ls.effectTriggerSpell3)
+		JOIN item_template ci ON ci.entry IN (cs.effectItemType1, cs.effectItemType2, cs.effectItemType3)
+		WHERE ls.entry = ?
+		  AND ((ls.effect1 = ? AND ls.effectTriggerSpell1 = cs.entry)
+		    OR (ls.effect2 = ? AND ls.effectTriggerSpell2 = cs.entry)
+		    OR (ls.effect3 = ? AND ls.effectTriggerSpell3 = cs.entry))
+		  AND ((cs.effect1 = ? AND cs.effectItemType1 = ci.entry)
+		    OR (cs.effect2 = ? AND cs.effectItemType2 = ci.entry)
+		    OR (cs.effect3 = ? AND cs.effectItemType3 = ci.entry))
+		LIMIT 1
+	`, spellID, learnSpellEffect, learnSpellEffect, learnSpellEffect,
+		createItemEffect, createItemEffect, createItemEffect).Scan(&craftedID)
+	return craftedID
 }
 
 // GetItemDetail returns full item information with drop sources
