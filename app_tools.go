@@ -57,7 +57,6 @@ func (a *App) GetDataStatus() DataStatus {
 		{"icons", "Item / spell icons", `Interface\Icons\*.blp`, "image", icons},
 		{"maps", "Zone maps", `Interface\WorldMap + WorldMapArea.dbc`, "image", maps},
 		{"minimaps", "Zone minimaps (terrain)", `textures\Minimap + WorldMapArea.dbc`, "image", countFiles(filepath.Join(a.DataDir, "minimaps"), ".jpg", ".png")},
-		{"npcImages", "NPC model renders", `Creature\*.m2 (client MPQs)`, "image", npcImages},
 		{"talentBgs", "Talent backgrounds", `Interface\TalentFrame art`, "image", talentBgs},
 		{"raceIcons", "Race / gender icons", `UI-CharacterCreate-Races.blp`, "image", countFiles(filepath.Join(a.DataDir, "race_icons"), ".png")},
 		{"coinIcons", "Coin icons (g/s/c)", `UI-MoneyIcons.blp`, "image", countFiles(filepath.Join(a.DataDir, "coin_icons"), ".png")},
