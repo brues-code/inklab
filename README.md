@@ -83,7 +83,7 @@ The application supports two modes of data operation:
 
 ```bash
 # Clone the repository
-git clone https://github.com/oplancelot/InkLab.git
+git clone https://github.com/brues-code/InkLab.git
 cd InkLab
 
 # Install dependencies
