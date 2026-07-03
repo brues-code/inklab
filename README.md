@@ -6,39 +6,29 @@ A comprehensive desktop application for browsing and exploring World of Warcraft
 
 ### Database Browser
 
-- **Items**: Complete item database with detailed statistics
-  - Search by name, class, subclass, and inventory slot
-  - WoW-style tooltips with complete item information
-  - Icon display with local cache and CDN fallback
-- **AtlasLoot Integration**: Complete loot table browser
+- **Items**: search by name, class, subclass, and inventory slot; WoW-style tooltips; icons served from the local client set
+- **Sets**: item sets by class, with set bonuses
+- **NPCs**: browse by creature type or beast family; spawn pins on zone maps; loot, quests, abilities, trainer and vendor listings; locally-rendered 3D models
+- **Quests**: browse by zone or category; objectives, rewards, and quest givers
+- **Objects**: browse by type; loot tables and spawn locations
+- **Zones**: every zone with its map and the loot obtainable there
+- **Spells**: browse by class or skill; descriptions resolved locally from client DBC data
+- **Factions**: reputation rewards, reputation quests, quest givers, and faction members
+- **Races**: racial traits and starting attributes
+- **Icons**: every icon in the local client set, cross-referenced to the items and spells that use it (hover any icon for a copyable name)
 
-  - 7 categories: Instances, Sets, Factions, PvP, World Bosses, World Events, Crafting
-  - Hierarchical navigation (Category → Module → Table → Items)
-  - Drop chance information where available
+### AtlasLoot Integration
 
-- **Creatures**: Browse creature database
+- 7 categories: Instances, Sets, Factions, PvP, World Bosses, World Events, Crafting
+- Hierarchical navigation (Category → Module → Table → Items)
+- Drop chance information where available
 
-  - Search by name and type
-  - Paginated results for performance
-  - View creature loot tables
+### More
 
-- **Quests**: Explore quest database
-
-  - Browse by zone or quest category
-  - View quest details and objectives
-
-- **Spells**: Search spell database
-
-  - Browse by class and skill category
-  - View spell effects and icons
-
-- **Game Objects**: Browse object database
-
-  - Search by name and type
-  - View object loot tables
-
-- **Factions**: View faction database
-  - Reputation and faction rewards
+- **Talents**: talent tree browser and calculator with shareable build codes
+- **Maps**: flight-path network browser per continent and zone
+- **Favorites**: bookmark entities for quick access
+- **Global Search**: find items, NPCs, quests, spells, and objects from anywhere
 
 ## Architecture
 
@@ -159,7 +149,6 @@ Icon images are never downloaded from the network. The Client Data import decode
 
 ## Future Enhancements
 
-- Talent tree browser and calculator
 - Equipment set manager
 - Stat calculator and comparison
 - DPS simulator
