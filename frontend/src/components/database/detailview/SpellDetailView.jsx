@@ -2,7 +2,14 @@ import React, { useState } from 'react'
 import { queryClient } from '../../../queryClient'
 import { SyncSingleSpell } from '../../../services/api'
 import { useSpellDetail } from '../../../hooks/queries/spells'
-import { DetailPageLayout, DetailHeader, DetailSection, DetailLoading, DetailError } from '../../ui'
+import {
+    DetailPageLayout,
+    DetailHeader,
+    DetailSection,
+    DetailLoading,
+    DetailError,
+    IconPopupAnchor,
+} from '../../ui'
 import { useIcon, useNpcModel } from '../../../services/useImage'
 import {
     getQualityColor,
@@ -107,7 +114,15 @@ const SpellDetailView = ({ entry, onBack, onNavigate, tooltipHook }) => {
         <DetailPageLayout onBack={onBack}>
             <DetailHeader
                 title={`${detail.name} [${detail.entry}]`}
-                icon={<SpellIcon iconName={detail.icon} />}
+                icon={
+                    <IconPopupAnchor
+                        name={detail.icon}
+                        onNavigate={onNavigate}
+                        className="h-full w-full"
+                    >
+                        <SpellIcon iconName={detail.icon} />
+                    </IconPopupAnchor>
+                }
                 titleColor="#FFD100"
                 subtitle={
                     <>

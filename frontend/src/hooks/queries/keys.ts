@@ -57,6 +57,10 @@ export const queryKeys = {
     // Races
     races: ['races'] as const,
 
+    // Icons (local icon set + per-icon usage)
+    icons: ['icons'] as const,
+    iconUsage: (name: unknown) => ['iconUsage', name] as const,
+
     // Factions
     factions: ['factions'] as const,
     factionDetail: (id: unknown) => ['factionDetail', id] as const,

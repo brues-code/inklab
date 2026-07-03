@@ -68,6 +68,8 @@ export function GetFlightContinents():Promise<Array<main.FlightContinent>>;
 
 export function GetFlightData(arg1:number):Promise<main.FlightData>;
 
+export function GetIconUsage(arg1:string):Promise<main.IconUsage>;
+
 export function GetInstances(arg1:string):Promise<Array<string>>;
 
 export function GetItemClasses():Promise<Array<models.ItemClass>>;
@@ -145,6 +147,8 @@ export function GetZoneNames():Promise<Array<models.ZoneNameInfo>>;
 export function GetZones():Promise<Array<models.ZoneListEntry>>;
 
 export function IsFavorite(arg1:number):Promise<boolean>;
+
+export function ListLocalIcons():Promise<Array<main.IconEntry>>;
 
 export function MatchFlightmasters():Promise<void>;
 

@@ -11,10 +11,22 @@ import {
     SpellsTab,
     FactionsTab,
     RacesTab,
+    IconsTab,
 } from '../components/database/tabs'
 import { useTooltipCtx } from '../hooks/useTooltipContext'
 
-const TABS = ['Items', 'Sets', 'NPCs', 'Quests', 'Objects', 'Zones', 'Spells', 'Factions', 'Races']
+const TABS = [
+    'Items',
+    'Sets',
+    'NPCs',
+    'Quests',
+    'Objects',
+    'Zones',
+    'Spells',
+    'Factions',
+    'Races',
+    'Icons',
+]
 
 const TAB_BASE =
     'px-4 py-2 font-bold text-sm cursor-pointer transition-all duration-200 border ' +
@@ -40,11 +52,14 @@ export function DatabaseTabs() {
     // A detail child route is matched when there are matches below this route.
     const detailActive = useChildMatches().length > 0
 
-    // Start a detail trail under the current tab; Back returns here.
-    const onNavigate = (type: string, entry: number | string) =>
+    // Start a detail trail under the current tab; Back returns here. `rel`
+    // optionally lands the detail on a specific relations sub-tab (e.g. the
+    // icon popup's "3 items" link opening the icon page on its Items tab).
+    const onNavigate = (type: string, entry: number | string, rel?: string) =>
         navigate({
             to: '/database/$tab/$type/$id',
             params: { tab: activeTab, type, id: String(entry) },
+            search: rel ? { rel } : undefined,
         })
 
     return (
@@ -74,6 +89,10 @@ export function DatabaseTabs() {
                     {/* Content area */}
                     {activeTab === 'items' ? (
                         <ItemsTab tooltipHook={tooltipHook} onNavigate={onNavigate} />
+                    ) : activeTab === 'icons' ? (
+                        // Icons render their own full-width card grid — the shared
+                        // sidebar/list column layout doesn't fit them.
+                        <IconsTab onNavigate={onNavigate} />
                     ) : (
                         <ContentGrid columns={activeTab === 'sets' ? SETS_LAYOUT : GRID_LAYOUT}>
                             {activeTab === 'sets' && (

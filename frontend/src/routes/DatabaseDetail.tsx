@@ -23,8 +23,15 @@ export function DatabaseDetail() {
     const tooltipHook = useTooltipCtx()
 
     const onBack = () => router.history.back()
-    const onNavigate = (t: string, entry: number) =>
-        navigate({ to: '/database/$tab/$type/$id', params: { tab, type: t, id: String(entry) } })
+    // Switching entities drops `rel` (a new entity starts on its first tab)
+    // unless the caller asks for a specific sub-tab (e.g. an icon popup's
+    // "3 items" link opening the icon page on its Items tab).
+    const onNavigate = (t: string, entry: number | string, rel?: string) =>
+        navigate({
+            to: '/database/$tab/$type/$id',
+            params: { tab, type: t, id: String(entry) },
+            search: rel ? { rel } : undefined,
+        })
     const onTabChange = (next: string) =>
         navigate({
             to: '/database/$tab/$type/$id',
@@ -35,7 +42,8 @@ export function DatabaseDetail() {
     return (
         <EntityDetailView
             type={type}
-            entry={Number(id)}
+            // Icons are keyed by name, every other entity by numeric entry.
+            entry={type === 'icon' ? id : Number(id)}
             onBack={onBack}
             onNavigate={onNavigate}
             tooltipHook={tooltipHook}

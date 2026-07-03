@@ -13,6 +13,7 @@ import {
     DetailHeader,
     DetailLoading,
     DetailError,
+    IconPopupAnchor,
     ItemTooltip,
     Money,
     ZoneName,
@@ -94,8 +95,17 @@ const ReagentIcon = ({ reagent, onNavigate, tooltipHook }) => {
     )
 }
 
-// Helper component for Icon Header
-const ItemIconHeader = ({ iconName, iconPath, imgError, fixing, handleFixIcon, qualityColor }) => {
+// Helper component for Icon Header. Hovering the icon pops up its name
+// (copyable) with a link to the icon page listing everything that uses it.
+const ItemIconHeader = ({
+    iconName,
+    iconPath,
+    imgError,
+    fixing,
+    handleFixIcon,
+    qualityColor,
+    onNavigate,
+}) => {
     // Determine icon name to use
     const name = iconPath || iconName
     const icon = useIcon(name)
@@ -120,7 +130,7 @@ const ItemIconHeader = ({ iconName, iconPath, imgError, fixing, handleFixIcon, q
     }
 
     return (
-        <>
+        <IconPopupAnchor name={name} onNavigate={onNavigate} className="h-full w-full">
             {icon.loading ? (
                 <div className="h-full w-full animate-pulse bg-white/5" />
             ) : (
@@ -130,7 +140,7 @@ const ItemIconHeader = ({ iconName, iconPath, imgError, fixing, handleFixIcon, q
                     alt=""
                 />
             )}
-        </>
+        </IconPopupAnchor>
     )
 }
 
@@ -753,6 +763,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                         fixing={fixing}
                         handleFixIcon={handleFixIcon}
                         qualityColor={qualityColor}
+                        onNavigate={onNavigate}
                     />
                 }
                 iconBorderColor={qualityColor}

@@ -2,6 +2,7 @@
 export { PageLayout, ContentGrid, SidebarPanel, ContentPanel, ScrollList } from './Layout'
 export { WowButton, ListItem, TabButton, TabBar } from './Button'
 export { LootItem, EntityIcon } from './LootItem'
+export { IconHoverPopup, IconPopupAnchor } from './IconPopup'
 export { SectionHeader } from './SectionHeader'
 export { UpdateBanner } from './UpdateBanner'
 export { DataStatusBanner } from './DataStatusBanner'

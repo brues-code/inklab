@@ -130,6 +130,10 @@ export function GetFlightData(arg1) {
   return window['go']['main']['App']['GetFlightData'](arg1);
 }
 
+export function GetIconUsage(arg1) {
+  return window['go']['main']['App']['GetIconUsage'](arg1);
+}
+
 export function GetInstances(arg1) {
   return window['go']['main']['App']['GetInstances'](arg1);
 }
@@ -284,6 +288,10 @@ export function GetZones() {
 
 export function IsFavorite(arg1) {
   return window['go']['main']['App']['IsFavorite'](arg1);
+}
+
+export function ListLocalIcons() {
+  return window['go']['main']['App']['ListLocalIcons']();
 }
 
 export function MatchFlightmasters() {

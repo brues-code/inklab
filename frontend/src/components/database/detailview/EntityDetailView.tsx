@@ -6,6 +6,7 @@ import {
     ObjectDetailView,
     ZoneDetailView,
     FactionDetailView,
+    IconDetailView,
 } from './index'
 
 /**
@@ -19,7 +20,8 @@ import {
  */
 type Props = {
     type: string
-    entry: number
+    // Numeric entry for every entity except icons, which are keyed by name.
+    entry: number | string
     onBack: () => void
     onNavigate: (type: string, entry: number) => void
     tooltipHook: any
@@ -116,6 +118,15 @@ export function EntityDetailView({
                         id={entry}
                         onNavigate={onNavigate}
                         onBack={onBack}
+                        activeTab={activeTab}
+                        onTabChange={onTabChange}
+                    />
+                )}
+                {type === 'icon' && (
+                    <IconDetailView
+                        name={String(entry)}
+                        onNavigate={onNavigate}
+                        tooltipHook={tooltipHook}
                         activeTab={activeTab}
                         onTabChange={onTabChange}
                     />
