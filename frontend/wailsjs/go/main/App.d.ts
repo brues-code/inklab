@@ -68,6 +68,10 @@ export function GetFlightContinents():Promise<Array<main.FlightContinent>>;
 
 export function GetFlightData(arg1:number):Promise<main.FlightData>;
 
+export function GetGatheringNodes(arg1:number):Promise<Array<main.GatheringNode>>;
+
+export function GetGatheringProfessions():Promise<Array<main.GatheringProfession>>;
+
 export function GetIconUsage(arg1:string):Promise<main.IconUsage>;
 
 export function GetInstances(arg1:string):Promise<Array<string>>;

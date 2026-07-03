@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useImage, useIcon } from '../../services/useImage'
 import { useFlightContinents, useFlightMap, useFlightZone } from '../../hooks/queries/maps'
+import { useStickyState } from '../../hooks/useStickyState'
+import { TabBar, TabButton } from '../../components/ui'
+import GatheringView from './GatheringView'
 
 // Faction colors.
 const C_ALLIANCE = '#3b82f6'
@@ -135,9 +138,9 @@ function TransportMarker({ t, cx, cy, onEnter, onMove, onLeave }) {
     )
 }
 
-// ---- page ------------------------------------------------------------------
+// ---- flight-path view --------------------------------------------------------
 
-function MapsPage() {
+function FlightsView() {
     const [view, setView] = useState('world') // 'world' | mapId
     const [faction, setFaction] = useState('all')
     const [layers, setLayers] = useState({ flights: true, transports: true })
@@ -689,6 +692,29 @@ function TransportTooltip({ t, x, y }) {
 }
 function isFiniteSame(t) {
     return t.sameContinent
+}
+
+// ---- page ------------------------------------------------------------------
+
+/**
+ * Maps page: a tab switcher between the map views — the flight-path network
+ * and the gathering node map. The active tab persists across sessions.
+ */
+function MapsPage() {
+    const [tab, setTab] = useStickyState('maps.tab', 'flights')
+    return (
+        <div className="flex h-full flex-col overflow-hidden bg-bg-dark">
+            <TabBar>
+                <TabButton active={tab === 'flights'} onClick={() => setTab('flights')}>
+                    Flight Paths
+                </TabButton>
+                <TabButton active={tab === 'gathering'} onClick={() => setTab('gathering')}>
+                    Gathering
+                </TabButton>
+            </TabBar>
+            {tab === 'flights' ? <FlightsView /> : <GatheringView />}
+        </div>
+    )
 }
 
 export default MapsPage

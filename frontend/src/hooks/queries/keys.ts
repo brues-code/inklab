@@ -66,6 +66,10 @@ export const queryKeys = {
     professions: ['professions'] as const,
     professionRecipes: (skillId: unknown) => ['professionRecipes', skillId] as const,
 
+    // Gathering map
+    gatheringProfessions: ['gatheringProfessions'] as const,
+    gatheringNodes: (lockType: unknown) => ['gatheringNodes', lockType] as const,
+
     // Factions
     factions: ['factions'] as const,
     factionDetail: (id: unknown) => ['factionDetail', id] as const,

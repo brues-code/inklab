@@ -130,6 +130,14 @@ export function GetFlightData(arg1) {
   return window['go']['main']['App']['GetFlightData'](arg1);
 }
 
+export function GetGatheringNodes(arg1) {
+  return window['go']['main']['App']['GetGatheringNodes'](arg1);
+}
+
+export function GetGatheringProfessions() {
+  return window['go']['main']['App']['GetGatheringProfessions']();
+}
+
 export function GetIconUsage(arg1) {
   return window['go']['main']['App']['GetIconUsage'](arg1);
 }
