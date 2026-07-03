@@ -306,10 +306,20 @@ func (a *App) FullSyncObjects(delayMs int, startFrom int) string {
 				"itemName": fmt.Sprintf("Object %d", id),
 			})
 		}
-		if err := a.npcService.FullSyncObjects(startFrom, delayMs, progressCb); err != nil {
+		failed, err := a.npcService.FullSyncObjects(startFrom, delayMs, progressCb)
+		if err != nil {
 			runtime.EventsEmit(a.ctx, "sync:objects_full:error", err.Error())
 		} else {
-			runtime.EventsEmit(a.ctx, "sync:objects_full:complete", "GameObject sync complete")
+			msg := "GameObject sync complete"
+			if len(failed) > 0 {
+				preview := failed
+				if len(preview) > 5 {
+					preview = preview[:5]
+				}
+				msg = fmt.Sprintf("GameObject sync complete — %d object(s) failed to scrape (kept their existing data), e.g. %v. Re-run to retry them.", len(failed), preview)
+				fmt.Printf("[FullSyncObjects] entries that failed to scrape: %v\n", failed)
+			}
+			runtime.EventsEmit(a.ctx, "sync:objects_full:complete", msg)
 		}
 	}()
 

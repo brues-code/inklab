@@ -1133,17 +1133,27 @@ func (s *NpcService) syncGameObjectSpawnsFromMySQL(entry int) {
 	}
 }
 
-// SyncObjectFromWeb scrapes a game object's octowow.st page once and refreshes
+// SyncObjectFromWeb scrapes a game object's octowow.st page and refreshes
 // both its spawn points and (for chests) its loot — they share the same source
 // page, so they sync together. This is the spawn/loot source for users without a
-// MySQL connection.
+// MySQL connection. Like the NPC scrape, transient failures are common during
+// bulk syncs (sustained load trips the server's throttle), so it retries with
+// backoff; a failed scrape never touches existing data.
 func (s *NpcService) SyncObjectFromWeb(entry int) error {
 	if s.scraper == nil {
 		return fmt.Errorf("no scraper available")
 	}
-	obj, err := s.scraper.ScrapeObject(entry)
+	var obj *ScrapedObject
+	var err error
+	for attempt := 1; ; attempt++ {
+		obj, err = s.scraper.ScrapeObject(entry)
+		if err == nil || attempt >= scrapeAttempts {
+			break
+		}
+		time.Sleep(time.Duration(attempt) * scrapeRetryDelay)
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("scrape failed: %w", err)
 	}
 	spawns := s.writeObjectSpawns(entry, obj.Spawns)
 	loot := s.writeObjectLoot(entry, obj.Loot)
@@ -1338,13 +1348,19 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 // the bulk counterpart to SyncObjectFromWeb. Like the NPC full sync it's
 // network-bound, so it runs over a worker pool; honors the stop flag and resumes
 // from startFrom.
-func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func(current, total int, id int)) error {
+//
+// Entries whose scrape failed in the pooled pass are retried once more,
+// sequentially and gently paced, after the pool drains — by then the
+// sustained-load throttle that tripped mid-run has usually lifted. Returns the
+// entries that still failed, so the caller can report them instead of the sync
+// silently "completing" with stale spawn data.
+func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func(current, total int, id int)) ([]int, error) {
 	if s.scraper == nil {
-		return fmt.Errorf("no scraper available")
+		return nil, fmt.Errorf("no scraper available")
 	}
 	rows, err := s.sqlite.Query("SELECT entry FROM gameobject_template WHERE entry >= ? ORDER BY entry", startFrom)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -1362,6 +1378,7 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	processed := 0
+	var failed []int
 
 	worker := func() {
 		defer wg.Done()
@@ -1370,10 +1387,14 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 				return
 			}
 			// Non-fatal per object: a scrape failure (no page, network blip) just
-			// leaves that object's spawns/loot as-is and we move on.
-			_ = s.SyncObjectFromWeb(entry)
+			// leaves that object's spawns/loot as-is; it's counted and retried
+			// after the pool drains.
+			syncErr := s.SyncObjectFromWeb(entry)
 			mu.Lock()
 			processed++
+			if syncErr != nil {
+				failed = append(failed, entry)
+			}
 			if progressCb != nil {
 				progressCb(processed, total, entry)
 			}
@@ -1394,7 +1415,24 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 	close(jobs)
 	wg.Wait()
 
-	return nil
+	if len(failed) > 0 && !s.IsStopped() {
+		fmt.Printf("[FullSyncObjects] %d of %d entries failed to scrape; retrying sequentially...\n", len(failed), total)
+		var still []int
+		for _, entry := range failed {
+			if s.IsStopped() {
+				still = append(still, entry)
+				continue
+			}
+			if err := s.SyncObjectFromWeb(entry); err != nil {
+				still = append(still, entry)
+				fmt.Printf("[FullSyncObjects] retry failed for %d: %v\n", entry, err)
+			}
+			time.Sleep(scrapeRetryPassDelay)
+		}
+		failed = still
+	}
+
+	return failed, nil
 }
 
 // RefreshNpcImages scrapes only the visual metadata (model + map images, zone,
