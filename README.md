@@ -56,7 +56,7 @@ The application supports two modes of data operation:
 1. **End User Mode** (Default):
 
    - Uses the embedded SQLite database (`data/inklab.db`)
-   - Syncs missing or updated data directly from `turtlecraft.gg` via the built-in Sync Service
+   - Syncs missing or updated data directly from `octowow.st` via the built-in Sync Service
    - No external database dependencies required
 
 2. **Developer Mode** (Optional):
@@ -66,25 +66,31 @@ The application supports two modes of data operation:
 
 **Sync Service (`backend/services/`)**:
 
-- Scrapes and parses data from `database.turtlecraft.gg`
-- Supports Items, Spells, Quests, and Icons
+- Scrapes and parses data from `octowow.st/db`
+- Supports Items, NPCs, Quests, and Objects (spell text is resolved locally from client DBC data)
 - Multi-threaded worker pools for fast synchronization
 - "AtlasLoot Missing" mode to find gaps in local data
 
-## Getting Started
+## Installation
 
-### Prerequisites
+1. **Download** the latest release for your platform from the [Releases page](https://github.com/brues-code/inklab/releases/latest).
 
-- Go 1.24+
-- Node.js 18+
-- Wails v2.11+
+2. **Extract** the archive anywhere and run the executable (`InkLab.exe` on Windows). The database ships embedded in the binary and is unpacked into a `data/` folder next to it on first launch — no external database or other setup required.
 
-### Installation
+3. **Run the Client Data import.** Icons, zone maps, and other client-derived reference data are built locally from your WoW client. In the app, open **Tools → Import → Client Data (icons, maps, DBC)**, set the base path to your client folder (the one containing `Data\*.MPQ`), and run it once.
+
+Upgrading is the same: newer releases refresh the embedded database automatically on launch, and your locally-built icons and maps are kept.
+
+## Development
+
+### Building from Source
+
+Prerequisites: Go 1.24+, Node.js 18+, Wails v2.11+
 
 ```bash
 # Clone the repository
-git clone https://github.com/brues-code/InkLab.git
-cd InkLab
+git clone https://github.com/brues-code/inklab.git
+cd inklab
 
 # Install dependencies
 go mod download
@@ -92,19 +98,10 @@ cd frontend && npm install && cd ..
 
 # Run in development mode
 wails dev
+
+# Or produce a production binary in build/bin
+wails build
 ```
-
-### First Run
-
-On first startup, the application will:
-
-1. Initialize the SQLite database connection
-2. Validate the integrity of `data/inklab.db`
-3. Ready to use immediately
-
-**Note**: You can use the **Settings** page in the app to update your local database with the latest changes from Octo WoW (Sync Items, Spells, Quests, or missing AtlasLoot items).
-
-## Development
 
 ### Database Schema
 
@@ -137,7 +134,7 @@ The application uses a SQLite database with 30+ tables:
 
 1. **Sync Service (Recommended)**:
 
-   - Use the in-app Settings to sync data from `turtlecraft.gg`.
+   - Use the in-app **Sync** page to sync data from `octowow.st`.
    - This approach is incremental and does not require external tools.
 
 2. **Developer Export (Legacy/Full Rebuild)**:
@@ -146,13 +143,7 @@ The application uses a SQLite database with 30+ tables:
 
 ### Icon Management
 
-Icons are automatically downloaded on-demand or via the "Auto-fix" option in Settings:
-
-1. **Wowhead CDN** (`wow.zamimg.com`) - Primary source
-2. **Turtle WoW Database** (`database.turtlecraft.gg`) - Fallback
-3. **Trinity AoWoW** (`aowow.trinitycore.info`) - Fallback
-
-Icons are cached in `data/icons/` for offline use.
+Icon images are never downloaded from the network. The Client Data import decodes them straight from your WoW client's MPQ archives into `data/icons/`, and the UI serves them from there. The icon-fix tooling only discovers missing icon *names* (e.g. `inv_sword_01`) from `octowow.st/db` so the locally-extracted images can resolve; anything still unresolved falls back to a question-mark placeholder.
 
 ## Data Sources
 
