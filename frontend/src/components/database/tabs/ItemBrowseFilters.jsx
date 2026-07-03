@@ -346,6 +346,11 @@ export default function ItemBrowseFilters({
                         checked={filter.hasEffect}
                         onChange={(v) => onChange({ hasEffect: v })}
                     />
+                    <Toggle
+                        label="Has random suffix"
+                        checked={filter.hasRandomSuffix}
+                        onChange={(v) => onChange({ hasRandomSuffix: v })}
+                    />
                 </Group>
 
                 {/* ---- Requirements & economy ---- */}

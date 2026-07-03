@@ -351,6 +351,24 @@ export namespace main {
 	        this.lines = source["lines"];
 	    }
 	}
+	export class ItemRandomSuffix {
+	    suffix: string;
+	    effects: string[];
+	    chance: number;
+	    linkId: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemRandomSuffix(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.suffix = source["suffix"];
+	        this.effects = source["effects"];
+	        this.chance = source["chance"];
+	        this.linkId = source["linkId"];
+	    }
+	}
 	export class LegacyLootItem {
 	    itemId: number;
 	    itemName: string;
@@ -2585,6 +2603,7 @@ export namespace models {
 	    raceSpecific?: boolean;
 	    startsQuest?: boolean;
 	    hasEffect?: boolean;
+	    hasRandomSuffix?: boolean;
 	    requiresProf?: boolean;
 	    minSkillRank?: number;
 	    maxSkillRank?: number;
@@ -2635,6 +2654,7 @@ export namespace models {
 	        this.raceSpecific = source["raceSpecific"];
 	        this.startsQuest = source["startsQuest"];
 	        this.hasEffect = source["hasEffect"];
+	        this.hasRandomSuffix = source["hasRandomSuffix"];
 	        this.requiresProf = source["requiresProf"];
 	        this.minSkillRank = source["minSkillRank"];
 	        this.maxSkillRank = source["maxSkillRank"];

@@ -27,6 +27,7 @@ export const queryKeys = {
         ['items', cls, subClass, slot] as const,
     itemBrowse: (filter: unknown) => ['itemBrowse', filter] as const,
     itemDetail: (entry: unknown) => ['itemDetail', entry] as const,
+    itemRandomSuffixes: (entry: unknown) => ['itemRandomSuffixes', entry] as const,
     itemFavorite: (entry: unknown) => ['itemFavorite', entry] as const,
     itemSets: ['itemSets'] as const,
     itemSetDetail: (id: unknown) => ['itemSetDetail', id] as const,

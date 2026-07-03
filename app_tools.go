@@ -501,6 +501,7 @@ func (a *App) reapplyReferenceData(rep *ImportReport) {
 	a.MatchFlightmasters() // link nodes to flightmaster NPCs (needs MySQL; no-op without)
 	_ = gen.ImportCreatureFamilies(filepath.Join(a.DataDir, "creature_families.json"))
 	_ = gen.ImportLocks(filepath.Join(a.DataDir, "locks.json"))
+	_ = gen.ImportRandomSuffixes(filepath.Join(a.DataDir, "random_suffixes.json"))
 	_ = gen.ImportClasses(filepath.Join(a.DataDir, "classes.json"))
 	_ = gen.ImportSpellSchools(filepath.Join(a.DataDir, "spell_schools.json"))
 	_ = gen.ImportStatNames(filepath.Join(a.DataDir, "stat_names.json"))

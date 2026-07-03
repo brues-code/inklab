@@ -32,6 +32,7 @@ const DEFAULT_FILTER = {
     raceSpecific: false,
     startsQuest: false,
     hasEffect: false,
+    hasRandomSuffix: false,
     // Requirements & economy
     requiresProf: false,
     minSkillRank: 0,

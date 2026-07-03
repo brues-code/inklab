@@ -201,6 +201,25 @@ func CoreSchema() string {
 	CREATE INDEX IF NOT EXISTS idx_gameobject_template_name ON gameobject_template(name);
 	CREATE INDEX IF NOT EXISTS idx_gameobject_template_type ON gameobject_template(type);
 
+	-- Random item suffixes ("of the Monkey"): ItemRandomProperties.dbc joined
+	-- with the SpellItemEnchantment display text at client-import time. effects
+	-- is a JSON array of lines like "+3 Agility".
+	CREATE TABLE IF NOT EXISTS item_random_suffix (
+		id INTEGER PRIMARY KEY,
+		suffix TEXT NOT NULL,
+		effects TEXT NOT NULL DEFAULT '[]'
+	);
+
+	-- Which suffixes an item can roll: item_template.random_property ->
+	-- item_enchantment_template.entry; ench = item_random_suffix.id; chance is a
+	-- relative weight. Imported from the MySQL world DB.
+	CREATE TABLE IF NOT EXISTS item_enchantment_template (
+		entry INTEGER NOT NULL,
+		ench INTEGER NOT NULL,
+		chance REAL DEFAULT 0,
+		PRIMARY KEY (entry, ench)
+	);
+
 	-- Factions
 	CREATE TABLE IF NOT EXISTS factions (
 		id INTEGER PRIMARY KEY,

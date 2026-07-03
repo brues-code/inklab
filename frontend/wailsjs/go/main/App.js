@@ -146,6 +146,10 @@ export function GetItemDetail(arg1) {
   return window['go']['main']['App']['GetItemDetail'](arg1);
 }
 
+export function GetItemRandomSuffixes(arg1) {
+  return window['go']['main']['App']['GetItemRandomSuffixes'](arg1);
+}
+
 export function GetItemSetDetail(arg1) {
   return window['go']['main']['App']['GetItemSetDetail'](arg1);
 }

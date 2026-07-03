@@ -321,6 +321,9 @@ func (a *App) importFullTables(dataDir string) {
 	if err := gen.ImportLocks(filepath.Join(dataDir, "locks.json")); err != nil {
 		fmt.Printf("⚠️ Lock import failed: %v\n", err)
 	}
+	if err := gen.ImportRandomSuffixes(filepath.Join(dataDir, "random_suffixes.json")); err != nil {
+		fmt.Printf("⚠️ Random suffix import failed: %v\n", err)
+	}
 	if err := gen.ImportClasses(filepath.Join(dataDir, "classes.json")); err != nil {
 		fmt.Printf("⚠️ Class import failed: %v\n", err)
 	}

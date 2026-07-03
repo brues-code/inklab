@@ -931,6 +931,53 @@ func (i *GeneratedImporter) ImportLocks(jsonPath string) error {
 	return nil
 }
 
+// randomSuffixJSON mirrors an entry in data/random_suffixes.json
+// (ItemRandomProperties.dbc joined with SpellItemEnchantment display text).
+type randomSuffixJSON struct {
+	ID      int      `json:"id"`
+	Suffix  string   `json:"suffix"`
+	Effects []string `json:"effects"`
+}
+
+// ImportRandomSuffixes loads random_suffixes.json into item_random_suffix —
+// the "of the Monkey" suffix names plus their stat lines, behind the item
+// pages' random-enchantment dropdown. Existing rows are replaced so a
+// re-import refreshes the data.
+func (i *GeneratedImporter) ImportRandomSuffixes(jsonPath string) error {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil // optional — only present after a client import
+	}
+	var suffixes []randomSuffixJSON
+	if err := json.Unmarshal(data, &suffixes); err != nil {
+		fmt.Printf("  ERROR parsing random_suffixes.json: %v\n", err)
+		return nil
+	}
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM item_random_suffix")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO item_random_suffix (id, suffix, effects) VALUES (?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	n := 0
+	for _, s := range suffixes {
+		effects, _ := json.Marshal(s.Effects)
+		if _, err := stmt.Exec(s.ID, s.Suffix, string(effects)); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("  ✓ Imported %d random suffixes\n", n)
+	return nil
+}
+
 // taxiJSON mirrors data/taxi.json (datatools.TaxiData).
 type taxiJSON struct {
 	Continents []struct {

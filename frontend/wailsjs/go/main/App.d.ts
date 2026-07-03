@@ -76,6 +76,8 @@ export function GetItemClasses():Promise<Array<models.ItemClass>>;
 
 export function GetItemDetail(arg1:number):Promise<models.ItemDetail>;
 
+export function GetItemRandomSuffixes(arg1:number):Promise<Array<main.ItemRandomSuffix>>;
+
 export function GetItemSetDetail(arg1:number):Promise<models.ItemSetDetail>;
 
 export function GetItemSets():Promise<Array<models.ItemSetBrowse>>;

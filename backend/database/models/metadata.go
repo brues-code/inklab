@@ -74,6 +74,9 @@ type SearchFilter struct {
 	RaceSpecific  bool  `json:"raceSpecific,omitempty"`
 	StartsQuest   bool  `json:"startsQuest,omitempty"`
 	HasEffect     bool  `json:"hasEffect,omitempty"` // has an on-use/equip spell
+	// HasRandomSuffix keeps only items that roll a random suffix ("of the
+	// Monkey"), i.e. random_property > 0.
+	HasRandomSuffix bool `json:"hasRandomSuffix,omitempty"`
 
 	// Requirements & economy.
 	RequiresProf      bool `json:"requiresProf,omitempty"` // required_skill > 0

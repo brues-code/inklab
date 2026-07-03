@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -234,6 +238,120 @@ func (a *App) GetItemDetail(entry int) (*database.ItemDetail, error) {
 		a.enrichItemIcon(i.Item)
 	}
 	return i, nil
+}
+
+// ItemRandomSuffix is one random enchantment ("of the Monkey") an item can
+// roll: the suffix text, its stat lines, and its roll chance in percent.
+// LinkID is the ItemRandomProperties id of the group's best stat roll — the
+// randomPropertyId field of a classic item link
+// (|Hitem:itemId:enchantId:randomPropertyId:uniqueId|h).
+type ItemRandomSuffix struct {
+	Suffix  string   `json:"suffix"`
+	Effects []string `json:"effects"`
+	Chance  float64  `json:"chance"`
+	LinkID  int      `json:"linkId"`
+}
+
+// suffixEffectRe splits an enchantment line like "+3 Agility" into amount and
+// label so same-suffix variants can merge into a "+1-3 Agility" range.
+var suffixEffectRe = regexp.MustCompile(`^\+(\d+) (.+)$`)
+
+// GetItemRandomSuffixes returns the possible random suffixes for an item with
+// a random_property, resolved through item_enchantment_template (the roll
+// pool) and item_random_suffix (the DBC-derived suffix text + stat lines).
+// The pool holds one row per stat roll (e.g. "of the Monkey" seven times with
+// different +Agi/+Sta combos), so rows aggregate by suffix: amounts collapse
+// into min-max ranges and weights sum, normalized to percent. Empty for items
+// without random properties.
+func (a *App) GetItemRandomSuffixes(entry int) []ItemRandomSuffix {
+	out := []ItemRandomSuffix{}
+	rows, err := a.db.DB().Query(`
+		SELECT s.id, s.suffix, s.effects, t.chance
+		FROM item_template i
+		JOIN item_enchantment_template t ON t.entry = i.random_property
+		JOIN item_random_suffix s ON s.id = t.ench
+		WHERE i.entry = ?`, entry)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+
+	type rng struct{ min, max int }
+	type agg struct {
+		chance  float64
+		labels  []string // effect labels in first-seen order
+		ranges  map[string]*rng
+		raw     []string // unparseable lines, kept verbatim
+		bestID  int      // suffix id of the highest-total roll (for item links)
+		bestSum int
+	}
+	byName := map[string]*agg{}
+	order := []string{}
+	var total float64
+
+	for rows.Next() {
+		var id int
+		var suffix, effectsJSON string
+		var chance float64
+		if err := rows.Scan(&id, &suffix, &effectsJSON, &chance); err != nil {
+			continue
+		}
+		var effects []string
+		_ = json.Unmarshal([]byte(effectsJSON), &effects)
+
+		a := byName[suffix]
+		if a == nil {
+			a = &agg{ranges: map[string]*rng{}}
+			byName[suffix] = a
+			order = append(order, suffix)
+		}
+		a.chance += chance
+		total += chance
+		sum := 0
+		for _, e := range effects {
+			m := suffixEffectRe.FindStringSubmatch(e)
+			if m == nil {
+				if !slices.Contains(a.raw, e) {
+					a.raw = append(a.raw, e)
+				}
+				continue
+			}
+			n, _ := strconv.Atoi(m[1])
+			sum += n
+			label := m[2]
+			if r, ok := a.ranges[label]; ok {
+				r.min = min(r.min, n)
+				r.max = max(r.max, n)
+			} else {
+				a.ranges[label] = &rng{n, n}
+				a.labels = append(a.labels, label)
+			}
+		}
+		if a.bestID == 0 || sum > a.bestSum {
+			a.bestID, a.bestSum = id, sum
+		}
+	}
+
+	for _, suffix := range order {
+		a := byName[suffix]
+		s := ItemRandomSuffix{Suffix: suffix, Effects: []string{}, LinkID: a.bestID}
+		for _, label := range a.labels {
+			r := a.ranges[label]
+			if r.min == r.max {
+				s.Effects = append(s.Effects, fmt.Sprintf("+%d %s", r.min, label))
+			} else {
+				s.Effects = append(s.Effects, fmt.Sprintf("+%d-%d %s", r.min, r.max, label))
+			}
+		}
+		s.Effects = append(s.Effects, a.raw...)
+		if total > 0 {
+			// Weights in the world DB are relative, not percentages.
+			s.Chance = a.chance / total * 100
+		}
+		out = append(out, s)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Chance > out[j].Chance })
+	return out
 }
 
 // Helper to add full icon URLs

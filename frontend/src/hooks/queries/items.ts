@@ -6,6 +6,7 @@ import {
     BrowseItemsByClass,
     GetItemStatTypes,
     BrowseItems,
+    GetItemRandomSuffixes,
 } from '../../../wailsjs/go/main/App'
 import { GetItemDetail, IsFavorite } from '../../services/api'
 import { models } from '../../../wailsjs/go/models'
@@ -75,4 +76,14 @@ export const useItemFavorite = (entry: number) =>
         queryKey: queryKeys.itemFavorite(entry),
         queryFn: () => IsFavorite(entry),
         enabled: !!entry,
+    })
+
+// Possible random suffixes ("of the Monkey") for an item with a random
+// property, with stat ranges and roll chances. Empty for normal items.
+export const useItemRandomSuffixes = (entry: number) =>
+    useQuery({
+        queryKey: queryKeys.itemRandomSuffixes(entry),
+        queryFn: () => GetItemRandomSuffixes(entry),
+        enabled: !!entry,
+        staleTime: Infinity,
     })

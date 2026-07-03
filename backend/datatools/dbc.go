@@ -164,6 +164,7 @@ func GenerateDBCJSONFrom(cf ClientFiles, dataDir string) error {
 		{"inventorytypes", "inventory_types.json"},
 		{"creaturetypes", "creature_types.json"},
 		{"clientstrings", "client_strings.json"},
+		{"randomsuffixes", "random_suffixes.json"},
 	}
 	for _, j := range jobs {
 		if err := runGen(j.name, cf, filepath.Join(dataDir, j.file)); err != nil {
@@ -225,6 +226,8 @@ func runGen(name string, cf ClientFiles, out string) error {
 		v, err = genIDName(cf, "CreatureType.dbc")
 	case "clientstrings":
 		v, err = genClientStrings(cf)
+	case "randomsuffixes":
+		v, err = genRandomSuffixes(cf)
 	default:
 		return fmt.Errorf("unknown gen %q", name)
 	}
@@ -629,6 +632,53 @@ func genEnchantProcSpells(cf ClientFiles) (interface{}, error) {
 			seen[spellID] = true
 			out = append(out, map[string]interface{}{"id": spellID})
 		}
+	}
+	return out, nil
+}
+
+// genRandomSuffixes joins ItemRandomProperties.dbc (random-suffix id -> the
+// localized "of the ..." text plus up to five SpellItemEnchantment ids) with
+// each enchantment's display text ("+3 Agility"), producing the table behind
+// the item pages' random-enchantment dropdown.
+// ItemRandomProperties.dbc (16 fields, verified against the 1.12 client):
+// id(0), internalName(1), enchant[5](2-6), suffix_loc[8](7-14, enUS at 7),
+// flags(15).
+// SpellItemEnchantment.dbc (24 fields): id(0), type[3](1-3), min[3](4-6),
+// max[3](7-9), object[3](10-12), name_loc[8](13-20, enUS at 13), nameFlags(21),
+// itemVisual(22), flags(23).
+func genRandomSuffixes(cf ClientFiles) (interface{}, error) {
+	sie, err := openDBCFrom(cf, "SpellItemEnchantment.dbc")
+	if err != nil {
+		return nil, err
+	}
+	enchText := make(map[uint32]string, sie.RecordCount)
+	for r := 0; r < sie.RecordCount; r++ {
+		enchText[sie.U32(r, 0)] = sie.Str(r, 13)
+	}
+
+	d, err := openDBCFrom(cf, "ItemRandomProperties.dbc")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, d.RecordCount)
+	for r := 0; r < d.RecordCount; r++ {
+		suffix := d.Str(r, 7)
+		if suffix == "" {
+			continue
+		}
+		effects := []string{}
+		for f := 2; f <= 6; f++ {
+			if id := d.U32(r, f); id != 0 {
+				if t := enchText[id]; t != "" {
+					effects = append(effects, t)
+				}
+			}
+		}
+		out = append(out, map[string]interface{}{
+			"id":      d.U32(r, 0),
+			"suffix":  suffix,
+			"effects": effects,
+		})
 	}
 	return out, nil
 }

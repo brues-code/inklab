@@ -1,7 +1,11 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tooltipQuery } from '../../../hooks/queries/tooltip'
-import { useItemDetail, useItemFavorite } from '../../../hooks/queries/items'
+import {
+    useItemDetail,
+    useItemFavorite,
+    useItemRandomSuffixes,
+} from '../../../hooks/queries/items'
 import { queryClient } from '../../../queryClient'
 import { ToggleFavorite } from '../../../services/api'
 import { FixSingleItemIcon, SyncSingleItem } from '../../../../wailsjs/go/main/App'
@@ -173,12 +177,18 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
     // toggled optimistically in handleFavoriteToggle.
     const { data: isFavorite = false } = useItemFavorite(entry)
 
+    // Possible random suffixes ("of the Monkey") and the currently previewed
+    // one (-1 = base item). Empty for items without a random property.
+    const { data: randomSuffixes = [] } = useItemRandomSuffixes(entry)
+    const [suffixIdx, setSuffixIdx] = useState(-1)
+
     // Reset the icon-error flag when the item changes (render-time, no effect).
     const [imgErrKey, setImgErrKey] = useState(entry)
     if (entry !== imgErrKey) {
         setImgErrKey(entry)
         setImgError(false)
         setLocalRelTab(null)
+        setSuffixIdx(-1)
     }
 
     // A sync or icon-fix can change this item anywhere it appears (the grid behind
@@ -258,6 +268,7 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
             quality: detail.quality,
             name: detail.name,
         }
+        const suffix = randomSuffixes[suffixIdx]
 
         return (
             <div className="inline-block min-w-[300px] align-top">
@@ -269,7 +280,29 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                     onSpellClick={(spellId) => onNavigate?.('spell', spellId)}
                     onItemClick={(id) => onNavigate?.('item', id)}
                     tooltipHook={tooltipHook}
+                    suffix={suffix}
                 />
+                {/* Random enchantment preview: pick a suffix, the tooltip above
+                    updates with its name + stat ranges. */}
+                {randomSuffixes.length > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                        <select
+                            value={suffixIdx}
+                            onChange={(e) => setSuffixIdx(Number(e.target.value))}
+                            // w-0 + min-w-full: fill the tooltip's width without
+                            // contributing the (long) option text's intrinsic
+                            // width, which would stretch past the tooltip box.
+                            className="w-0 min-w-full rounded border border-border-light bg-bg-main px-2 py-1.5 text-xs text-white outline-none focus:border-wow-gold"
+                        >
+                            <option value={-1}>Random enchantment...</option>
+                            {randomSuffixes.map((s, i) => (
+                                <option key={i} value={i}>
+                                    {s.suffix} — {s.effects.join(', ')} ({s.chance.toFixed(1)}%)
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
         )
     }
@@ -794,11 +827,19 @@ const ItemDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onT
                                     6: 'ffe6cc80', // Artifact (gold)
                                 }
                                 const colorCode = qualityColors[detail.quality] || 'ffffffff'
-                                // Format: |cCOLOR|Hitem:ID:0:0:0:0:0:0:0:0|h[NAME]|h|r
+                                // Vanilla link format (4 fields):
+                                // |cCOLOR|Hitem:itemId:enchantId:randomPropertyId:uniqueId|h[NAME]|h|r
+                                // A suffix picked in the random-enchantment dropdown rides
+                                // along as the randomPropertyId (its best roll) + name text.
                                 // \124 is the escape for | in Lua
+                                const suffix = randomSuffixes[suffixIdx]
+                                const randomPropertyId = suffix?.linkId || 0
+                                const fullName = suffix
+                                    ? `${detail.name} ${suffix.suffix}`
+                                    : detail.name
                                 // Escape quotes in name for Lua string
-                                const escapedName = detail.name.replace(/"/g, '\\"')
-                                const itemLink = `/script DEFAULT_CHAT_FRAME:AddMessage("\\124c${colorCode}\\124Hitem:${detail.entry}:0:0:0:0:0:0:0:0\\124h[${escapedName}]\\124h\\124r");`
+                                const escapedName = fullName.replace(/"/g, '\\"')
+                                const itemLink = `/script DEFAULT_CHAT_FRAME:AddMessage("\\124c${colorCode}\\124Hitem:${detail.entry}:0:${randomPropertyId}:0\\124h[${escapedName}]\\124h\\124r");`
                                 navigator.clipboard
                                     .writeText(itemLink)
                                     .then(() =>

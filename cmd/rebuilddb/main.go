@@ -100,6 +100,9 @@ func main() {
 	if err := gen.ImportLocks(filepath.Join(dataDir, "locks.json")); err != nil {
 		fmt.Println("  warn locks:", err)
 	}
+	if err := gen.ImportRandomSuffixes(filepath.Join(dataDir, "random_suffixes.json")); err != nil {
+		fmt.Println("  warn random suffixes:", err)
+	}
 	if err := gen.ImportClasses(filepath.Join(dataDir, "classes.json")); err != nil {
 		fmt.Println("  warn classes:", err)
 	}

@@ -18,6 +18,9 @@ const ItemTooltip = ({
     // Rendered inside another tooltip (a recipe's crafted item): drop the box
     // chrome (border/bg/shadow/width) and just separate with a top divider.
     nested = false,
+    // Selected random enchantment ({ suffix, effects }): appends the suffix to
+    // the name and its stat lines (green, like the in-game suffix enchant).
+    suffix = undefined,
 }) => {
     // Loading state
     if (!tooltip) {
@@ -63,6 +66,8 @@ const ItemTooltip = ({
                     >
                         {tooltip.name}
                     </span>
+                ) : suffix ? (
+                    `${tooltip.name} ${suffix.suffix}`
                 ) : (
                     tooltip.name
                 )}
@@ -121,6 +126,17 @@ const ItemTooltip = ({
                     {tooltip.stats.map((stat, i) => (
                         <div key={i} className="leading-tight text-white">
                             {stat}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Selected random suffix stat lines (green, like an enchant) */}
+            {suffix?.effects?.length > 0 && (
+                <div className="flex flex-col">
+                    {suffix.effects.map((line, i) => (
+                        <div key={i} className="leading-tight text-wow-uncommon">
+                            {line}
                         </div>
                     ))}
                 </div>

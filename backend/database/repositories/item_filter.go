@@ -173,6 +173,9 @@ func (r *ItemRepository) buildItemFilter(f models.SearchFilter) (string, []any) 
 	if f.HasEffect {
 		b.raw("spellid_1 > 0")
 	}
+	if f.HasRandomSuffix {
+		b.raw("random_property > 0")
+	}
 
 	// Requirements & economy.
 	if f.RequiresProf {
