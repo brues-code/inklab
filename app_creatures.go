@@ -190,12 +190,21 @@ func (a *App) FullSyncNpcs(startFrom int, delayMs int) string {
 			})
 		}
 
-		err := a.npcService.FullSyncNpcs(startFrom, delayMs, progressCb)
+		failed, err := a.npcService.FullSyncNpcs(startFrom, delayMs, progressCb)
 		if err != nil {
 			fmt.Printf("Error syncing all NPCs: %v\n", err)
 			runtime.EventsEmit(a.ctx, "sync:npc_full:error", err.Error())
 		} else {
-			runtime.EventsEmit(a.ctx, "sync:npc_full:complete", "Full NPC sync complete")
+			msg := "Full NPC sync complete"
+			if len(failed) > 0 {
+				preview := failed
+				if len(preview) > 5 {
+					preview = preview[:5]
+				}
+				msg = fmt.Sprintf("Full NPC sync complete — %d NPC(s) failed to scrape (kept their existing data), e.g. %v. Re-run to retry them.", len(failed), preview)
+				fmt.Printf("[FullSyncNpcs] entries that failed to scrape: %v\n", failed)
+			}
+			runtime.EventsEmit(a.ctx, "sync:npc_full:complete", msg)
 		}
 	}()
 
