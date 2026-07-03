@@ -119,11 +119,16 @@ func CoreSchema() string {
 
 	-- Spell Skill Spells. req_skill_value is the minimum skill rank to use the
 	-- spell (e.g. a recipe's required profession skill), from SkillLineAbility.dbc.
+	-- min_value/max_value are the skill-up thresholds: below min the recipe is
+	-- orange (always skills up), grey at max; yellow/green split at the midpoint
+	-- (the server's SkillGainChance formula).
 	CREATE TABLE IF NOT EXISTS spell_skill_spells (
 		skill_id INTEGER,
 		spell_id INTEGER,
 		req_skill_value INTEGER DEFAULT 0,
 		classmask INTEGER DEFAULT 0,
+		min_value INTEGER DEFAULT 0,
+		max_value INTEGER DEFAULT 0,
 		PRIMARY KEY (skill_id, spell_id)
 	);
 

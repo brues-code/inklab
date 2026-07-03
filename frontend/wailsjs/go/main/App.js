@@ -190,6 +190,14 @@ export function GetObjectsByType(arg1, arg2) {
   return window['go']['main']['App']['GetObjectsByType'](arg1, arg2);
 }
 
+export function GetProfessionRecipes(arg1) {
+  return window['go']['main']['App']['GetProfessionRecipes'](arg1);
+}
+
+export function GetProfessions() {
+  return window['go']['main']['App']['GetProfessions']();
+}
+
 export function GetQuestCategories() {
   return window['go']['main']['App']['GetQuestCategories']();
 }

@@ -80,6 +80,8 @@ func (s *SQLiteDB) InitSchema() error {
 	schema.MigrateTextBlobs(s.db)
 	s.db.Exec("ALTER TABLE spell_skills ADD COLUMN class_id INTEGER DEFAULT 0")         // ignore error if exists
 	s.db.Exec("ALTER TABLE spell_skill_spells ADD COLUMN classmask INTEGER DEFAULT 0")  // ignore error if exists
+	s.db.Exec("ALTER TABLE spell_skill_spells ADD COLUMN min_value INTEGER DEFAULT 0")  // ignore error if exists
+	s.db.Exec("ALTER TABLE spell_skill_spells ADD COLUMN max_value INTEGER DEFAULT 0")  // ignore error if exists
 	s.db.Exec("ALTER TABLE class_info ADD COLUMN color TEXT DEFAULT ''")                // ignore error if exists
 	s.db.Exec("ALTER TABLE faction_template ADD COLUMN our_mask INTEGER DEFAULT 0")    // ignore error if exists
 	s.db.Exec("ALTER TABLE faction_template ADD COLUMN friend_mask INTEGER DEFAULT 0") // ignore error if exists

@@ -426,6 +426,95 @@ export namespace main {
 		}
 	}
 	
+	export class Profession {
+	    id: number;
+	    name: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Profession(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	    }
+	}
+	export class RecipeItem {
+	    entry: number;
+	    name: string;
+	    quality: number;
+	    icon: string;
+	    count?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecipeItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = source["entry"];
+	        this.name = source["name"];
+	        this.quality = source["quality"];
+	        this.icon = source["icon"];
+	        this.count = source["count"];
+	    }
+	}
+	export class ProfessionRecipe {
+	    spellId: number;
+	    name: string;
+	    icon: string;
+	    learn: number;
+	    yellow: number;
+	    green: number;
+	    grey: number;
+	    crafts?: RecipeItem;
+	    reagents: RecipeItem[];
+	    trainer: boolean;
+	    teachItem?: RecipeItem;
+	    quest: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfessionRecipe(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spellId = source["spellId"];
+	        this.name = source["name"];
+	        this.icon = source["icon"];
+	        this.learn = source["learn"];
+	        this.yellow = source["yellow"];
+	        this.green = source["green"];
+	        this.grey = source["grey"];
+	        this.crafts = this.convertValues(source["crafts"], RecipeItem);
+	        this.reagents = this.convertValues(source["reagents"], RecipeItem);
+	        this.trainer = source["trainer"];
+	        this.teachItem = this.convertValues(source["teachItem"], RecipeItem);
+	        this.quest = source["quest"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class TalentRank {
 	    spellId: number;
 	    description: string;

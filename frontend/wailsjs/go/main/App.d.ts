@@ -98,6 +98,10 @@ export function GetObjectTypes():Promise<Array<models.ObjectType>>;
 
 export function GetObjectsByType(arg1:number,arg2:string):Promise<Array<models.GameObject>>;
 
+export function GetProfessionRecipes(arg1:number):Promise<Array<main.ProfessionRecipe>>;
+
+export function GetProfessions():Promise<Array<main.Profession>>;
+
 export function GetQuestCategories():Promise<Array<models.QuestCategory>>;
 
 export function GetQuestCategoriesByGroup(arg1:number):Promise<Array<models.QuestCategoryEnhanced>>;

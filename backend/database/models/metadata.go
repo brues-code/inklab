@@ -25,12 +25,16 @@ type SkillEntry struct {
 	Name       string `json:"name_loc0"`
 }
 
-// SkillLineAbilityEntry represents a skill-spell relationship for JSON import
+// SkillLineAbilityEntry represents a skill-spell relationship for JSON import.
+// MinValue/MaxValue are the skill-up thresholds (orange below min, grey at max;
+// yellow/green split at the midpoint — the server's SkillGainChance formula).
 type SkillLineAbilityEntry struct {
 	SkillID       int `json:"skillID"`
 	SpellID       int `json:"spellID"`
 	ClassMask     int `json:"classmask"`
 	ReqSkillValue int `json:"req_skill_value"`
+	MinValue      int `json:"min_value"`
+	MaxValue      int `json:"max_value"`
 }
 
 // StatFilter requires an item to have at least Min of a given stat_type.

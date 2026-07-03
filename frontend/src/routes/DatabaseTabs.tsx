@@ -12,6 +12,7 @@ import {
     FactionsTab,
     RacesTab,
     IconsTab,
+    ProfessionsTab,
 } from '../components/database/tabs'
 import { useTooltipCtx } from '../hooks/useTooltipContext'
 
@@ -23,6 +24,7 @@ const TABS = [
     'Objects',
     'Zones',
     'Spells',
+    'Professions',
     'Factions',
     'Races',
     'Icons',
@@ -106,6 +108,12 @@ export function DatabaseTabs() {
                             {activeTab === 'zones' && <ZonesTab onNavigate={onNavigate} />}
                             {activeTab === 'spells' && (
                                 <SpellsTab onNavigate={onNavigate} tooltipHook={tooltipHook} />
+                            )}
+                            {activeTab === 'professions' && (
+                                <ProfessionsTab
+                                    onNavigate={onNavigate}
+                                    tooltipHook={tooltipHook}
+                                />
                             )}
                             {activeTab === 'factions' && <FactionsTab onNavigate={onNavigate} />}
                             {activeTab === 'races' && (

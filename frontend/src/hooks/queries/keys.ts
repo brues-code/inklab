@@ -62,6 +62,10 @@ export const queryKeys = {
     icons: ['icons'] as const,
     iconUsage: (name: unknown) => ['iconUsage', name] as const,
 
+    // Professions
+    professions: ['professions'] as const,
+    professionRecipes: (skillId: unknown) => ['professionRecipes', skillId] as const,
+
     // Factions
     factions: ['factions'] as const,
     factionDetail: (id: unknown) => ['factionDetail', id] as const,
