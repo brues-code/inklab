@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"inklab/backend/database/models"
@@ -37,15 +38,14 @@ func (s *SyncService) QuestExistsLocally(entry int) bool {
 func (s *SyncService) CheckRemoteQuest(entry int) (bool, string, error) {
 	url := fmt.Sprintf("%s/?quest=%d", s.baseURL, entry)
 
-	resp, err := s.httpClient.Get(url)
+	resp, err := s.getWithRetry(url)
+	if errors.Is(err, errNotFound) {
+		return false, "", nil
+	}
 	if err != nil {
 		return false, "", err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return false, "", nil
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -140,15 +140,12 @@ func (s *SyncService) CheckNewQuests(maxChecks int, delayMs int, progressChan ch
 func (s *SyncService) FetchQuestDetails(questID int) (*models.QuestDetail, error) {
 	url := fmt.Sprintf("%s/?quest=%d", s.baseURL, questID)
 
-	resp, err := s.httpClient.Get(url)
+	// Retries transient failures (429/5xx/network); only a real 404 is "not found".
+	resp, err := s.getWithRetry(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("quest %d: %w", questID, err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("quest not found: %d", questID)
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -177,14 +174,12 @@ func (s *SyncService) FetchAndImportQuest(questID int) *SyncQuestResult {
 	fmt.Printf("[SyncService] FetchAndImportQuest called for quest %d\n", questID)
 
 	url := fmt.Sprintf("%s/?quest=%d", s.baseURL, questID)
-	resp, err := s.httpClient.Get(url)
+	// Retries transient failures (429/5xx/network); only a real 404 is "not found".
+	resp, err := s.getWithRetry(url)
 	if err != nil {
 		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return &SyncQuestResult{Success: false, QuestID: questID, Error: fmt.Sprintf("quest not found: %d", questID)}
-	}
 	data, err := parsers.ParseQuestDataTurtlecraft(resp.Body, questID)
 	if err != nil {
 		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}

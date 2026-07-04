@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -39,15 +40,14 @@ func (s *SyncService) ItemExistsLocally(entry int) bool {
 func (s *SyncService) CheckRemoteItem(entry int) (bool, string, error) {
 	url := fmt.Sprintf("%s/?item=%d", s.baseURL, entry)
 
-	resp, err := s.httpClient.Get(url)
+	resp, err := s.getWithRetry(url)
+	if errors.Is(err, errNotFound) {
+		return false, "", nil
+	}
 	if err != nil {
 		return false, "", err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return false, "", nil
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -171,15 +171,13 @@ func (s *SyncService) CheckNewItems(maxChecks int, delayMs int, progressChan cha
 func (s *SyncService) FetchItemDetails(itemID int) (*models.ItemTemplateFull, *models.ItemSetEntry, error) {
 	url := fmt.Sprintf("%s/?item=%d", s.baseURL, itemID)
 
-	resp, err := s.httpClient.Get(url)
+	// Retries transient failures (429/5xx/network) so a busy full sync doesn't
+	// misreport throttled items as missing; only a real 404 is "not found".
+	resp, err := s.getWithRetry(url)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("item %d: %w", itemID, err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, nil, fmt.Errorf("item not found: %d", itemID)
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

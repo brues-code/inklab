@@ -2,6 +2,9 @@ package services
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -73,6 +76,43 @@ func NewSyncService(db *sql.DB) *SyncService {
 			Timeout: 10 * time.Second,
 		},
 		baseURL: DatabaseBaseURL,
+	}
+}
+
+// errNotFound marks a definitive HTTP 404 — the page doesn't exist, as opposed
+// to a transient failure (throttled, network blip) that exhausted its retries.
+var errNotFound = errors.New("not found (HTTP 404)")
+
+// getWithRetry fetches url, retrying transient failures — network errors,
+// HTTP 429 (throttled: the full syncs run 10 fetches at once, which can trip
+// the server's limiter), and 5xx — with the same backoff the page scrapers
+// use. A 404 returns errNotFound immediately (retrying can't create the page).
+// On success the response is returned with its body open; the caller closes it.
+func (s *SyncService) getWithRetry(url string) (*http.Response, error) {
+	var lastErr error
+	for attempt := 1; ; attempt++ {
+		resp, err := s.httpClient.Get(url)
+		switch {
+		case err != nil:
+			lastErr = err
+		case resp.StatusCode == 200:
+			return resp, nil
+		default:
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 404 {
+				return nil, errNotFound
+			}
+			if resp.StatusCode != 429 && resp.StatusCode < 500 {
+				// Other 4xx: not transient, retrying won't help.
+				return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+			}
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+		}
+		if attempt >= scrapeAttempts {
+			return nil, lastErr
+		}
+		time.Sleep(time.Duration(attempt) * scrapeRetryDelay)
 	}
 }
 
