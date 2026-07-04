@@ -4,6 +4,7 @@ import { queryClient } from '../../queryClient'
 import { useTalentClasses, useTalentTrees, talentTreesQuery } from '../../hooks/queries/talents'
 import { useTalentBuild, getLastTalentClass } from './useTalentBuild'
 import { useIcon, useImage } from '../../services/useImage'
+import { DATABASE_BASE_URL } from '../../utils/constants'
 
 // Talent tree geometry (a 4-column × up-to-7-row grid drawn over the parchment).
 const CELL = 40
@@ -92,10 +93,12 @@ function decodeBuild(trees, body) {
     return order
 }
 
-// ---- TurtleWoW build import -------------------------------------------------
-// turtle's calculator stores each tree as a 28-slot rank array (4 cols x 7 rows,
-// slot = row*4 + col), each rank packed as 3 bits, the bytes base64-encoded, and
-// the three trees joined by "-" in a ?points= query. This mirrors their decoder.
+// ---- OctoWoW / TurtleWoW build import -----------------------------------------
+// The octowow.st talent calculator (renamed turtlecraft; same encoding) stores
+// each tree as a 28-slot rank array (4 cols x 7 rows, slot = row*4 + col), each
+// rank packed as 3 bits, the bytes base64-encoded, and the three trees joined
+// by "-" in a ?points= query (an empty segment = no points in that tree). This
+// mirrors their decoder.
 const turtleBits = (b64) => {
     const bytes = atob(b64)
     let bits = ''
@@ -113,10 +116,10 @@ function decodeTurtlePoints(points) {
         .map((seg) => [...turtleBits(seg.padEnd(14, 'A')), 0])
 }
 
-// Encode our build as a TurtleWoW ?points= URL (inverse of the decoder above):
+// Encode our build as an OctoWoW ?points= URL (inverse of the decoder above):
 // each tree -> a 28-slot rank array (slot = row*4 + col) -> 3-bit-packed bytes
 // -> base64 (drop the final char, trim trailing zero 'A's), trees joined by "-".
-function encodeTurtleURL(classKey, trees, points) {
+function encodeOctoURL(classKey, trees, points) {
     const sorted = [...trees].sort((a, b) => a.order - b.order)
     const segs = sorted.map((tr) => {
         const arr = new Array(28).fill(0)
@@ -127,15 +130,20 @@ function encodeTurtleURL(classKey, trees, points) {
             .slice(0, -1)
             .replace(/A+$/, '')
     })
-    return `https://talents.turtlecraft.gg/${classKey.toLowerCase()}?points=${segs.join('-')}`
+    const site = DATABASE_BASE_URL.replace(/\/db$/, '')
+    return `${site}/talents/${classKey.toLowerCase()}/?points=${segs.join('-')}`
 }
 
-// Parse a turtle build (full URL or any string with class + ?points=). Returns
+// Parse an octo/turtle build (full URL or any string with class + ?points=).
+// Handles both URL shapes — octowow.st/talents/paladin/?points=… (trailing
+// slash) and talents.turtlecraft.gg/paladin?points=…. Returns
 // { classKey, ranks: [tree0[], tree1[], tree2[]] } or null if it isn't one.
-function parseTurtle(raw) {
+function parseOctoLink(raw) {
     const pm = raw.match(/points=([^&\s]+)/)
     if (!pm) return null
-    const cm = raw.match(/\/([a-zA-Z]+)\s*\?/) || raw.match(/turtlecraft\.gg\/([a-zA-Z]+)/i)
+    const cm =
+        raw.match(/\/([a-zA-Z]+)\/?\s*\?/) ||
+        raw.match(/(?:octowow\.st|turtlecraft\.gg)\/(?:talents\/)?([a-zA-Z]+)/i)
     if (!cm) return null
     try {
         return {
@@ -415,7 +423,7 @@ function TalentsPage() {
     const [tip, setTip] = useState(null)
     const [importText, setImportText] = useState('')
     const [importErr, setImportErr] = useState('')
-    const [copied, setCopied] = useState('') // '' | 'mine' | 'turtle'
+    const [copied, setCopied] = useState('') // '' | 'mine' | 'octo'
 
     // Selected class token (uppercase, e.g. "WARRIOR") from the lowercase path.
     const selected = classParam ? classParam.toUpperCase() : null
@@ -528,8 +536,8 @@ function TalentsPage() {
     }, [selected, data, order, classMap])
 
     // Equivalent build as a TurtleWoW link (final ranks; order isn't expressible).
-    const turtleUrl = useMemo(
-        () => (selected && data?.trees ? encodeTurtleURL(selected, data.trees, points) : ''),
+    const octoUrl = useMemo(
+        () => (selected && data?.trees ? encodeOctoURL(selected, data.trees, points) : ''),
         [selected, data, points],
     )
 
@@ -568,14 +576,14 @@ function TalentsPage() {
             if (classKey !== selected) selectClass(classKey) // class change restores the stored build
         }
 
-        // TurtleWoW build URL/code (?points=…) — final ranks, order synthesized.
-        const turtle = parseTurtle(raw)
-        if (turtle) {
-            if (!classMap.byClass[turtle.classKey]) {
+        // Octo/turtle build URL/code (?points=…) — final ranks, order synthesized.
+        const octo = parseOctoLink(raw)
+        if (octo) {
+            if (!classMap.byClass[octo.classKey]) {
                 setImportErr('Unrecognized build code')
                 return
             }
-            await apply(turtle.classKey, (trees) => orderFromRanks(trees, turtle.ranks))
+            await apply(octo.classKey, (trees) => orderFromRanks(trees, octo.ranks))
             return
         }
 
@@ -685,11 +693,11 @@ function TalentsPage() {
                         {copied === 'mine' ? 'Copied!' : 'Copy'}
                     </button>
                     <button
-                        onClick={() => copy(turtleUrl, 'turtle')}
-                        title="Copy as a TurtleWoW calculator link"
+                        onClick={() => copy(octoUrl, 'octo')}
+                        title="Copy as an OctoWoW talent calculator link"
                         className="rounded border border-border-dark bg-bg-panel px-2.5 py-1 text-xs text-zinc-300 hover:bg-bg-hover"
                     >
-                        {copied === 'turtle' ? 'Copied!' : 'Turtle link'}
+                        {copied === 'octo' ? 'Copied!' : 'Octo link'}
                     </button>
                     <span className="mx-1 text-zinc-700">|</span>
                     <input
@@ -699,7 +707,7 @@ function TalentsPage() {
                             if (importErr) setImportErr('')
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && doImport()}
-                        placeholder="Paste a build code or TurtleWoW link…"
+                        placeholder="Paste a build code or talent link…"
                         className="w-[240px] rounded border border-border-dark bg-bg-main px-2 py-1 font-mono text-xs text-white outline-none focus:border-wow-rare"
                     />
                     <button
