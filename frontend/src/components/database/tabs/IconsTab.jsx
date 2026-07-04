@@ -1,10 +1,15 @@
-import { useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ContentPanel, IconHoverPopup, ScrollList, SectionHeader } from '../../ui'
 import { QUESTION_MARK_ICON } from '../../../utils/wow'
 import { useIcon } from '../../../services/useImage'
 import { useLocalIcons } from '../../../hooks/queries/icons'
 
-const PAGE_SIZE = 400
+// Fixed tile geometry: the wall is a uniform grid, virtualized by row.
+const TILE = 48 // h-12/w-12
+const GAP = 12 // gap between tiles
+const STRIDE = TILE + GAP
+const PAD = 12 // ScrollList p-3
 
 // Bare icon tile — the wall shows only images; everything else lives in the
 // hover popup. Tiles share the app-wide icon data-URL cache via useIcon.
@@ -34,14 +39,17 @@ function IconTile({ icon, onClick, onHover, onLeave }) {
  * Icons tab: a dense wall of every unique icon in the local client-imported set
  * (data/icons). Hovering a tile pops up the icon's name (copyable) and how many
  * items/spells use it; clicking opens the icon's detail page listing them all.
- * Tiles render incrementally as you scroll so a 10k-icon set doesn't kick off
- * 10k image loads at once.
+ *
+ * The wall is row-virtualized with @tanstack/react-virtual: only the rows in
+ * (and just around) the viewport are mounted, so a 10k-icon set renders a few
+ * hundred tiles at any moment and images only ever load for what's been on
+ * screen, while the scrollbar reflects the true list length.
  */
 function IconsTab({ onNavigate }) {
     const [filter, setFilter] = useState('')
     const [usedOnly, setUsedOnly] = useState(false)
-    const [visible, setVisible] = useState(PAGE_SIZE)
     const [hover, setHover] = useState(null) // { icon, x, y, bottom }
+    const [width, setWidth] = useState(800)
     const closeTimer = useRef(null)
     const openTimer = useRef(null)
     const scrollRef = useRef(null)
@@ -55,7 +63,26 @@ function IconsTab({ onNavigate }) {
         )
     }, [icons, filter, usedOnly])
 
-    const shown = filtered.slice(0, visible)
+    // Track the scroll container's width — the column count re-flows with it.
+    useLayoutEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const measure = () => setWidth(el.clientWidth - PAD * 2)
+        measure()
+        const ro = new ResizeObserver(measure)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [isLoading, icons.length])
+
+    const cols = Math.max(1, Math.floor((width + GAP) / STRIDE))
+    const rows = Math.ceil(filtered.length / cols)
+
+    const rowVirtualizer = useVirtualizer({
+        count: rows,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: () => STRIDE,
+        overscan: 3,
+    })
 
     // Hover intent: the first popup opens only after a short dwell so sweeping
     // the wall doesn't flash popups in the pointer's path; once one is open,
@@ -74,17 +101,12 @@ function IconsTab({ onNavigate }) {
     }
     const cancelClose = () => clearTimeout(closeTimer.current)
 
-    // Grow the wall as the user nears the bottom (no button to click). Any
-    // scroll also dismisses the popup — its anchor is viewport-fixed and the
-    // tiles have moved out from under it.
-    const onScroll = (e) => {
-        const el = e.currentTarget
+    // Scrolling dismisses the popup — its anchor is viewport-fixed and the
+    // tiles have moved out from under it. (The virtualizer tracks scroll itself.)
+    const onScroll = () => {
         setHover(null)
         clearTimeout(closeTimer.current)
         clearTimeout(openTimer.current)
-        if (el.scrollHeight - el.scrollTop - el.clientHeight < 600 && visible < filtered.length) {
-            setVisible((v) => v + PAGE_SIZE)
-        }
     }
 
     return (
@@ -94,7 +116,7 @@ function IconsTab({ onNavigate }) {
                 placeholder="Filter icons..."
                 onFilterChange={(v) => {
                     setFilter(v)
-                    setVisible(PAGE_SIZE)
+                    scrollRef.current?.scrollTo(0, 0)
                 }}
                 actions={
                     <label className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-gray-400">
@@ -103,7 +125,7 @@ function IconsTab({ onNavigate }) {
                             checked={usedOnly}
                             onChange={(e) => {
                                 setUsedOnly(e.target.checked)
-                                setVisible(PAGE_SIZE)
+                                scrollRef.current?.scrollTo(0, 0)
                             }}
                         />
                         used only
@@ -129,22 +151,29 @@ function IconsTab({ onNavigate }) {
 
             {!isLoading && icons.length > 0 && (
                 <ScrollList ref={scrollRef} className="p-3" onScroll={onScroll}>
-                    <div className="flex flex-wrap content-start gap-3">
-                        {shown.map((icon) => (
-                            <IconTile
-                                key={icon.name}
-                                icon={icon}
-                                onClick={() => onNavigate?.('icon', icon.name)}
-                                onHover={openHover}
-                                onLeave={scheduleClose}
-                            />
+                    {/* Spacer with the grid's full height; only the virtual
+                        rows are mounted, translated to their offsets. */}
+                    <div className="relative" style={{ height: rowVirtualizer.getTotalSize() }}>
+                        {rowVirtualizer.getVirtualItems().map((vRow) => (
+                            <div
+                                key={vRow.key}
+                                className="absolute left-0 flex gap-3"
+                                style={{ top: 0, transform: `translateY(${vRow.start}px)` }}
+                            >
+                                {filtered
+                                    .slice(vRow.index * cols, (vRow.index + 1) * cols)
+                                    .map((icon) => (
+                                        <IconTile
+                                            key={icon.name}
+                                            icon={icon}
+                                            onClick={() => onNavigate?.('icon', icon.name)}
+                                            onHover={openHover}
+                                            onLeave={scheduleClose}
+                                        />
+                                    ))}
+                            </div>
                         ))}
                     </div>
-                    {visible < filtered.length && (
-                        <div className="py-3 text-center text-xs italic text-gray-600">
-                            Scroll for more ({filtered.length - visible} remaining)
-                        </div>
-                    )}
                 </ScrollList>
             )}
 
