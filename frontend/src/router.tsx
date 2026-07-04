@@ -17,6 +17,7 @@ import TalentsPage from './pages/TalentsPage'
 import MapsPage from './pages/MapsPage'
 import ToolsPage from './pages/ToolsPage'
 import SyncPage from './pages/SyncPage'
+import TimersPage from './pages/TimersPage'
 
 const rootRoute = createRootRoute({ component: RootLayout })
 
@@ -105,6 +106,11 @@ const syncRoute = createRoute({
     path: '/sync',
     component: SyncPage,
 })
+const timersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/timers',
+    component: TimersPage,
+})
 
 const routeTree = rootRoute.addChildren([
     indexRoute,
@@ -117,6 +123,7 @@ const routeTree = rootRoute.addChildren([
     mapsRoute,
     toolsRoute,
     syncRoute,
+    timersRoute,
 ])
 
 // Hash history: the Wails embedded asset server only serves "/", so keeping the

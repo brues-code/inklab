@@ -61,6 +61,7 @@ export function RootLayout() {
                         <NavTab to="/favorites">Favorites</NavTab>
                         <NavTab to="/talents">Talents</NavTab>
                         <NavTab to="/maps">Maps</NavTab>
+                        <NavTab to="/timers">Timers</NavTab>
                         <NavTab to="/tools">Import</NavTab>
                         <NavTab to="/sync">Sync</NavTab>
                     </nav>
