@@ -126,7 +126,9 @@ function GlobalSearch() {
     const visible = category === 'all' ? results : results.filter((r) => r.type === category)
 
     return (
-        <div ref={boxRef} className="relative w-72">
+        // Narrow windows get a slimmer input so the header nav keeps fitting;
+        // the results dropdown keeps its full width (right-anchored).
+        <div ref={boxRef} className="relative w-40 shrink-0 md:w-56 xl:w-72">
             <div className="relative">
                 <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                     ⌕

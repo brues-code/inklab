@@ -3,10 +3,11 @@ import { UpdateBanner, DataStatusBanner, GlobalSearch } from '../components/ui'
 import { TooltipProvider } from '../hooks/useTooltipContext'
 
 // Shared classes mirroring the old TabButton 'tab' variant so the header nav
-// keeps its look now that buttons are router <Link>s.
+// keeps its look now that buttons are router <Link>s. Paddings and font size
+// tighten below xl so the full nav keeps fitting as the window narrows.
 const NAV_BASE =
-    'px-4 py-2 font-bold text-sm cursor-pointer transition-all duration-200 border ' +
-    'bg-transparent border-transparent text-wow-gold uppercase text-[13px] rounded-none hover:bg-bg-hover'
+    'px-2 xl:px-4 py-2 font-bold cursor-pointer transition-all duration-200 border ' +
+    'bg-transparent border-transparent text-wow-gold uppercase text-[12px] xl:text-[13px] rounded-none hover:bg-bg-hover'
 const NAV_ACTIVE = '!bg-bg-active !text-white !border-border-light'
 
 type NavTabProps = {
@@ -44,14 +45,17 @@ export function RootLayout() {
             <UpdateBanner />
             <DataStatusBanner onGoToTools={() => navigate({ to: '/tools' })} />
 
-            {/* Header */}
-            <header className="flex items-center justify-between border-b-[3px] border-bg-dark bg-gradient-to-b from-[#2a2a3a] to-bg-main px-5 py-3">
-                <div className="flex items-center gap-5">
-                    <h1 className="flex select-none items-center gap-2.5 text-2xl font-normal text-wow-gold drop-shadow-md">
+            {/* Header. Degrades in stages as the window narrows: nav paddings
+                tighten (NAV_BASE), the title text drops (logo stays), the
+                search shrinks — and as a last resort the nav wraps to a second
+                row, so nothing ever overlaps. */}
+            <header className="flex items-center justify-between gap-3 border-b-[3px] border-bg-dark bg-gradient-to-b from-[#2a2a3a] to-bg-main px-5 py-3">
+                <div className="flex min-w-0 items-center gap-3 xl:gap-5">
+                    <h1 className="flex shrink-0 select-none items-center gap-2.5 text-2xl font-normal text-wow-gold drop-shadow-md">
                         <img draggable={false} src="/logo.png" alt="InkLab" className="h-12 w-12" />
-                        InkLab
+                        <span className="hidden lg:inline">InkLab</span>
                     </h1>
-                    <nav className="flex gap-1">
+                    <nav className="flex flex-wrap gap-1">
                         <NavTab to="/database">Database</NavTab>
                         <NavTab to="/atlas">AtlasLoot</NavTab>
                         <NavTab to="/favorites">Favorites</NavTab>
