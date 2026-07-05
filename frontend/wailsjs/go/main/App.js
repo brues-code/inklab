@@ -10,6 +10,10 @@ export function AdvancedSearch(arg1) {
   return window['go']['main']['App']['AdvancedSearch'](arg1);
 }
 
+export function ApplyUpdate() {
+  return window['go']['main']['App']['ApplyUpdate']();
+}
+
 export function BrowseCreaturesByFamilyPaged(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['BrowseCreaturesByFamilyPaged'](arg1, arg2, arg3, arg4);
 }
@@ -332,6 +336,10 @@ export function RemoveFavorite(arg1) {
 
 export function RenderNpcModel(arg1, arg2, arg3) {
   return window['go']['main']['App']['RenderNpcModel'](arg1, arg2, arg3);
+}
+
+export function Restart() {
+  return window['go']['main']['App']['Restart']();
 }
 
 export function RunCacheImport(arg1) {

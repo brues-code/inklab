@@ -742,6 +742,7 @@ export namespace main {
 	    latest: string;
 	    updateAvailable: boolean;
 	    url: string;
+	    selfUpdate: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateInfo(source);
@@ -753,6 +754,7 @@ export namespace main {
 	        this.latest = source["latest"];
 	        this.updateAvailable = source["updateAvailable"];
 	        this.url = source["url"];
+	        this.selfUpdate = source["selfUpdate"];
 	    }
 	}
 	export class WhatsNewEntry {

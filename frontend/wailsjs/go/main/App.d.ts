@@ -8,6 +8,8 @@ export function AddFavorite(arg1:number,arg2:string):Promise<models.FavoriteResu
 
 export function AdvancedSearch(arg1:models.SearchFilter):Promise<models.SearchResult>;
 
+export function ApplyUpdate():Promise<void>;
+
 export function BrowseCreaturesByFamilyPaged(arg1:number,arg2:string,arg3:number,arg4:number):Promise<main.CreaturePageResult>;
 
 export function BrowseCreaturesByType(arg1:number,arg2:string):Promise<Array<models.Creature>>;
@@ -169,6 +171,8 @@ export function RefreshNpcImages(arg1:number):Promise<services.NpcFullDetails>;
 export function RemoveFavorite(arg1:number):Promise<models.FavoriteResult>;
 
 export function RenderNpcModel(arg1:number,arg2:number,arg3:string):Promise<boolean>;
+
+export function Restart():Promise<void>;
 
 export function RunCacheImport(arg1:string):Promise<main.ImportReport>;
 

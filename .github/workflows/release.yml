@@ -22,16 +22,19 @@ jobs:
             artifact_base: InkLab-Windows
             artifact_ext: zip
             build_tags: ""
+            update_asset: InkLab-update-windows-amd64.exe
           - os: ubuntu-latest
             platform: linux/amd64
             artifact_base: InkLab-Linux
             artifact_ext: tar.gz
             build_tags: "-tags webkit2_41"
+            update_asset: InkLab-update-linux-amd64
           - os: macos-latest
             platform: darwin/universal
             artifact_base: InkLab-macOS
             artifact_ext: zip
             build_tags: ""
+            update_asset: InkLab-update-darwin-universal
 
     runs-on: ${{ matrix.os }}
 
@@ -85,12 +88,17 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path "build/bin/InkLab.exe" -DestinationPath "InkLab-Windows-${{ github.ref_name }}.zip"
+          Copy-Item "build/bin/InkLab.exe" "${{ matrix.update_asset }}"
+          $hash = (Get-FileHash "${{ matrix.update_asset }}" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "${{ matrix.update_asset }}.sha256" -Value "$hash  ${{ matrix.update_asset }}" -Encoding ascii -NoNewline
 
       # --- Linux Packaging ---
       - name: Package Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           tar -czvf "InkLab-Linux-${{ github.ref_name }}.tar.gz" -C build/bin InkLab
+          cp build/bin/InkLab "${{ matrix.update_asset }}"
+          sha256sum "${{ matrix.update_asset }}" > "${{ matrix.update_asset }}.sha256"
 
       # --- macOS Packaging ---
       - name: Package macOS
@@ -99,11 +107,17 @@ jobs:
           cd build/bin
           ditto -c -k --sequesterRsrc --keepParent InkLab.app InkLab.app.zip
           mv InkLab.app.zip "../../InkLab-macOS-${{ github.ref_name }}.zip"
+          cd ../..
+          cp build/bin/InkLab.app/Contents/MacOS/InkLab "${{ matrix.update_asset }}"
+          shasum -a 256 "${{ matrix.update_asset }}" > "${{ matrix.update_asset }}.sha256"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.artifact_base }}-${{ github.ref_name }}.${{ matrix.artifact_ext }}
+          files: |
+            ${{ matrix.artifact_base }}-${{ github.ref_name }}.${{ matrix.artifact_ext }}
+            ${{ matrix.update_asset }}
+            ${{ matrix.update_asset }}.sha256
           draft: false
           prerelease: false
           generate_release_notes: true

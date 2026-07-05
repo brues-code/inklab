@@ -69,6 +69,10 @@ func NewApp(dataDir string, isDevMode bool) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// Collect leftovers from a previous self-update (Windows can't delete the
+	// running binary during the swap, so it gets parked as .old).
+	cleanupOldUpdate()
+
 	fmt.Println("Initializing InkLab (SQLite Version)...")
 
 	// Load .env. godotenv.Load() only reads the current working directory, which
