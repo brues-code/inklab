@@ -25,10 +25,13 @@ type SyncSpellResult struct {
 const spellVarCols = `durationIndex,
 	effectBasePoints1, effectBasePoints2, effectBasePoints3,
 	effectDieSides1, effectDieSides2, effectDieSides3,
+	effectRealPointsPerLevel1, effectRealPointsPerLevel2, effectRealPointsPerLevel3,
+	effectDicePerLevel1, effectDicePerLevel2, effectDicePerLevel3,
 	effectAmplitude1, effectAmplitude2, effectAmplitude3,
 	effectChainTarget1, effectChainTarget2, effectChainTarget3,
 	effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
-	procChance, procCharges, maxAffectedTargets, maxTargetLevel, rangeIndex, stackAmount`
+	procChance, procCharges, maxAffectedTargets, maxTargetLevel, rangeIndex, stackAmount,
+	spellLevel, baseLevel, maxLevel`
 
 func (s *SyncService) loadDurationMap() map[int]int {
 	m := map[int]int{}
@@ -83,21 +86,26 @@ func (s *SyncService) loadRangeMap() map[int]float64 {
 // scanSpellVars reads the spellVarCols (in order) plus a leading entry id into a
 // spellVars, resolving the duration/radius indices via the aux maps.
 func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap, rangeMap map[int]float64) (int, spellVars, error) {
-	var entry, durIdx, proc, charges, maxTgts, maxTgtLvl, rangeIdx, stackAmt int
+	var entry, durIdx, proc, charges, maxTgts, maxTgtLvl, rangeIdx, stackAmt, sl, bl, ml int
 	var bp, die, amp, chain, radIdx [3]int
+	var rppl, dpl [3]float64
 	err := scan(&entry, &durIdx,
 		&bp[0], &bp[1], &bp[2],
 		&die[0], &die[1], &die[2],
+		&rppl[0], &rppl[1], &rppl[2],
+		&dpl[0], &dpl[1], &dpl[2],
 		&amp[0], &amp[1], &amp[2],
 		&chain[0], &chain[1], &chain[2],
 		&radIdx[0], &radIdx[1], &radIdx[2],
-		&proc, &charges, &maxTgts, &maxTgtLvl, &rangeIdx, &stackAmt)
+		&proc, &charges, &maxTgts, &maxTgtLvl, &rangeIdx, &stackAmt,
+		&sl, &bl, &ml)
 	if err != nil {
 		return 0, spellVars{}, err
 	}
-	v := spellVars{basePoints: bp, dieSides: die, amplitude: amp, chainTarget: chain,
+	v := spellVars{basePoints: bp, dieSides: die, realPointsPerLevel: rppl, dicePerLevel: dpl,
+		amplitude: amp, chainTarget: chain,
 		procChance: proc, procCharges: charges, maxTargets: maxTgts, maxTargetLevel: maxTgtLvl,
-		stackAmount: stackAmt}
+		stackAmount: stackAmt, spellLevel: sl, baseLevel: bl, maxLevel: ml}
 	v.durationMs = durMap[durIdx]
 	v.rangeYd = rangeMap[rangeIdx]
 	for i := 0; i < 3; i++ {

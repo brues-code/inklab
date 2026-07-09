@@ -954,6 +954,13 @@ func genSpells(cf ClientFiles) (interface{}, error) {
 				m[fmt.Sprintf("%s%d", field, i+1)] = d.I32(r, off+i)
 			}
 		}
+		// Per-effect level-scaling coefficients [3] (floats): dicePerLevel(70-72),
+		// realPointsPerLevel(73-75). These drive the client's level-based value
+		// scaling; without them level-scaled effects resolve to their level-0 base.
+		for i := 0; i < 3; i++ {
+			m[fmt.Sprintf("effectDicePerLevel%d", i+1)] = d.F32(r, 70+i)
+			m[fmt.Sprintf("effectRealPointsPerLevel%d", i+1)] = d.F32(r, 73+i)
+		}
 		// Reagents [8] (reagent ids 42-49, counts 50-57).
 		for i := 0; i < 8; i++ {
 			m[fmt.Sprintf("reagent%d", i+1)] = d.I32(r, 42+i)

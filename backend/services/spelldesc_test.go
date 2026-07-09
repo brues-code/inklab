@@ -4,9 +4,10 @@ import "testing"
 
 func TestResolveSpellDescription(t *testing.T) {
 	refs := map[int]spellVars{
-		6788:  {durationMs: 15000},                           // Weakened Soul
-		8026:  {basePoints: [3]int{76}, dieSides: [3]int{1}}, // ref for division (m1 = 77)
-		29203: {stackAmount: 3},                              // Healing Way aura, stacks 3x
+		6788:  {durationMs: 15000},                                           // Weakened Soul
+		8026:  {basePoints: [3]int{76}, dieSides: [3]int{1}},                 // ref for division (m1 = 77)
+		29203: {stackAmount: 3},                                              // Healing Way aura, stacks 3x
+		51461: {basePoints: [3]int{-1}, realPointsPerLevel: [3]float64{1.0}}, // Wand Spec mana proc
 	}
 	cases := []struct {
 		name string
@@ -85,6 +86,46 @@ func TestResolveSpellDescription(t *testing.T) {
 			raw:  "Stacks up to $u times.",
 			self: spellVars{stackAmount: 5},
 			want: "Stacks up to 5 times.",
+		},
+		{
+			// Smite R1: base 12, die 5, rppl 0.5, capped at maxLevel 6 → effLevel 5,
+			// scaledBase 14.5 → floor 14 (+1=15) .. round 15 (+5=20). Matches in game.
+			name: "level-scaled damage (Smite R1)",
+			raw:  "Smite an enemy for $s1 Holy damage.",
+			self: spellVars{basePoints: [3]int{12}, dieSides: [3]int{5}, realPointsPerLevel: [3]float64{0.5}, spellLevel: 1, baseLevel: 1, maxLevel: 6},
+			want: "Smite an enemy for 15 to 20 Holy damage.",
+		},
+		{
+			// Smite R2: base 24, die 7, rppl 0.6 (float32 → 3.0000001 at level 5).
+			// round must absorb the float noise (→27), not ceil (→28). In game 28-34.
+			name: "level-scaled, float32 rounding (Smite R2)",
+			raw:  "Smite an enemy for $s1 Holy damage.",
+			self: spellVars{basePoints: [3]int{24}, dieSides: [3]int{7}, realPointsPerLevel: [3]float64{0.6}, spellLevel: 1, baseLevel: 1, maxLevel: 6},
+			want: "Smite an enemy for 28 to 34 Holy damage.",
+		},
+		{
+			// Lesser Heal R1: base 45, die 11, rppl 0.9, maxLevel 3 → effLevel 2,
+			// scaledBase 46.8 → 47 .. 58. In game 47-58.
+			name: "level-scaled heal (Lesser Heal R1)",
+			raw:  "Heal your target for $s1.",
+			self: spellVars{basePoints: [3]int{45}, dieSides: [3]int{11}, realPointsPerLevel: [3]float64{0.9}, spellLevel: 1, baseLevel: 1, maxLevel: 3},
+			want: "Heal your target for 47 to 58.",
+		},
+		{
+			// Unscaled effect (rppl 0): must reduce to the original basePoints+1..+die.
+			name: "unscaled unchanged",
+			raw:  "Deals $s1 damage.",
+			self: spellVars{basePoints: [3]int{9}, dieSides: [3]int{5}},
+			want: "Deals 10 to 14 damage.",
+		},
+		{
+			// Wand Specialization's mana proc (spell 51461): base -1, rppl 1.0,
+			// uncapped → effLevel 60 → floor(-1+60)+1 = 60. Matches the in-game
+			// tooltip at max (300) wand skill, since 300/5 == the level-60 anchor.
+			name: "weapon-skill proc at max skill (spell 51461)",
+			raw:  "Restores $51461m1 mana.",
+			self: spellVars{},
+			want: "Restores 60 mana.",
 		},
 	}
 	for _, c := range cases {

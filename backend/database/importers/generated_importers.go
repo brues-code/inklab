@@ -140,6 +140,7 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 		"effectImplicitTargetA", "effectImplicitTargetB", "effectRadiusIndex",
 		"effectApplyAuraName", "effectAmplitude", "effectMultipleValue", "effectChainTarget",
 		"effectItemType", "effectMiscValue", "effectTriggerSpell",
+		"effectRealPointsPerLevel", "effectDicePerLevel",
 	} {
 		for n := 1; n <= 3; n++ {
 			numCols = append(numCols, fmt.Sprintf("%s%d", p, n))

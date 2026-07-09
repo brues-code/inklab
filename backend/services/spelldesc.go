@@ -17,6 +17,10 @@ package services
 //   $lsing:plur;  plural form chosen by the preceding number
 //   $gmale:female; gender form (we pick the first)
 // Unknown tokens are left untouched rather than mangled.
+//
+// Level-scaled effects (EffectRealPointsPerLevel/DicePerLevel) are resolved at a
+// fixed character level (scalingLevel = 60), matching what a max-level player
+// sees; see effLevel/scaledBase. Effects without per-level scaling are unaffected.
 
 import (
 	"fmt"
@@ -29,18 +33,60 @@ import (
 // spellVars holds the per-spell DBC fields needed to resolve description tokens.
 // durationMs and radiusYd are pre-resolved from the aux tables.
 type spellVars struct {
-	basePoints     [3]int
-	dieSides       [3]int
-	amplitude      [3]int // ms
-	chainTarget    [3]int
-	radiusYd       [3]float64 // pre-resolved from spell_radius
-	durationMs     int        // pre-resolved from spell_durations
-	rangeYd        float64    // pre-resolved from spell_range (range_max)
-	procChance     int
-	procCharges    int
-	maxTargets     int
-	maxTargetLevel int
-	stackAmount    int
+	basePoints         [3]int
+	dieSides           [3]int
+	realPointsPerLevel [3]float64 // effect value gained per level
+	dicePerLevel       [3]float64 // die-side count gained per level
+	amplitude          [3]int     // ms
+	chainTarget        [3]int
+	radiusYd           [3]float64 // pre-resolved from spell_radius
+	durationMs         int        // pre-resolved from spell_durations
+	rangeYd            float64    // pre-resolved from spell_range (range_max)
+	spellLevel         int
+	baseLevel          int
+	maxLevel           int
+	procChance         int
+	procCharges        int
+	maxTargets         int
+	maxTargetLevel     int
+	stackAmount        int
+}
+
+// scalingLevel is the character level we resolve level-scaled effect values at.
+// InkLab is a level-cap-focused tool, and this matches what a level-60 player
+// sees in their own tooltip. The client's own formula clamps by the spell's
+// level range, done in effLevel below.
+const scalingLevel = 60
+
+// effLevel is the effective level the client uses to scale an effect's value.
+// Per the client (FUN_006e3800 / FUN_006e3130 in the 1.12 binary), the anchor is
+// the spell's skill level (scalingLevel here, = character level for normal class
+// spells whose skill is level*5), clamped by maxLevel, then offset by baseLevel.
+// maxLevel 0 means "no cap" (scales to full level).
+//
+// Caveat: a few procs scale off WEAPON skill instead of level (e.g. Wand
+// Specialization's mana restore keys on Wand skill / 5), so their real in-game
+// value is character-specific; resolving at scalingLevel shows the max-skill
+// value, which is the best a viewer-independent database can do.
+func (v spellVars) effLevel() int {
+	lvl := scalingLevel
+	if v.maxLevel > 0 && lvl > v.maxLevel {
+		lvl = v.maxLevel
+	}
+	lvl -= v.baseLevel
+	if lvl < 0 {
+		lvl = 0
+	}
+	return lvl
+}
+
+// scaledBase is the effect's base value scaled to effLevel (a real number; the
+// fractional part decides the displayed min/max rounding). For unscaled effects
+// (realPointsPerLevel 0) it is exactly basePoints, so effMin/effMax reduce to
+// the original integer behavior.
+func (v spellVars) scaledBase(idx int) float64 {
+	i := clampIdx(idx) - 1
+	return float64(v.basePoints[i]) + float64(v.effLevel())*v.realPointsPerLevel[i]
 }
 
 // lowerByte folds an ASCII letter to lowercase (tokens are case-insensitive,
@@ -59,16 +105,22 @@ func clampIdx(idx int) int {
 	return idx
 }
 
-// effMin/effMax are the effect's value range. EffectBasePoints is stored as
-// (value - 1) in the DBC, so the value is BasePoints+1 .. BasePoints+DieSides.
-func (v spellVars) effMin(idx int) int { i := clampIdx(idx) - 1; return v.basePoints[i] + 1 }
+// effMin/effMax are the effect's value range at the scaling level. The value is
+// scaledBase+1 .. scaledBase+dieSides (dieSides itself scales via dicePerLevel).
+// The client shows the fractional scaled value as floor(min)..round(max), which
+// is what these mirror (calibrated against Smite/Lesser Heal on Octo). Unscaled
+// effects keep integer basePoints, so this reduces to basePoints+1 .. +dieSides.
+func (v spellVars) effMin(idx int) int {
+	return int(math.Floor(v.scaledBase(idx))) + 1
+}
 func (v spellVars) effMax(idx int) int {
 	i := clampIdx(idx) - 1
 	d := v.dieSides[i]
 	if d < 1 {
 		d = 1
 	}
-	return v.basePoints[i] + d
+	d += int(math.Round(float64(v.effLevel()) * v.dicePerLevel[i]))
+	return int(math.Round(v.scaledBase(idx))) + d
 }
 
 func absInt(n int) int {
