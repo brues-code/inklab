@@ -97,8 +97,9 @@ func (d *DBC) U32(rec, field int) uint32 {
 	}
 	return binary.LittleEndian.Uint32(d.data[o : o+4])
 }
-func (d *DBC) I32(rec, field int) int32     { return int32(d.U32(rec, field)) }
-func (d *DBC) F32(rec, field int) float32   { return math.Float32frombits(d.U32(rec, field)) }
+func (d *DBC) I32(rec, field int) int32   { return int32(d.U32(rec, field)) }
+func (d *DBC) F32(rec, field int) float32 { return math.Float32frombits(d.U32(rec, field)) }
+
 // U8 reads a single byte at byteOff within the record. Used for byte-packed
 // DBCs like CharBaseInfo.dbc (recordSize 2: raceID, classID) where the 4-byte
 // field accessors don't apply.
@@ -897,7 +898,7 @@ func genIcons(cf ClientFiles) (interface{}, error) {
 }
 
 // Spell.dbc (1.12, 173 fields): id(0), procChance(25), procCharges(26),
-// durationIndex(30), rangeIndex(36), effectDieSides[3](64-66),
+// durationIndex(30), rangeIndex(36), stackAmount(39), effectDieSides[3](64-66),
 // effectBasePoints[3](76-78), effectRadiusIndex[3](88-90),
 // effectAmplitude[3](94-96), effectChainTarget[3](100-102), spellIconID(117),
 // name[8](120-127), description[8](138-145), maxTargetLevel(159),
@@ -934,7 +935,7 @@ func genSpells(cf ClientFiles) (interface{}, error) {
 			"castingTimeIndex": d.U32(r, 18), "recoveryTime": d.I32(r, 19), "categoryRecoveryTime": d.I32(r, 20),
 			"startRecoveryTime": d.I32(r, 158), "powerType": d.I32(r, 31), "manaCost": d.I32(r, 32),
 			"durationIndex": d.U32(r, 30), "rangeIndex": d.U32(r, 36),
-			"procChance": d.I32(r, 25), "procCharges": d.I32(r, 26),
+			"procChance": d.I32(r, 25), "procCharges": d.I32(r, 26), "stackAmount": d.I32(r, 39),
 			"maxLevel": d.I32(r, 27), "baseLevel": d.I32(r, 28), "spellLevel": d.I32(r, 29),
 			"maxTargetLevel": d.I32(r, 159), "maxAffectedTargets": d.I32(r, 163),
 			"spellIconId": iconID, "iconName": name,

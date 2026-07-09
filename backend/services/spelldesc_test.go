@@ -4,8 +4,9 @@ import "testing"
 
 func TestResolveSpellDescription(t *testing.T) {
 	refs := map[int]spellVars{
-		6788: {durationMs: 15000},                          // Weakened Soul
-		8026: {basePoints: [3]int{76}, dieSides: [3]int{1}}, // ref for division (m1 = 77)
+		6788:  {durationMs: 15000},                           // Weakened Soul
+		8026:  {basePoints: [3]int{76}, dieSides: [3]int{1}}, // ref for division (m1 = 77)
+		29203: {stackAmount: 3},                              // Healing Way aura, stacks 3x
 	}
 	cases := []struct {
 		name string
@@ -72,6 +73,18 @@ func TestResolveSpellDescription(t *testing.T) {
 			raw:  "Deals $/77;8026m1 extra damage.",
 			self: spellVars{},
 			want: "Deals 1 extra damage.", // ref 8026 m1 = 77; 77/77 = 1
+		},
+		{
+			name: "max stacks via referenced spell",
+			raw:  "This effect stacks up to $29203u times.",
+			self: spellVars{},
+			want: "This effect stacks up to 3 times.",
+		},
+		{
+			name: "max stacks on self",
+			raw:  "Stacks up to $u times.",
+			self: spellVars{stackAmount: 5},
+			want: "Stacks up to 5 times.",
 		},
 	}
 	for _, c := range cases {

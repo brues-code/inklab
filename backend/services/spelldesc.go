@@ -11,6 +11,7 @@ package services
 //   $oN  periodic total over the duration        $tN      tick interval (sec)
 //   $aN  effect radius (yards)                    $xN      chain/jump targets
 //   $h   proc chance (%)                          $d       duration ("8 sec")
+//   $u   max aura stacks
 //   $<id>TOK   the same token resolved against another spell id
 //   $/N;TOK    TOK divided by N
 //   $lsing:plur;  plural form chosen by the preceding number
@@ -30,7 +31,7 @@ import (
 type spellVars struct {
 	basePoints     [3]int
 	dieSides       [3]int
-	amplitude      [3]int     // ms
+	amplitude      [3]int // ms
 	chainTarget    [3]int
 	radiusYd       [3]float64 // pre-resolved from spell_radius
 	durationMs     int        // pre-resolved from spell_durations
@@ -39,6 +40,7 @@ type spellVars struct {
 	procCharges    int
 	maxTargets     int
 	maxTargetLevel int
+	stackAmount    int
 }
 
 // lowerByte folds an ASCII letter to lowercase (tokens are case-insensitive,
@@ -109,6 +111,8 @@ func (v spellVars) numToken(letter byte, idx int) (float64, bool) {
 		return float64(v.maxTargets), true
 	case 'v': // max target level (e.g. Mind Soothe "level $v")
 		return float64(v.maxTargetLevel), true
+	case 'u': // max stacks (e.g. "stacks up to $<id>u times")
+		return float64(v.stackAmount), true
 	case 'r': // spell range in yards (e.g. totem "$<id>r1 yards")
 		return v.rangeYd, true
 	case 'd':
@@ -166,9 +170,9 @@ var (
 	reRef     = regexp.MustCompile(`\$(\d+)([a-zA-Z])(\d?)`)         // $6788d, $1234s2
 	reDiv     = regexp.MustCompile(`\$/(\d+);(\d*)([a-zA-Z])(\d?)`)  // $/1000;s1, $/77;8026m1
 	reMul     = regexp.MustCompile(`\$\*(\d+);(\d*)([a-zA-Z])(\d?)`) // $*15;s1, $*100;F1
-	reToken   = regexp.MustCompile(`\$([a-zA-Z])(\d?)`)             // $s1, $d, $o1
-	reCond    = regexp.MustCompile(`\$([lg])([^:;]*):([^;]*);`)     // $lsing:plur; $gm:f;
-	reLastNum = regexp.MustCompile(`(\d+)(?:\.\d+)?\D*$`)           // trailing number
+	reToken   = regexp.MustCompile(`\$([a-zA-Z])(\d?)`)              // $s1, $d, $o1
+	reCond    = regexp.MustCompile(`\$([lg])([^:;]*):([^;]*);`)      // $lsing:plur; $gm:f;
+	reLastNum = regexp.MustCompile(`(\d+)(?:\.\d+)?\D*$`)            // trailing number
 )
 
 // ResolveSpellDescription substitutes the DBC placeholders in raw using self (the

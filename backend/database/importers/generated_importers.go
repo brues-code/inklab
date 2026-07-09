@@ -133,7 +133,7 @@ func (i *GeneratedImporter) ImportSpellsFromDBC(jsonPath string) error {
 		"spellIconId", "school", "category", "dispel", "mechanic",
 		"castingTimeIndex", "recoveryTime", "categoryRecoveryTime", "startRecoveryTime",
 		"powerType", "manaCost", "durationIndex", "rangeIndex", "procChance", "procCharges",
-		"maxLevel", "baseLevel", "spellLevel", "maxTargetLevel", "maxAffectedTargets",
+		"maxLevel", "baseLevel", "spellLevel", "maxTargetLevel", "maxAffectedTargets", "stackAmount",
 	}
 	for _, p := range []string{
 		"effect", "effectBasePoints", "effectDieSides", "effectBaseDice", "effectMechanic",

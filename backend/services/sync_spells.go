@@ -28,7 +28,7 @@ const spellVarCols = `durationIndex,
 	effectAmplitude1, effectAmplitude2, effectAmplitude3,
 	effectChainTarget1, effectChainTarget2, effectChainTarget3,
 	effectRadiusIndex1, effectRadiusIndex2, effectRadiusIndex3,
-	procChance, procCharges, maxAffectedTargets, maxTargetLevel, rangeIndex`
+	procChance, procCharges, maxAffectedTargets, maxTargetLevel, rangeIndex, stackAmount`
 
 func (s *SyncService) loadDurationMap() map[int]int {
 	m := map[int]int{}
@@ -83,7 +83,7 @@ func (s *SyncService) loadRangeMap() map[int]float64 {
 // scanSpellVars reads the spellVarCols (in order) plus a leading entry id into a
 // spellVars, resolving the duration/radius indices via the aux maps.
 func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap, rangeMap map[int]float64) (int, spellVars, error) {
-	var entry, durIdx, proc, charges, maxTgts, maxTgtLvl, rangeIdx int
+	var entry, durIdx, proc, charges, maxTgts, maxTgtLvl, rangeIdx, stackAmt int
 	var bp, die, amp, chain, radIdx [3]int
 	err := scan(&entry, &durIdx,
 		&bp[0], &bp[1], &bp[2],
@@ -91,12 +91,13 @@ func scanSpellVars(scan func(...interface{}) error, durMap map[int]int, radMap, 
 		&amp[0], &amp[1], &amp[2],
 		&chain[0], &chain[1], &chain[2],
 		&radIdx[0], &radIdx[1], &radIdx[2],
-		&proc, &charges, &maxTgts, &maxTgtLvl, &rangeIdx)
+		&proc, &charges, &maxTgts, &maxTgtLvl, &rangeIdx, &stackAmt)
 	if err != nil {
 		return 0, spellVars{}, err
 	}
 	v := spellVars{basePoints: bp, dieSides: die, amplitude: amp, chainTarget: chain,
-		procChance: proc, procCharges: charges, maxTargets: maxTgts, maxTargetLevel: maxTgtLvl}
+		procChance: proc, procCharges: charges, maxTargets: maxTgts, maxTargetLevel: maxTgtLvl,
+		stackAmount: stackAmt}
 	v.durationMs = durMap[durIdx]
 	v.rangeYd = rangeMap[rangeIdx]
 	for i := 0; i < 3; i++ {
