@@ -570,8 +570,16 @@ func (s *NpcService) syncCreatureSpawnsFromMySQL(entry int) {
 	}
 
 	// Fallback: use the scraped octowow metadata (refreshed by SyncNpcData just
-	// before this runs). Replace the existing rows only when we actually have a
-	// valid coordinate to store, so we never blank out a spawn we can't recover.
+	// before this runs) — but NEVER at the expense of an existing scraped spawn
+	// set. A creature absent from MySQL may carry a rich multi-point 'local' set
+	// from applyScrapedSpawns (e.g. octo custom zones); replacing that with one
+	// metadata pseudo-spawn would destroy it, which is exactly what a bulk
+	// RebuildSpawnZones used to do to custom-zone creatures.
+	var localCount int
+	s.sqlite.QueryRow("SELECT COUNT(*) FROM creature_spawn WHERE creature_entry = ? AND origin = 'local'", entry).Scan(&localCount)
+	if localCount > 0 {
+		return
+	}
 	var metaX, metaY float64
 	var metaZone string
 	err := s.sqlite.QueryRow("SELECT x, y, zone_name FROM creature_metadata WHERE entry = ?", entry).Scan(&metaX, &metaY, &metaZone)
@@ -734,6 +742,41 @@ func continentMapID(name string) (int, bool) {
 	return 0, false
 }
 
+// scrapedContinentHint infers which continent a scrape's zone-0 (unzoned)
+// points belong to: the majority map among the scrape's ZONED points, else the
+// map of the page-level zone name. octowow reports points its own detector
+// can't zone (e.g. new custom terrain like Moonwhisper Coast's north) as
+// zoneID 0 with NO continent label — without this hint they'd previously
+// default to map 0 (Eastern Kingdoms) and Kalimdor spawns landed in Eastern
+// Plaguelands. Returns -1 when nothing indicates a continent.
+func (s *NpcService) scrapedContinentHint(zoneIDs []int, pageZone string) int {
+	s.loadZoneBounds()
+	votes := map[int]int{}
+	for _, id := range zoneIDs {
+		if zb := s.zoneByArea[id]; zb != nil {
+			votes[zb.MapID]++
+		}
+	}
+	best, bestN := -1, 0
+	for m, n := range votes {
+		if n > bestN {
+			best, bestN = m, n
+		}
+	}
+	if best >= 0 {
+		return best
+	}
+	if pz := strings.ToLower(strings.TrimSpace(pageZone)); pz != "" {
+		for i := range s.zoneBounds {
+			z := &s.zoneBounds[i]
+			if strings.ToLower(z.Name) == pz && (z.XMin != 0 || z.XMax != 0) {
+				return z.MapID
+			}
+		}
+	}
+	return -1
+}
+
 // resolveScrapedSpawn turns one octowow-scraped spawn (its reported zone id,
 // continent label, and 0-100 map coords) into the authoritative zone + local
 // coords. octowow's zone DETECTION is unreliable — it runs on stock aowow map
@@ -744,13 +787,36 @@ func continentMapID(name string) (int, bool) {
 // for zone 0) and re-resolve the real zone from the client area grid, which is
 // built from octo's actual ADT terrain. Falls back to octowow's label only when
 // the grid can't place the point.
-func (s *NpcService) resolveScrapedSpawn(zoneID int, contName string, cx, cy float64) (zoneName string, x, y float64) {
+//
+// hintMap is the caller's continent guess (scrapedContinentHint) for zone-0
+// points whose continent label is missing; -1 = unknown.
+func (s *NpcService) resolveScrapedSpawn(zoneID int, contName string, cx, cy float64, hintMap int) (zoneName string, x, y float64) {
 	s.loadZoneBounds()
 
 	if zoneID == 0 {
-		mapID, _ := continentMapID(contName)
-		if zn, zx, zy, ok := s.ResolveContinentPoint(mapID, cx, cy); ok {
-			return zn, zx, zy
+		mapID, ok := continentMapID(contName)
+		if !ok && hintMap >= 0 {
+			mapID, ok = hintMap, true
+		}
+		if ok {
+			if zn, zx, zy, rok := s.ResolveContinentPoint(mapID, cx, cy); rok {
+				return zn, zx, zy
+			}
+		} else {
+			// No continent from anywhere: accept the point only if exactly ONE
+			// continent's terrain claims it — never guess a default map.
+			matches := 0
+			var fn string
+			var fx, fy float64
+			for _, m := range []int{0, 1} {
+				if zn, zx, zy, rok := s.ResolveContinentPoint(m, cx, cy); rok {
+					matches++
+					fn, fx, fy = zn, zx, zy
+				}
+			}
+			if matches == 1 {
+				return fn, fx, fy
+			}
 		}
 		if contName != "" {
 			return contName, cx, cy
@@ -1171,11 +1237,20 @@ func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) i
 	// later MySQL RebuildSpawnZones won't wipe these (the Balor case).
 	s.sqlite.Exec("DELETE FROM gameobject_spawn WHERE gameobject_entry = ?", entry)
 
+	// Continent hint for zone-0 points, from the object's zoned points.
+	zoneIDs := make([]int, 0, len(points))
+	for _, p := range points {
+		if p.ZoneID != 0 {
+			zoneIDs = append(zoneIDs, p.ZoneID)
+		}
+	}
+	hint := s.scrapedContinentHint(zoneIDs, "")
+
 	n := 0
 	for _, p := range points {
 		// Trust octowow only for continent + coords; derive the real zone from the
 		// client area grid (its zone detection mis-tags octo's custom zones).
-		zoneName, x, y := s.resolveScrapedSpawn(p.ZoneID, p.ZoneName, p.X, p.Y)
+		zoneName, x, y := s.resolveScrapedSpawn(p.ZoneID, p.ZoneName, p.X, p.Y, hint)
 		if _, err := s.sqlite.Exec(`
 			INSERT OR IGNORE INTO gameobject_spawn (gameobject_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
 			VALUES (?, ?, ?, ?, ?, ?, ?, 'local')
@@ -1577,13 +1652,24 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	// Authoritative octowow re-scrape (only reached when MySQL has no spawns for
 	// this creature) → 'local' provenance, immune to MySQL rebuilds.
 	s.sqlite.Exec("DELETE FROM creature_spawn WHERE creature_entry = ?", entry)
+
+	// Continent hint for zone-0 points: the creature's zoned points, else the
+	// page-level zone from the infobox scrape.
+	zoneIDs := make([]int, 0, len(data.Spawns))
+	for _, sp := range data.Spawns {
+		if sp.ZoneID != 0 {
+			zoneIDs = append(zoneIDs, sp.ZoneID)
+		}
+	}
+	hint := s.scrapedContinentHint(zoneIDs, data.ZoneName)
+
 	inserted := 0
 	for _, sp := range data.Spawns {
 		// Trust octowow only for continent + coords; derive the real zone from the
 		// client area grid (it mis-tags octo's custom zones — e.g. Blackstone
 		// Island spawns reported as Barrens/Durotar — and buckets others under the
 		// continent at zone 0).
-		zoneName, x, y := s.resolveScrapedSpawn(sp.ZoneID, sp.ZoneName, sp.X, sp.Y)
+		zoneName, x, y := s.resolveScrapedSpawn(sp.ZoneID, sp.ZoneName, sp.X, sp.Y, hint)
 		_, err := s.sqlite.Exec(`
 			INSERT INTO creature_spawn (creature_entry, map_id, zone_id, zone_name, position_x, position_y, position_z, origin)
 			VALUES (?, ?, ?, ?, ?, ?, ?, 'local')
