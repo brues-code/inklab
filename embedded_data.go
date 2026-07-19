@@ -88,7 +88,7 @@ var embeddedDB []byte
 // embeddedDBVersion identifies the embedded database's data revision. Bump it
 // whenever data/inklab.db is regenerated with fixes so production builds
 // overwrite a previously-extracted (stale) copy instead of keeping it forever.
-const embeddedDBVersion = 5
+const embeddedDBVersion = 6
 
 // dbVersionFile is the marker written next to the extracted database recording
 // which embeddedDBVersion produced it.
