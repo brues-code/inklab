@@ -83,15 +83,23 @@ export default function TimersPage() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <TimerCard
                             title="Darkmoon Faire"
-                            subtitle="Moves every Sunday · closed Wednesdays"
+                            subtitle="Moves every Wednesday · closed while it moves"
                             value={
                                 dmf.current.setupDay
                                     ? `Setup day — reopens in ${dmf.current.location}`
                                     : `${dmf.current.location} (${dmf.current.town})`
                             }
                             valueClass={dmfFactionClass}
-                            countdownMs={dmf.moveMs - now}
-                            footer={`Moves to ${dmf.moveState.location} ${formatLocal(dmf.moveMs)}`}
+                            // On the setup Wednesday the countdown is to tomorrow's
+                            // reopening; otherwise to the next relocation.
+                            countdownMs={
+                                (dmf.current.setupDay ? dmf.reopensMs : dmf.moveMs) - now
+                            }
+                            footer={
+                                dmf.current.setupDay
+                                    ? `Reopens ${formatLocal(dmf.reopensMs)}`
+                                    : `Moves to ${dmf.moveState.location} ${formatLocal(dmf.moveMs)}`
+                            }
                         />
                         <TimerCard
                             title="Battleground of the Day"

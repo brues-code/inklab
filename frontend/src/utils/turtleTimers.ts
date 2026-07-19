@@ -1,12 +1,12 @@
 // Scheduling math for Turtle WoW world timers. Everything is computed
 // client-side from fixed anchors — no server involved.
 //
-// Anchor timestamps and periods come from turtletimers.com; the algorithms
-// were verified against the leaked Turtle WoW server core (vmangos):
+// Anchor timestamps and periods come from turtletimers.com; the raid
+// algorithm was verified against the leaked Turtle WoW server core (vmangos):
 // DungeonResetScheduler::CalculateNextResetTime resets each raid every
-// `reset_delay` days at Instance.ResetTimeHour (04:00 UTC), and
-// DarkmoonFaire::GetDarkmoonState alternates faction on Sunday-based
-// week-of-year parity with Wednesday as the setup day.
+// `reset_delay` days at Instance.ResetTimeHour (04:00 UTC). The Darkmoon
+// Faire follows Octo's July 2026 rework (see dmfStateAt), not the old
+// vmangos week-of-year parity.
 
 export const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -114,22 +114,26 @@ export type DmfState = {
     setupDay: boolean
 }
 
-// Mirrors DarkmoonFaire::GetDarkmoonState (HardcodedEvents.cpp): Sunday-based
-// week-of-year, even weeks Horde (Mulgore), odd weeks Alliance (Elwynn).
-// Because the week number restarts every January, the faction can hold an
-// extra stretch across New Year instead of alternating cleanly — that quirk
-// is intentional here, it matches the server.
+// Octo's reworked schedule (July 2026): the faire relocates EVERY Wednesday
+// and spends that whole day inactive (setup), reopening at the new town on
+// Thursday 00:00 UTC. Weeks therefore run Wednesday→Wednesday, alternating
+// factions cleanly — the old vmangos week-of-year parity (and its New Year
+// double-week quirk) no longer applies.
+//
+// Anchor: Wednesday 2026-07-15 00:00 UTC started an Alliance (Elwynn) week —
+// the faire was observed in Elwynn on 2026-07-19.
+const DMF_ANCHOR_MS = utc(2026, 7, 15)
+const DMF_WEEK_MS = 7 * DAY_MS
+
 export function dmfStateAt(ms: number): DmfState {
-    const d = new Date(ms)
-    const yday = Math.floor((ms - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY_MS)
-    const wday = d.getUTCDay()
-    const weekOfYear = Math.floor((yday - wday + 7) / 7) + 1
-    const horde = weekOfYear % 2 === 0
+    const weeks = Math.floor((ms - DMF_ANCHOR_MS) / DMF_WEEK_MS)
+    const horde = mod(weeks, 2) === 1
     return {
         faction: horde ? 'Horde' : 'Alliance',
         location: horde ? 'Mulgore' : 'Elwynn Forest',
         town: horde ? 'Thunder Bluff' : 'Goldshire',
-        setupDay: wday === 3,
+        // The relocation Wednesday: the first day of each faire week.
+        setupDay: mod(Math.floor((ms - DMF_ANCHOR_MS) / DAY_MS), 7) === 0,
     }
 }
 
@@ -138,8 +142,8 @@ export function dmfSchedule(nowMs: number) {
     const nextMidnight = Math.floor(nowMs / DAY_MS) * DAY_MS + DAY_MS
 
     // Scan forward from the next UTC midnight; state only changes at day
-    // boundaries. Two weeks always contains both a faction move and a
-    // Wednesday, even across the New Year parity quirk.
+    // boundaries. The faire moves every Wednesday, so two weeks of scan always
+    // contains both the next move and the next open day.
     let moveMs = 0
     let moveState = current
     let reopensMs = 0
