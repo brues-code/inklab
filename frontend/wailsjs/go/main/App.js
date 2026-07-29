@@ -238,6 +238,10 @@ export function GetRaces() {
   return window['go']['main']['App']['GetRaces']();
 }
 
+export function GetRenderDiagnostics(arg1) {
+  return window['go']['main']['App']['GetRenderDiagnostics'](arg1);
+}
+
 export function GetRootCategories() {
   return window['go']['main']['App']['GetRootCategories']();
 }

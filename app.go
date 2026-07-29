@@ -49,6 +49,7 @@ type App struct {
 	// concurrency-safe, so clientSrcMu guards both the (re)open and every use.
 	clientSrc    datatools.ClientFiles
 	clientSrcDir string
+	clientSrcErr error // last MPQ open failure, for the render diagnostics
 	clientSrcMu  sync.Mutex
 
 	// Mode

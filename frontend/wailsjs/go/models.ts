@@ -586,6 +586,28 @@ export namespace main {
 		}
 	}
 	
+	export class RenderDiagnostics {
+	    dataDir: string;
+	    npcImagesDir: string;
+	    npcImages: number;
+	    clientData: string;
+	    mpqOk: boolean;
+	    mpqError: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RenderDiagnostics(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dataDir = source["dataDir"];
+	        this.npcImagesDir = source["npcImagesDir"];
+	        this.npcImages = source["npcImages"];
+	        this.clientData = source["clientData"];
+	        this.mpqOk = source["mpqOk"];
+	        this.mpqError = source["mpqError"];
+	    }
+	}
 	export class TalentRank {
 	    spellId: number;
 	    description: string;

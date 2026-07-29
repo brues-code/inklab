@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { PageLayout } from '../../components/ui'
 import { useDataStatus, useWhatsNew, whatsNewQuery } from '../../hooks/queries/app'
@@ -102,6 +102,16 @@ function ToolsPage() {
     const [running, setRunning] = useState(null)
     const [reports, setReports] = useState({})
     const { data: status } = useDataStatus()
+
+    // Render diagnostics: where the app reads/writes, and whether the client
+    // archives open — refreshed when the base path changes (debounced).
+    const [diag, setDiag] = useState(null)
+    useEffect(() => {
+        const t = setTimeout(() => {
+            window?.go?.main?.App?.GetRenderDiagnostics?.(base)?.then(setDiag)
+        }, 400)
+        return () => clearTimeout(t)
+    }, [base])
 
     const { data: whatsNew, isFetching: wnLoading } = useWhatsNew()
     // staleTime: 0 forces a fresh diff on every Check; the cached result still
@@ -207,6 +217,53 @@ function ToolsPage() {
                         <span className="font-mono">DBFilesClient\</span> /{' '}
                         <span className="font-mono">BlizzardInterfaceArt\</span> folders.
                     </p>
+
+                    {/* Where things live: the app's resolved paths + whether the
+                        client archives open. Answers "why don't models render"
+                        and "where did my renders go" without guesswork. */}
+                    {diag && (
+                        <div className="mt-3 space-y-1 border-t border-gray-700/50 pt-3 text-[11px]">
+                            <div className="flex justify-between gap-3">
+                                <span className="shrink-0 text-gray-500">App data folder</span>
+                                <span
+                                    className="truncate font-mono text-gray-300"
+                                    title={diag.dataDir}
+                                >
+                                    {diag.dataDir}
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="shrink-0 text-gray-500">Model render cache</span>
+                                <span
+                                    className="truncate font-mono text-gray-300"
+                                    title="Renders are produced on demand when an NPC is viewed and swept after ~7 days unviewed — the count fluctuating is normal."
+                                >
+                                    {diag.npcImages} files
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="shrink-0 text-gray-500">Client archives</span>
+                                {diag.mpqOk ? (
+                                    <span className="font-mono text-green-400">
+                                        OK — {diag.clientData}
+                                    </span>
+                                ) : (
+                                    <span
+                                        className="truncate font-mono text-red-400"
+                                        title={diag.mpqError || 'Could not open the MPQ archives'}
+                                    >
+                                        FAILED — {diag.mpqError || `cannot open ${diag.clientData}`}
+                                    </span>
+                                )}
+                            </div>
+                            {!diag.mpqOk && (
+                                <p className="pt-1 text-amber-300/80">
+                                    Model rendering needs these archives — NPC models won't render
+                                    until this opens. Check the client folder path above.
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {IMPORTS.map((imp) => {

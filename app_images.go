@@ -156,11 +156,51 @@ func (a *App) clientMPQ(baseDir string) (datatools.ClientFiles, bool) {
 	}
 	src, err := datatools.NewMpqSource(dataDir)
 	if err != nil {
+		// Remember (and log) why: model rendering silently showing nothing
+		// because the archives can't be opened is undebuggable otherwise.
+		a.clientSrcErr = err
+		fmt.Printf("[clientMPQ] cannot open client archives at %s: %v\n", dataDir, err)
 		return nil, false
 	}
 	a.clientSrc = src
 	a.clientSrcDir = dataDir
+	a.clientSrcErr = nil
 	return src, true
+}
+
+// RenderDiagnostics tells the UI exactly where model rendering reads and
+// writes, and whether the client archives open — so "models don't render" and
+// "where did my renders go" are answerable from the Import tab instead of
+// guesswork. NpcImages is an on-demand cache swept after npcImageMaxAge of
+// non-viewing, so its count fluctuating is normal.
+type RenderDiagnostics struct {
+	DataDir      string `json:"dataDir"`
+	NpcImagesDir string `json:"npcImagesDir"`
+	NpcImages    int    `json:"npcImages"`
+	ClientData   string `json:"clientData"`
+	MpqOk        bool   `json:"mpqOk"`
+	MpqError     string `json:"mpqError"`
+}
+
+// GetRenderDiagnostics reports the resolved data/render paths and whether the
+// client MPQ archives under baseDir open successfully.
+func (a *App) GetRenderDiagnostics(baseDir string) RenderDiagnostics {
+	d := RenderDiagnostics{
+		ClientData: filepath.Join(baseDir, "Data"),
+	}
+	d.DataDir, _ = filepath.Abs(a.DataDir)
+	d.NpcImagesDir = filepath.Join(d.DataDir, "npc_images")
+	d.NpcImages = countFiles(d.NpcImagesDir, ".png", ".jpg", ".jpeg")
+
+	if baseDir != "" {
+		a.clientSrcMu.Lock()
+		_, d.MpqOk = a.clientMPQ(baseDir)
+		if !d.MpqOk && a.clientSrcErr != nil {
+			d.MpqError = a.clientSrcErr.Error()
+		}
+		a.clientSrcMu.Unlock()
+	}
+	return d
 }
 
 // RenderNpcModel renders an NPC's model on demand from the client MPQs under
