@@ -60,6 +60,7 @@ export namespace main {
 	    npcImages: number;
 	    talentBgs: number;
 	    datasets: DataItem[];
+	    mysql: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataStatus(source);
@@ -72,6 +73,7 @@ export namespace main {
 	        this.npcImages = source["npcImages"];
 	        this.talentBgs = source["talentBgs"];
 	        this.datasets = this.convertValues(source["datasets"], DataItem);
+	        this.mysql = source["mysql"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

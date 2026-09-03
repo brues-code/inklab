@@ -8,6 +8,9 @@ import { useEntityNavigate } from '../../utils/entityNav'
 const DEFAULT_BASE = DEFAULT_WOW_BASE
 
 // Each importer maps to an App binding that takes the client base folder.
+// requiresMysql: the importer reads the world DB, so it's hidden unless a MySQL
+// connection exists — most users ship-install without one and could only ever
+// get an "unavailable" report from it.
 const IMPORTS = [
     {
         id: 'client',
@@ -27,6 +30,7 @@ const IMPORTS = [
         id: 'spawnZones',
         name: 'Rebuild Spawn Zones',
         fn: 'RebuildSpawnZones',
+        requiresMysql: true,
         sub: 'data/area_grid.bin + world DB coordinates',
         desc: 'Re-resolve every creature and gameobject spawn to the correct zone using the client area grid (the actual terrain), not overlapping zone boxes. Fixes border mislabels — e.g. Westfall mobs counted in Elwynn, or Elwynn mobs swallowed by Duskwood. No octowow scraping; reports the per-zone net change. Run after a Client Data import so the area grid exists.',
     },
@@ -160,6 +164,10 @@ function ToolsPage() {
         }
     }
 
+    // World-DB importers only exist for users running against MySQL. Hidden until
+    // status confirms a connection, so the card never appears and then vanishes.
+    const imports = IMPORTS.filter((imp) => !imp.requiresMysql || status?.mysql)
+
     // Categories that are populated by an import and worth warning about when empty.
     const missing = status
         ? [status.icons === 0 && 'icons', status.maps === 0 && 'zone maps'].filter(Boolean)
@@ -266,7 +274,7 @@ function ToolsPage() {
                     )}
                 </div>
 
-                {IMPORTS.map((imp) => {
+                {imports.map((imp) => {
                     const rep = reports[imp.id]
                     const busy = running === imp.id
                     return (

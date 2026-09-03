@@ -41,6 +41,9 @@ type DataStatus struct {
 	NpcImages int        `json:"npcImages"`
 	TalentBgs int        `json:"talentBgs"`
 	Datasets  []DataItem `json:"datasets"`
+	// Mysql reports whether a world DB is connected (MYSQL_* env vars). The
+	// Tools page hides the MySQL-only importers when it isn't.
+	Mysql bool `json:"mysql"`
 }
 
 // GetDataStatus reports the local image counts plus a full inventory of every
@@ -92,6 +95,7 @@ func (a *App) GetDataStatus() DataStatus {
 		NpcImages: npcImages,
 		TalentBgs: talentBgs,
 		Datasets:  datasets,
+		Mysql:     a.mysqlDB != nil,
 	}
 }
 
