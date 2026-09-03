@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
+
 	"inklab/backend/services"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -244,7 +246,9 @@ func (a *App) FullSyncItems(delayMs int, fixIcons bool, startFrom int) string {
 		}
 
 		result := a.syncService.FullSyncItems(delayMs, fixIcons, iconDir, startFrom, progressCb)
-		if len(result.Errors) > 0 && result.Updated == 0 {
+		if result.Blocked {
+			runtime.EventsEmit(a.ctx, "sync:item_full:error", syncFailureMessage(services.ErrChallenge))
+		} else if len(result.Errors) > 0 && result.Updated == 0 {
 			runtime.EventsEmit(a.ctx, "sync:item_full:error", result.Message)
 		} else {
 			runtime.EventsEmit(a.ctx, "sync:item_full:complete", result.Message)
@@ -276,7 +280,11 @@ func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 		}
 
 		result := a.syncService.FullSyncQuests(delayMs, startFrom, progressCb)
-		runtime.EventsEmit(a.ctx, "sync:quests_full:complete", result.Message)
+		if result.Blocked {
+			runtime.EventsEmit(a.ctx, "sync:quests_full:error", syncFailureMessage(services.ErrChallenge))
+		} else {
+			runtime.EventsEmit(a.ctx, "sync:quests_full:complete", result.Message)
+		}
 	}()
 
 	return "Started"
@@ -285,6 +293,19 @@ func (a *App) FullSyncQuests(delayMs int, startFrom int) string {
 // NPC model renders are produced on demand when a creature is viewed (see
 // RenderNpcModel) and the data/npc_images cache is age-swept, so there's no
 // bulk "render everything" pass — it just churned a multi-GB cache.
+
+// syncFailureMessage renders a full-sync failure for the Sync page. An anti-bot
+// challenge needs spelling out: it isn't this entry or a network blip, it blocks
+// every fetch until the site clears it, and — since a content-free page is never
+// written — nothing in the database changed.
+func syncFailureMessage(err error) string {
+	if errors.Is(err, services.ErrChallenge) {
+		return "Sync stopped: " + services.DatabaseBaseURL + " is serving an anti-bot challenge page " +
+			"instead of data (it wants a browser to run its JavaScript). Nothing was changed — " +
+			"existing spawns, loot and stats are intact. Try again later."
+	}
+	return err.Error()
+}
 
 // FullSyncObjects re-syncs every known game object from the web (octowow.st),
 // refreshing spawn points and (for chests) loot — the bulk counterpart to
@@ -308,7 +329,8 @@ func (a *App) FullSyncObjects(delayMs int, startFrom int) string {
 		}
 		failed, err := a.npcService.FullSyncObjects(startFrom, delayMs, progressCb)
 		if err != nil {
-			runtime.EventsEmit(a.ctx, "sync:objects_full:error", err.Error())
+			fmt.Printf("[FullSyncObjects] aborted: %v\n", err)
+			runtime.EventsEmit(a.ctx, "sync:objects_full:error", syncFailureMessage(err))
 		} else {
 			msg := "GameObject sync complete"
 			if len(failed) > 0 {

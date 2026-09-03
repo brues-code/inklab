@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/png"
 	"inklab/backend/database"
@@ -1213,7 +1214,8 @@ func (s *NpcService) SyncObjectFromWeb(entry int) error {
 	var err error
 	for attempt := 1; ; attempt++ {
 		obj, err = s.scraper.ScrapeObject(entry)
-		if err == nil || attempt >= scrapeAttempts {
+		// A challenge page isn't transient — retrying just hammers the site.
+		if err == nil || attempt >= scrapeAttempts || errors.Is(err, ErrChallenge) {
 			break
 		}
 		time.Sleep(time.Duration(attempt) * scrapeRetryDelay)
@@ -1232,6 +1234,17 @@ func (s *NpcService) SyncObjectFromWeb(entry int) error {
 // already provides per-zone map percentages — and it groups by the authoritative
 // zone areatableID, which we resolve to a folder name.
 func (s *NpcService) writeObjectSpawns(entry int, points []parsers.SpawnPoint) int {
+	// Nothing scraped means nothing to say about this object — keep what we have.
+	// The delete below removes the shipped 'official' rows too, so letting a
+	// content-free response through would erase real spawn data and put nothing
+	// back: that is how an anti-bot interstitial (parsed as a valid page with no
+	// spawns) emptied whole gathering maps. Matches the NPC path, which likewise
+	// returns early on an empty scrape. A genuinely spawn-less object simply
+	// keeps its (equally empty) rows.
+	if len(points) == 0 {
+		return 0
+	}
+
 	// A deliberate octowow re-scrape is authoritative for this object, so replace
 	// all of its spawns with the scraped ('local') data. Local provenance means a
 	// later MySQL RebuildSpawnZones won't wipe these (the Balor case).
@@ -1365,6 +1378,7 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 	var mu sync.Mutex
 	processed := 0
 	var failed []int
+	blocked := false
 
 	worker := func() {
 		defer wg.Done()
@@ -1377,6 +1391,13 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 			processed++
 			if syncErr != nil {
 				failed = append(failed, entry)
+			}
+			// The source is serving an anti-bot page to everyone, not failing on
+			// this entry: stop the run rather than walking thousands of entries
+			// that can only fail. The stop flag also skips the retry pass below.
+			if errors.Is(syncErr, ErrChallenge) {
+				blocked = true
+				s.RequestStop()
 			}
 			if progressCb != nil {
 				progressCb(processed, total, entry)
@@ -1415,6 +1436,9 @@ func (s *NpcService) FullSyncNpcs(startFrom int, delayMs int, progressCb func(cu
 		failed = still
 	}
 
+	if blocked {
+		return failed, ErrChallenge
+	}
 	return failed, nil
 }
 
@@ -1454,6 +1478,7 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 	var mu sync.Mutex
 	processed := 0
 	var failed []int
+	blocked := false
 
 	worker := func() {
 		defer wg.Done()
@@ -1469,6 +1494,13 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 			processed++
 			if syncErr != nil {
 				failed = append(failed, entry)
+			}
+			// The source is serving an anti-bot page to everyone, not failing on
+			// this object: stop the run rather than walking thousands of entries
+			// that can only fail. The stop flag also skips the retry pass below.
+			if errors.Is(syncErr, ErrChallenge) {
+				blocked = true
+				s.RequestStop()
 			}
 			if progressCb != nil {
 				progressCb(processed, total, entry)
@@ -1507,6 +1539,9 @@ func (s *NpcService) FullSyncObjects(startFrom int, delayMs int, progressCb func
 		failed = still
 	}
 
+	if blocked {
+		return failed, ErrChallenge
+	}
 	return failed, nil
 }
 
@@ -1530,7 +1565,8 @@ func (s *NpcService) syncNpcImages(entry int) (*ScrapedNpcData, error) {
 	var err error
 	for attempt := 1; ; attempt++ {
 		scrapedData, err = s.scraper.ScrapeNpcData(entry)
-		if err == nil || attempt >= scrapeAttempts {
+		// A challenge page isn't transient — retrying just hammers the site.
+		if err == nil || attempt >= scrapeAttempts || errors.Is(err, ErrChallenge) {
 			break
 		}
 		time.Sleep(time.Duration(attempt) * scrapeRetryDelay)

@@ -15,7 +15,10 @@ import (
 // relative model image paths, etc.
 //
 // A network/transport failure skips (octowow unreachable shouldn't fail an
-// unrelated run); a non-200 status or a field mismatch is a real failure.
+// unrelated run), and so does an anti-bot interstitial: the site serving a
+// challenge instead of data says nothing about our parsers, and letting it fail
+// here would report a page-structure break that hasn't happened. A non-200
+// status or a field mismatch is a real failure.
 // Run just these with:  go test -run Octowow -v ./backend/parsers/
 
 const octowowBase = "https://octowow.st/db"
@@ -37,6 +40,9 @@ func liveGet(t *testing.T, url string) string {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read %s: %v", url, err)
+	}
+	if IsChallengePage(body) {
+		t.Skipf("octowow is serving an anti-bot challenge page (%s) — no data to parse", url)
 	}
 	return string(body)
 }

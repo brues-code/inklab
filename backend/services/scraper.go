@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,40 +29,87 @@ func NewScraperService() *ScraperService {
 	}
 }
 
+// User agents: scrapeUA for the database site, wowheadUA for wowhead.com (which
+// wants a complete browser string).
+const (
+	scrapeUA  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+	wowheadUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+)
+
+// fetchPage GETs url and returns its body, rejecting anything that isn't the
+// page we asked for: a non-200 status, or an anti-bot interstitial served with
+// 200 (ErrChallenge). Every scrape goes through here so a challenge page can
+// never reach a parser, where it would pass for a valid page that happens to
+// hold no data.
+func (s *ScraperService) fetchPage(url, userAgent string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("%s returned status %d", url, resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if parsers.IsChallengePage(body) {
+		return nil, fmt.Errorf("%s: %w", url, ErrChallenge)
+	}
+	return body, nil
+}
+
 // ScrapedNpcData holds data scraped from Wowhead
 type ScrapedNpcData = parsers.ScrapedNpcData
 
 // ScrapeNpcData scrapes NPC data - tries both TurtleCraft and Wowhead and merges them
 func (s *ScraperService) ScrapeNpcData(npcID int) (*ScrapedNpcData, error) {
-	// Channels to receive results
-	tcChan := make(chan *ScrapedNpcData)
-	whChan := make(chan *ScrapedNpcData)
+	// Channels to receive results. The error travels with the data so a total
+	// failure can report WHY — an anti-bot challenge (ErrChallenge) has to stay
+	// distinguishable from an ordinary miss, or a bulk sync can't tell "this NPC
+	// has no page" from "the site is serving nobody any data".
+	type result struct {
+		data *ScrapedNpcData
+		err  error
+	}
+	tcChan := make(chan result, 1)
+	whChan := make(chan result, 1)
 
 	// Fetch concurrently
 	go func() {
 		data, err := s.scrapeFromTurtlecraft(npcID)
-		if err != nil {
-			tcChan <- nil
-		} else {
-			tcChan <- data
-		}
+		tcChan <- result{data, err}
 	}()
 
 	go func() {
 		data, err := s.scrapeFromWowhead(npcID)
-		if err != nil {
-			whChan <- nil
-		} else {
-			whChan <- data
-		}
+		whChan <- result{data, err}
 	}()
 
 	// Wait for results
-	tcData := <-tcChan
-	whData := <-whChan
+	tc := <-tcChan
+	wh := <-whChan
+	tcData, whData := tc.data, wh.data
+	if tc.err != nil {
+		tcData = nil
+	}
+	if wh.err != nil {
+		whData = nil
+	}
 
 	// If both failed, return empty
 	if tcData == nil && whData == nil {
+		if err := errors.Join(tc.err, wh.err); err != nil {
+			return nil, fmt.Errorf("npc %d: %w", npcID, err)
+		}
 		return nil, fmt.Errorf("failed to scrape from both sources")
 	}
 
@@ -113,23 +161,7 @@ func (s *ScraperService) ScrapeNpcData(npcID int) (*ScrapedNpcData, error) {
 func (s *ScraperService) scrapeFromTurtlecraft(npcID int) (*ScrapedNpcData, error) {
 	url := fmt.Sprintf(DatabaseBaseURL+"/?npc=%d", npcID)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("turtlecraft returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := s.fetchPage(url, scrapeUA)
 	if err != nil {
 		return nil, err
 	}
@@ -152,24 +184,11 @@ func (s *ScraperService) scrapeFromTurtlecraft(npcID int) (*ScrapedNpcData, erro
 func (s *ScraperService) scrapeFromWowhead(npcID int) (*ScrapedNpcData, error) {
 	url := fmt.Sprintf("https://www.wowhead.com/classic/npc=%d", npcID)
 
-	req, err := http.NewRequest("GET", url, nil)
+	body, err := s.fetchPage(url, wowheadUA)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to fetch page: %d", resp.StatusCode)
-	}
-
-	// Use parser to parse content
-	return parsers.ParseNpcData(resp.Body)
+	return parsers.ParseNpcData(bytes.NewReader(body))
 }
 
 // ScrapedObject bundles everything we pull from a single octowow object page:
@@ -186,23 +205,7 @@ type ScrapedObject struct {
 func (s *ScraperService) ScrapeObject(objectID int) (*ScrapedObject, error) {
 	url := fmt.Sprintf(DatabaseBaseURL+"/?object=%d", objectID)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("octowow returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := s.fetchPage(url, scrapeUA)
 	if err != nil {
 		return nil, err
 	}
@@ -216,21 +219,9 @@ func (s *ScraperService) ScrapeObject(objectID int) (*ScrapedObject, error) {
 func (s *ScraperService) ScrapeQuestData(entry int) (*parsers.ScrapedQuestData, error) {
 	url := fmt.Sprintf(DatabaseBaseURL+"/?quest=%d", entry)
 
-	req, err := http.NewRequest("GET", url, nil)
+	body, err := s.fetchPage(url, scrapeUA)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("turtlecraft returned status %d", resp.StatusCode)
-	}
-
-	return parsers.ParseQuestDataTurtlecraft(resp.Body, entry)
+	return parsers.ParseQuestDataTurtlecraft(bytes.NewReader(body), entry)
 }

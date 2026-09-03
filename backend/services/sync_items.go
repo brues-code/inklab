@@ -574,6 +574,12 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 				if len(result.Errors) < 10 {
 					result.Errors = append(result.Errors, fmt.Sprintf("Item %d: %v", itemID, err))
 				}
+				// The source is serving an anti-bot page to everyone, not failing
+				// on this item: stop instead of walking every remaining id.
+				if errors.Is(err, ErrChallenge) {
+					result.Blocked = true
+					s.RequestStop()
+				}
 				mu.Unlock()
 			} else if item.Name == "" {
 				mu.Lock()
@@ -768,6 +774,9 @@ func (s *SyncService) FullSyncItems(delayMs int, fixIcons bool, iconDir string, 
 
 	result.Message = fmt.Sprintf("Full sync complete: %d updated, %d failed, %d icons fixed",
 		result.Updated, result.Failed, result.IconsFixed)
+	if result.Blocked {
+		result.Message = fmt.Sprintf("Stopped after %d updated: the source is serving a challenge page", result.Updated)
+	}
 	fmt.Printf("[FullSync] %s\n", result.Message)
 
 	return result

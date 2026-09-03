@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"inklab/backend/parsers"
 )
 
 // SyncService handles database synchronization with turtlecraft.gg
@@ -49,6 +52,10 @@ type FullSyncResult struct {
 	Message      string   `json:"message"`
 	LastSyncedID int      `json:"lastSyncedId"` // Last successfully synced item ID for resume
 	StartFromID  int      `json:"startFromId"`  // ID we started this sync from
+	// Blocked marks a run that stopped because the source served an anti-bot
+	// challenge instead of data (ErrChallenge) — a source outage rather than
+	// per-entry failures, so the UI reports it as an error, not a completion.
+	Blocked bool `json:"blocked"`
 }
 
 // RemoteItem represents an item found on turtlecraft.gg
@@ -86,7 +93,9 @@ var errNotFound = errors.New("not found (HTTP 404)")
 // getWithRetry fetches url, retrying transient failures — network errors,
 // HTTP 429 (throttled: the full syncs run 10 fetches at once, which can trip
 // the server's limiter), and 5xx — with the same backoff the page scrapers
-// use. A 404 returns errNotFound immediately (retrying can't create the page).
+// use. A 404 returns errNotFound immediately (retrying can't create the page),
+// and so does an anti-bot interstitial (ErrChallenge): it arrives as a 200, and
+// only running its JS clears it, so retrying just hammers the site.
 // On success the response is returned with its body open; the caller closes it.
 func (s *SyncService) getWithRetry(url string) (*http.Response, error) {
 	var lastErr error
@@ -96,6 +105,18 @@ func (s *SyncService) getWithRetry(url string) (*http.Response, error) {
 		case err != nil:
 			lastErr = err
 		case resp.StatusCode == 200:
+			// Buffer the body so it can be inspected for a challenge page and
+			// still be handed to the caller to read.
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil {
+				lastErr = readErr
+				break
+			}
+			if parsers.IsChallengePage(body) {
+				return nil, fmt.Errorf("%s: %w", url, ErrChallenge)
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
 			return resp, nil
 		default:
 			io.Copy(io.Discard, resp.Body)

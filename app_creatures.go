@@ -193,7 +193,7 @@ func (a *App) FullSyncNpcs(startFrom int, delayMs int) string {
 		failed, err := a.npcService.FullSyncNpcs(startFrom, delayMs, progressCb)
 		if err != nil {
 			fmt.Printf("Error syncing all NPCs: %v\n", err)
-			runtime.EventsEmit(a.ctx, "sync:npc_full:error", err.Error())
+			runtime.EventsEmit(a.ctx, "sync:npc_full:error", syncFailureMessage(err))
 		} else {
 			msg := "Full NPC sync complete"
 			if len(failed) > 0 {

@@ -56,6 +56,7 @@ function SyncPage() {
 
         // Quest Progress
         EventsOn('sync:quests:progress', (data) => handleProgress('quest', data))
+        EventsOn('sync:quests_full:error', (msg) => handleSyncError('quest', msg))
         EventsOn('sync:quests_full:complete', (msg) => handleSyncDone('quest', msg))
 
         // Object Progress
@@ -71,6 +72,7 @@ function SyncPage() {
             EventsOff('sync:item_full:error')
             EventsOff('sync:item_full:complete')
             EventsOff('sync:quests:progress')
+            EventsOff('sync:quests_full:error')
             EventsOff('sync:quests_full:complete')
             EventsOff('sync:objects:progress')
             EventsOff('sync:objects_full:error')

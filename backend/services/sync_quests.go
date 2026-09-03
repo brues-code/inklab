@@ -163,6 +163,10 @@ type SyncQuestResult struct {
 	QuestID int    `json:"questId"`
 	Title   string `json:"title,omitempty"`
 	Error   string `json:"error,omitempty"`
+	// Blocked marks the failure as an anti-bot challenge (ErrChallenge) rather
+	// than a problem with this quest. Error carries only text, so the bulk sync
+	// needs this flag to tell a source outage from a per-quest miss.
+	Blocked bool `json:"blocked,omitempty"`
 }
 
 // FetchAndImportQuest scrapes a quest and fills the fields the WDB quest cache
@@ -177,7 +181,10 @@ func (s *SyncService) FetchAndImportQuest(questID int) *SyncQuestResult {
 	// Retries transient failures (429/5xx/network); only a real 404 is "not found".
 	resp, err := s.getWithRetry(url)
 	if err != nil {
-		return &SyncQuestResult{Success: false, QuestID: questID, Error: err.Error()}
+		return &SyncQuestResult{
+			Success: false, QuestID: questID, Error: err.Error(),
+			Blocked: errors.Is(err, ErrChallenge),
+		}
 	}
 	defer resp.Body.Close()
 	data, err := parsers.ParseQuestDataTurtlecraft(resp.Body, questID)
@@ -334,6 +341,12 @@ func (s *SyncService) FullSyncQuests(delayMs int, startFrom int, progressCb Prog
 				if len(result.Errors) < 10 {
 					result.Errors = append(result.Errors, fmt.Sprintf("Quest %d: %s", questID, res.Error))
 				}
+				// The source is serving an anti-bot page to everyone, not failing
+				// on this quest: stop instead of walking every remaining id.
+				if res.Blocked {
+					result.Blocked = true
+					s.RequestStop()
+				}
 			}
 			result.LastSyncedID = questID
 			processed++
@@ -357,9 +370,12 @@ func (s *SyncService) FullSyncQuests(delayMs int, startFrom int, progressCb Prog
 	close(jobs)
 	wg.Wait()
 
-	if s.IsStopped() {
+	switch {
+	case result.Blocked:
+		result.Message = fmt.Sprintf("Stopped after %d synced: the source is serving a challenge page", result.Updated)
+	case s.IsStopped():
 		result.Message = "Sync stopped by user"
-	} else {
+	default:
 		result.Message = "Full quest sync complete"
 	}
 	return result
