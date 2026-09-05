@@ -59,7 +59,8 @@ func main() {
 
 	fmt.Printf("✓ Promoted %d local row(s) to official in %s\n", total, dbPath)
 	if total > 0 {
-		fmt.Println("  Next: bump embeddedDBVersion in embedded_data.go, then build/release.")
+		fmt.Println("  Next: go run ./cmd/packdb (writes the shipped data/inklab.db.gz),")
+		fmt.Println("  bump embeddedDBVersion in embedded_data.go, then build/release.")
 	}
 }
 

@@ -1,13 +1,17 @@
 # release.ps1 — prepare (and optionally publish) an InkLab release.
 #
 # Releases are built by .github/workflows/release.yml on a `v*` tag push, and
-# `wails build` embeds whatever data/inklab.db is committed at that tag. Your
+# `wails build` embeds whatever data/inklab.db.gz is committed at that tag. Your
 # day-to-day scrapes are NOT committed, so this script bakes them into the
 # release: it promotes your locally-scraped ('local') rows to 'official', bumps
-# the embedded DB revision (so users' DBs refresh-merge on next launch), commits
-# the promoted DB + version bump, and tags the release. Your working DB is then
-# restored to its 'local'-tagged state so your own RebuildSpawnZones never wipes
-# your object scrapes.
+# the embedded DB revision (so users' DBs refresh-merge on next launch), packs
+# the database into the shipped archive, commits that + the version bump, and
+# tags the release. Your working DB is then restored to its 'local'-tagged state
+# so your own RebuildSpawnZones never wipes your object scrapes.
+#
+# The raw .db is gitignored: at ~195 MB it is past GitHub's 100 MB file limit,
+# so what ships is data/inklab.db.gz (cmd/packdb: VACUUM + gzip, ~52 MB), which
+# the app decompresses on first run.
 #
 # Usage:
 #   pwsh scripts/release.ps1 -Version v0.6.3            # prepare: commit + tag locally
@@ -64,20 +68,27 @@ try {
     & go run ./cmd/promotedb data
     if ($LASTEXITCODE -ne 0) { throw "promotedb failed" }
 
-    # 3. Commit the promoted DB + version bump.
-    & git add embedded_data.go data/inklab.db
+    # 3. Pack the shipped artifact: VACUUM + gzip into data/inklab.db.gz. This
+    #    also fails the release if the archive would breach GitHub's 100 MB
+    #    limit, rather than letting the push discover it after the upload.
+    Write-Host "Packing data/inklab.db.gz..."
+    & go run ./cmd/packdb data
+    if ($LASTEXITCODE -ne 0) { throw "packdb failed" }
+
+    # 4. Commit the packed DB + version bump.
+    & git add embedded_data.go data/inklab.db.gz
     if ($LASTEXITCODE -ne 0) { throw "git add failed" }
     & git commit -m "release: $Version (embedded data v$newVer)"
     if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
 
-    # 4. Tag the release.
+    # 5. Tag the release.
     & git tag $Version
     if ($LASTEXITCODE -ne 0) { throw "git tag failed" }
 }
 finally {
-    # 5. Restore the working DB to its local-tagged state regardless of outcome,
-    #    so daily rebuilds keep protecting your scrapes. (The promoted blob is
-    #    already captured in the commit.)
+    # 6. Restore the working DB to its local-tagged state regardless of outcome,
+    #    so daily rebuilds keep protecting your scrapes. (The promoted data is
+    #    already captured in the committed archive.)
     Move-Item $backup $dbPath -Force
     Write-Host "Restored working data/inklab.db (local provenance)."
 }

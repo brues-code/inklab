@@ -58,7 +58,7 @@ var whatsNewTables = []diffSpec{
 const perTypeCap = 200
 
 // WhatsNew compares the live data/inklab.db against a baseline (the last
-// committed copy via `git show HEAD:data/inklab.db`, falling back to the
+// committed copy via `git show HEAD:data/inklab.db.gz`, falling back to the
 // database embedded in the binary) and reports the rows added or changed since.
 func (a *App) WhatsNew() *WhatsNewReport {
 	livePath := filepath.Join(a.DataDir, "inklab.db")
@@ -99,35 +99,24 @@ func (a *App) WhatsNew() *WhatsNewReport {
 func (a *App) baselineDB() (path, desc string, cleanup func(), err error) {
 	noop := func() {}
 
-	// Prefer the last committed inklab.db (matches the user's mental model of
-	// "what changed since I last committed the DB").
-	cmd := exec.Command("git", "show", "HEAD:data/inklab.db")
+	// Prefer the last committed database (matches the user's mental model of
+	// "what changed since I last committed the DB"). It is committed gzipped, so
+	// it has to be expanded before it can be opened.
+	cmd := exec.Command("git", "show", "HEAD:data/inklab.db.gz")
 	cmd.Dir = repoRoot(a.DataDir)
 	if out, gerr := cmd.Output(); gerr == nil && len(out) > 0 {
-		tmp, terr := os.CreateTemp("", "inklab-baseline-*.db")
-		if terr == nil {
-			if _, werr := tmp.Write(out); werr == nil {
-				tmp.Close()
-				return tmp.Name(), "last committed database (git HEAD)", func() { os.Remove(tmp.Name()) }, nil
-			}
-			tmp.Close()
-			os.Remove(tmp.Name())
+		if path, err := gunzipToTemp(out); err == nil {
+			return path, "last committed database (git HEAD)", func() { os.Remove(path) }, nil
 		}
 	}
 
 	// Fallback: the database embedded in the binary at build time.
-	if len(embeddedDB) > 0 {
-		tmp, terr := os.CreateTemp("", "inklab-baseline-*.db")
-		if terr != nil {
-			return "", "", noop, terr
+	if len(embeddedDBGz) > 0 {
+		if path, err := gunzipToTemp(embeddedDBGz); err == nil {
+			return path, "bundled baseline database (last build)", func() { os.Remove(path) }, nil
+		} else {
+			return "", "", noop, err
 		}
-		if _, werr := tmp.Write(embeddedDB); werr != nil {
-			tmp.Close()
-			os.Remove(tmp.Name())
-			return "", "", noop, werr
-		}
-		tmp.Close()
-		return tmp.Name(), "bundled baseline database (last build)", func() { os.Remove(tmp.Name()) }, nil
 	}
 
 	return "", "", noop, fmt.Errorf("no git copy and no embedded database")

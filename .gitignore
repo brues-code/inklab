@@ -32,7 +32,6 @@ Thumbs.db
 
 # Databases
 *.db
-!data/inklab.db
 # SQLite runtime artifacts (never commit)
 *.db-wal
 *.db-shm

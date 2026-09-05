@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"database/sql"
-	_ "embed" // for //go:embed on embeddedDB
+	_ "embed" // for //go:embed on embeddedDBGz
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -48,7 +51,7 @@ var localMergeTables = []struct {
 func refreshDBPreservingLocal(dbPath string) error {
 	tmpPath := dbPath + ".new"
 	_ = os.Remove(tmpPath)
-	if err := os.WriteFile(tmpPath, embeddedDB, 0644); err != nil {
+	if err := writeEmbeddedDB(tmpPath); err != nil {
 		return err
 	}
 
@@ -112,8 +115,58 @@ func graftLocalRows(newPath, oldPath string) error {
 	return nil
 }
 
-//go:embed data/inklab.db
-var embeddedDB []byte
+// The baseline database ships gzipped: raw it is ~195 MB, past GitHub's 100 MB
+// per-file limit, and every byte of it also rides in the user's download. The
+// archive is produced by cmd/packdb (VACUUM + gzip) and is the file the repo
+// commits — data/inklab.db itself is gitignored, being a local working copy.
+//
+//go:embed data/inklab.db.gz
+var embeddedDBGz []byte
+
+// writeEmbeddedDB decompresses the embedded baseline to path, replacing whatever
+// is there. The whole file is streamed rather than held twice in memory.
+func writeEmbeddedDB(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := gunzipTo(f, embeddedDBGz); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// gunzipTo streams a gzipped database into w.
+func gunzipTo(w io.Writer, gz []byte) error {
+	zr, err := gzip.NewReader(bytes.NewReader(gz))
+	if err != nil {
+		return fmt.Errorf("database archive is not valid gzip: %w", err)
+	}
+	defer zr.Close()
+	_, err = io.Copy(w, zr)
+	return err
+}
+
+// gunzipToTemp expands a gzipped database into a temp file and returns its path;
+// the caller removes it. Used for baselines that only exist as an archive (the
+// embedded copy, or one read out of git).
+func gunzipToTemp(gz []byte) (string, error) {
+	f, err := os.CreateTemp("", "inklab-baseline-*.db")
+	if err != nil {
+		return "", err
+	}
+	if err := gunzipTo(f, gz); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
+}
 
 // embeddedDBVersion identifies the embedded database's data revision. Bump it
 // whenever data/inklab.db is regenerated with fixes so production builds
@@ -199,7 +252,7 @@ func InitializeData() (string, bool, error) {
 	case missing:
 		// First run: nothing to preserve, write the embedded baseline as-is.
 		log.Println("Extracting embedded database...")
-		if err := os.WriteFile(dbPath, embeddedDB, 0644); err != nil {
+		if err := writeEmbeddedDB(dbPath); err != nil {
 			return "", false, fmt.Errorf("failed to write database: %w", err)
 		}
 		writeExtractedDBVersion(dataDir, embeddedDBVersion)
