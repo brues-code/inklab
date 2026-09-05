@@ -23,6 +23,7 @@ type ScrapedNpcData struct {
 	Spawns        []ScrapedSpawn    `json:"spawns"` // every spawn point across every zone (octowow mapper data)
 	Sells         []VendorSale      `json:"sells"`  // items this NPC sells (octowow "sells" tab)
 	TrainerSpells []int             `json:"trainerSpells"` // spell ids this NPC trains (octowow "teaches" tab)
+	Drops         []ItemDrop        `json:"drops"`         // items this NPC drops (octowow "drop" tab)
 }
 
 // aowow embeds a trainer's taught spells in a "teaches-ability" Listview:
@@ -68,6 +69,20 @@ type VendorSale struct {
 	ItemEntry int `json:"itemEntry"`
 	Cost      int `json:"cost"`
 	Stock     int `json:"stock"`
+}
+
+// ItemDrop is one item an NPC drops, from octowow's "drop" tab: the item entry,
+// the drop chance as a percentage, and the stack range it drops in.
+//
+// Chance carries its sign. A NEGATIVE chance is the world-DB convention for a
+// quest drop — it only drops for players on the quest, at abs(chance)% — and
+// octowow reports it the same way (Head of VanCleef is percent: -100), so the
+// value maps straight onto ChanceOrQuestChance.
+type ItemDrop struct {
+	ItemEntry int     `json:"itemEntry"`
+	Chance    float64 `json:"chance"`
+	MinCount  int     `json:"minCount"`
+	MaxCount  int     `json:"maxCount"`
 }
 
 // ParseNpcData parses the HTML content of a Wowhead NPC page
@@ -317,7 +332,63 @@ func stripTags_Local(input string) string {
 // which never appears inside an item object (its sub-arrays like cost use "],"),
 // so a non-greedy capture to the first "]})" grabs exactly this array.
 var npcSellsRe = regexp.MustCompile(`(?s)id:'sells'.*?data: ?\[(.*?)\]\}\)`)
-var sellObjRe = regexp.MustCompile(`\{[^{}]*\}`)
+
+// listviewObjRe splits a Listview data array into its `{...}` item objects. The
+// objects never nest, so a non-greedy brace match is exact.
+var listviewObjRe = regexp.MustCompile(`\{[^{}]*\}`)
+
+// npcDropsRe isolates the "drop" Listview's data array (template:'item',
+// id:'drop') — an NPC's loot table, already flattened by octowow so reference
+// (world-drop) loot appears inline. Closed by "]})" like the sells array; the
+// stack sub-array inside an item ends with "]," so the non-greedy capture can't
+// stop early.
+//
+// Each object looks like:
+//
+//	{name: '5Wool Cloth',description: '',level: 15,classs: 7,subclass: 0,stack:[1,4],percent: 17,id: 2592}
+var (
+	npcDropsRe    = regexp.MustCompile(`(?s)id:\s*'drop'.*?data:\s*\[(.*?)\]\}\)`)
+	dropIDRe      = regexp.MustCompile(`,\s*id:\s*(\d+)`)
+	dropPercentRe = regexp.MustCompile(`percent:\s*(-?\d+(?:\.\d+)?)`)
+	dropStackRe   = regexp.MustCompile(`stack:\s*\[\s*(\d+)\s*,\s*(\d+)\s*\]`)
+)
+
+// ParseNpcDrops extracts an NPC's drop table from its octowow page. Chance and
+// stack map directly onto the world-DB loot columns (verified against known
+// creatures: Hogger's Tough Jerky is 6.0935 in both, VanCleef's Wool Cloth 17 at
+// stack [1,4]). Items without an id or with no percent field are skipped rather
+// than written at chance 0, which would claim a drop rate we never read.
+func ParseNpcDrops(content string) []ItemDrop {
+	m := npcDropsRe.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return nil
+	}
+	var out []ItemDrop
+	seen := map[int]bool{}
+	for _, obj := range listviewObjRe.FindAllString(m[1], -1) {
+		idm := dropIDRe.FindStringSubmatch(obj)
+		pm := dropPercentRe.FindStringSubmatch(obj)
+		if idm == nil || pm == nil {
+			continue
+		}
+		id, err := strconv.Atoi(idm[1])
+		if err != nil || id <= 0 || seen[id] {
+			continue
+		}
+		chance, err := strconv.ParseFloat(pm[1], 64)
+		if err != nil {
+			continue
+		}
+		d := ItemDrop{ItemEntry: id, Chance: chance, MinCount: 1, MaxCount: 1}
+		if sm := dropStackRe.FindStringSubmatch(obj); sm != nil {
+			d.MinCount, _ = strconv.Atoi(sm[1])
+			d.MaxCount, _ = strconv.Atoi(sm[2])
+		}
+		seen[id] = true
+		out = append(out, d)
+	}
+	return out
+}
 
 // spawnZoneRe captures every octowow mapper block that carries coordinates:
 // `myMapper.update({zone: 267,coords: [[22.55,43.17,{..}],[56.36,58.31,{..}]]})`.
@@ -357,7 +428,7 @@ func parseNpcSells(content string) []VendorSale {
 		return 0, false
 	}
 	var out []VendorSale
-	for _, obj := range sellObjRe.FindAllString(m[1], -1) {
+	for _, obj := range listviewObjRe.FindAllString(m[1], -1) {
 		id, ok := intField(obj, "id")
 		if !ok || id == 0 {
 			continue
@@ -388,6 +459,7 @@ func ParseNpcDataTurtlecraft(r io.Reader) (*ScrapedNpcData, error) {
 	data := &ScrapedNpcData{
 		Infobox: make(map[string]string),
 		Sells:   parseNpcSells(string(raw)),
+		Drops:   ParseNpcDrops(string(raw)),
 	}
 
 	// Parse infobox items (li elements with label: value format)

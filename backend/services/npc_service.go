@@ -1718,6 +1718,68 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	fmt.Printf("  ✓ Applied %d scraped spawn point(s) for creature %d\n", inserted, entry)
 }
 
+// writeNpcDrops replaces a creature's loot with octowow's reported drop table.
+// octowow.st is the live database Octo players actually use, while our shipped
+// creature_loot_template comes from a leaked Turtle WoW 1.17.2 dump — a
+// different server — so where the scrape has data it wins outright. That is the
+// precedence applyScrapedStats and applyScrapedSpawns already use.
+//
+// The scraped list is FLATTENED (octowow expands reference loot into it, which
+// is why Hogger reports 229 drops against a handful of rows plus a reference
+// pointer here), so the creature's existing rows are replaced wholesale —
+// direct rows and reference pointers alike. Keeping the pointers would
+// double-count every world-drop the reference table expands to.
+//
+// An empty scrape writes nothing and deletes nothing: a page that yields no
+// drops (a failed fetch, a page-shape change, an anti-bot interstitial) must
+// never erase real loot.
+func (s *NpcService) writeNpcDrops(entry int, drops []parsers.ItemDrop) int {
+	if len(drops) == 0 {
+		return 0
+	}
+	// Loot is keyed by creature_template.loot_id when set (creatures can share a
+	// table), falling back to the entry — the same resolution GetNpcDetails uses
+	// to read it back, so a scrape lands where the NPC page looks for it.
+	lootID := 0
+	s.sqlite.QueryRow("SELECT loot_id FROM creature_template WHERE entry = ?", entry).Scan(&lootID)
+	if lootID == 0 {
+		lootID = entry
+	}
+
+	// One transaction: a drop table is hundreds of rows, and the swap must never
+	// leave the creature visibly lootless in between.
+	tx, err := s.sqlite.Begin()
+	if err != nil {
+		fmt.Printf("  ✕ drops for %d: %v\n", entry, err)
+		return 0
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM creature_loot_template WHERE entry = ?", lootID); err != nil {
+		return 0
+	}
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO creature_loot_template
+			(entry, item, ChanceOrQuestChance, groupid, mincountOrRef, maxcount)
+		VALUES (?, ?, ?, 0, ?, ?)`)
+	if err != nil {
+		return 0
+	}
+	defer stmt.Close()
+
+	n := 0
+	for _, d := range drops {
+		if _, err := stmt.Exec(lootID, d.ItemEntry, d.Chance, d.MinCount, d.MaxCount); err == nil {
+			n++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		fmt.Printf("  ✕ drops for %d: %v\n", entry, err)
+		return 0
+	}
+	return n
+}
+
 func (s *NpcService) SyncNpcData(entry int) error {
 	// A. Scrape + metadata (no creature_template changes). Non-fatal: a failure
 	// here (e.g. scrape hiccup, transient write contention) must NOT skip the
@@ -1855,11 +1917,15 @@ func (s *NpcService) SyncNpcData(entry int) error {
 		s.syncCreatureSpawnsFromMySQL(entry)
 	}
 
-	// Apply the live octowow stats and spawns last so they win over the (often
-	// stale or missing) MySQL dump — octowow.st is the source of truth for these.
+	// Apply the live octowow stats, spawns and drops last so they win over the
+	// (often stale or missing) MySQL dump — octowow.st is the source of truth for
+	// these.
 	s.applyScrapedStats(entry, scraped)
 	s.applyScrapedSpawns(entry, scraped)
 	s.writeTrainerSpells(entry, scraped.TrainerSpells)
+	if n := s.writeNpcDrops(entry, scraped.Drops); n > 0 {
+		fmt.Printf("  ✓ Wrote %d drop(s) for creature %d\n", n, entry)
+	}
 
 	// The MySQL side ran regardless, but on a failed scrape the live octowow
 	// data (spawns, stats, metadata) was never applied — report that so
