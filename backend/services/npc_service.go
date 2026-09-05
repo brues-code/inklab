@@ -90,6 +90,9 @@ func (s *NpcService) ensureSchema() {
 		// origin provenance for spawn tables (Stage 1): 'official' vs 'local'.
 		"ALTER TABLE creature_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'",
 		"ALTER TABLE gameobject_spawn ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'",
+		// Same provenance for scraped drop tables, so an app update grafts them
+		// forward instead of replacing them with the shipped dump.
+		"ALTER TABLE creature_loot_template ADD COLUMN origin TEXT NOT NULL DEFAULT 'official'",
 	} {
 		s.sqlite.Exec(col) // ignore "duplicate column" errors
 	}
@@ -1718,6 +1721,14 @@ func (s *NpcService) applyScrapedSpawns(entry int, data *ScrapedNpcData) {
 	fmt.Printf("  ✓ Applied %d scraped spawn point(s) for creature %d\n", inserted, entry)
 }
 
+// hasLocalLoot reports whether a loot table was scraped from octowow rather
+// than shipped, so the MySQL sync can leave the better copy alone.
+func (s *NpcService) hasLocalLoot(lootID int) bool {
+	var n int
+	s.sqlite.QueryRow("SELECT COUNT(*) FROM creature_loot_template WHERE entry = ? AND origin = 'local'", lootID).Scan(&n)
+	return n > 0
+}
+
 // writeNpcDrops replaces a creature's loot with octowow's reported drop table.
 // octowow.st is the live database Octo players actually use, while our shipped
 // creature_loot_template comes from a leaked Turtle WoW 1.17.2 dump — a
@@ -1758,10 +1769,13 @@ func (s *NpcService) writeNpcDrops(entry int, drops []parsers.ItemDrop) int {
 	if _, err := tx.Exec("DELETE FROM creature_loot_template WHERE entry = ?", lootID); err != nil {
 		return 0
 	}
+	// 'local' provenance: this is the user's own scrape, so an app update grafts
+	// it into the new baseline instead of replacing it with the shipped dump, and
+	// cmd/promotedb turns it into shipped data at release time.
 	stmt, err := tx.Prepare(`
 		INSERT OR REPLACE INTO creature_loot_template
-			(entry, item, ChanceOrQuestChance, groupid, mincountOrRef, maxcount)
-		VALUES (?, ?, ?, 0, ?, ?)`)
+			(entry, item, ChanceOrQuestChance, groupid, mincountOrRef, maxcount, origin)
+		VALUES (?, ?, ?, 0, ?, ?, 'local')`)
 	if err != nil {
 		return 0
 	}
@@ -1860,23 +1874,29 @@ func (s *NpcService) SyncNpcData(entry int) error {
 				dmgMin, dmgMax, armor, holy, fire, nature, frost, shadow, arcane, displayId, goldMin, goldMax)
 		}
 
-		// 2. Loot
-		if lootID > 0 {
+		// 2. Loot. Skipped entirely when this loot table was scraped from octowow
+		//    ('local'): that is the live server's own data, while MySQL is the
+		//    leaked Turtle dump, so overwriting it would downgrade the table —
+		//    and a later scrape failure would leave the worse copy in place.
+		//    Rows are keyed by lootID, the key GetNpcDetails reads loot back by;
+		//    writing them under `entry` hid the loot of every creature whose
+		//    loot_id differs from its entry.
+		if lootID > 0 && !s.hasLocalLoot(lootID) {
 			// Fetch from MySQL loot tables and insert into SQLite creature_loot_template
 			// Note: ensure column names match MySQL `creature_loot_template`
 			lRows, lErr := s.mysql.DB().Query("SELECT Item, Chance, MinCount, MaxCount, GroupId FROM creature_loot_template WHERE Entry = ?", lootID)
 			if lErr == nil {
 				defer lRows.Close()
-				s.sqlite.Exec("DELETE FROM creature_loot_template WHERE entry = ?", entry)
+				s.sqlite.Exec("DELETE FROM creature_loot_template WHERE entry = ?", lootID)
 
 				for lRows.Next() {
 					var item, min, max, group int
 					var chance float64
 					if err := lRows.Scan(&item, &chance, &min, &max, &group); err == nil {
 						s.sqlite.Exec(`
-							INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, mincountOrRef, maxcount, groupid)
-							VALUES (?, ?, ?, ?, ?, ?)
-						`, entry, item, chance, min, max, group)
+							INSERT INTO creature_loot_template (entry, item, ChanceOrQuestChance, mincountOrRef, maxcount, groupid, origin)
+							VALUES (?, ?, ?, ?, ?, ?, 'official')
+						`, lootID, item, chance, min, max, group)
 					}
 				}
 			}

@@ -146,6 +146,11 @@ func CoreSchema() string {
 		groupid INTEGER DEFAULT 0,
 		mincountOrRef INTEGER DEFAULT 1,
 		maxcount INTEGER DEFAULT 1,
+		-- Provenance, as on the spawn tables: 'official' is shipped baseline,
+		-- 'local' is a drop table this user scraped from octowow. It survives an
+		-- embedded-DB upgrade (see localMergeTables) and is promoted to
+		-- 'official' at release time (cmd/promotedb).
+		origin TEXT NOT NULL DEFAULT 'official',
 		PRIMARY KEY (entry, item)
 	);
 

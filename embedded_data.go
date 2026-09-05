@@ -13,14 +13,30 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// localMergeTables are the spawn tables that carry an `origin` column. On an
-// official DB upgrade their user-scraped ('local') rows are grafted into the
-// new baseline. `id` (AUTOINCREMENT) is intentionally excluded so it re-assigns;
+// localMergeTables are the tables that carry an `origin` column. On an official
+// DB upgrade their user-scraped ('local') rows are grafted into the new
+// baseline. `id` (AUTOINCREMENT) is intentionally excluded so it re-assigns;
 // INSERT OR IGNORE drops a local row when the new official already has the same
-// spawn (unique key), so a newer official always wins.
-var localMergeTables = []struct{ name, cols string }{
-	{"creature_spawn", "creature_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
-	{"gameobject_spawn", "gameobject_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
+// row (unique key), so a newer official always wins.
+//
+// replaceKey marks a table whose rows form one logical record per key rather
+// than independent facts. Spawn points accumulate — a local point next to an
+// official one is simply another place the creature stands — but a loot table
+// does not: octowow's scraped drop list is the creature's WHOLE table with
+// reference loot already flattened in, so grafting it alongside the baseline's
+// rows would merge two servers' tables and double-count world drops. For those,
+// every key the user scraped has its baseline rows dropped first, so the record
+// comes entirely from one source.
+var localMergeTables = []struct {
+	name, cols, replaceKey string
+}{
+	{name: "creature_spawn", cols: "creature_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
+	{name: "gameobject_spawn", cols: "gameobject_entry,map_id,zone_id,zone_name,position_x,position_y,position_z,origin"},
+	{
+		name:       "creature_loot_template",
+		cols:       "entry,item,ChanceOrQuestChance,groupid,mincountOrRef,maxcount,origin",
+		replaceKey: "entry",
+	},
 }
 
 // refreshDBPreservingLocal replaces the extracted DB with the (newer) embedded
@@ -57,6 +73,9 @@ func refreshDBPreservingLocal(dbPath string) error {
 
 // graftLocalRows copies origin='local' rows from oldPath into the new baseline
 // at newPath (INSERT OR IGNORE, so newer official rows win on key collision).
+// For a table with a replaceKey, the baseline's rows for every key the user
+// scraped are cleared first, so that record comes wholly from the local copy
+// instead of being merged with the shipped one.
 func graftLocalRows(newPath, oldPath string) error {
 	db, err := sql.Open("sqlite", newPath)
 	if err != nil {
@@ -69,6 +88,17 @@ func graftLocalRows(newPath, oldPath string) error {
 	defer db.Exec("DETACH DATABASE old")
 
 	for _, t := range localMergeTables {
+		if t.replaceKey != "" {
+			clear := fmt.Sprintf(
+				"DELETE FROM main.%s WHERE %s IN (SELECT DISTINCT %s FROM old.%s WHERE origin='local')",
+				t.name, t.replaceKey, t.replaceKey, t.name)
+			if _, err := db.Exec(clear); err != nil {
+				// Old DB predates the origin column — nothing was tagged local, so
+				// there is nothing to make room for either.
+				log.Printf("  (skip %s local graft: %v)", t.name, err)
+				continue
+			}
+		}
 		q := fmt.Sprintf(
 			"INSERT OR IGNORE INTO main.%s (%s) SELECT %s FROM old.%s WHERE origin='local'",
 			t.name, t.cols, t.cols, t.name)

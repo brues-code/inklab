@@ -25,8 +25,9 @@ import (
 )
 
 // provenanceTables carry an `origin` column (kept in sync with the Stage-1
-// schema). Add new scrape-populated tables here as they gain provenance.
-var provenanceTables = []string{"creature_spawn", "gameobject_spawn"}
+// schema and with localMergeTables in embedded_data.go). Add new
+// scrape-populated tables here as they gain provenance.
+var provenanceTables = []string{"creature_spawn", "gameobject_spawn", "creature_loot_template"}
 
 func main() {
 	dataDir := "data"

@@ -25,6 +25,7 @@ func lootTestDB(t *testing.T, entry, lootID int) *sql.DB {
 		CREATE TABLE creature_loot_template (
 			entry INTEGER, item INTEGER, ChanceOrQuestChance REAL DEFAULT 0,
 			groupid INTEGER DEFAULT 0, mincountOrRef INTEGER DEFAULT 1, maxcount INTEGER DEFAULT 1,
+			origin TEXT NOT NULL DEFAULT 'official',
 			PRIMARY KEY (entry, item)
 		)`); err != nil {
 		t.Fatal(err)
@@ -94,6 +95,32 @@ func TestWriteNpcDropsReplaces(t *testing.T) {
 	// The quest drop's negative chance must reach the column unchanged.
 	if r := got[3637]; r[0] != -100 {
 		t.Errorf("quest drop chance = %v; want -100", r[0])
+	}
+
+	// Scraped rows are the user's own data: 'local' provenance is what carries
+	// them across an embedded-DB upgrade and what promotedb publishes.
+	var local int
+	if err := db.QueryRow("SELECT COUNT(*) FROM creature_loot_template WHERE entry = ? AND origin = 'local'", entry).Scan(&local); err != nil {
+		t.Fatal(err)
+	}
+	if local != 3 {
+		t.Errorf("rows tagged local = %d, want 3", local)
+	}
+}
+
+// A scraped drop table outranks the world DB: the MySQL loot sync must leave it
+// alone rather than overwriting it with the (different server's) dump.
+func TestHasLocalLoot(t *testing.T) {
+	const entry = 62172
+	db := lootTestDB(t, entry, 0)
+	s := &NpcService{sqlite: db}
+
+	if s.hasLocalLoot(entry) {
+		t.Fatal("shipped rows reported as local")
+	}
+	s.writeNpcDrops(entry, []parsers.ItemDrop{{ItemEntry: 857, Chance: 1, MinCount: 1, MaxCount: 1}})
+	if !s.hasLocalLoot(entry) {
+		t.Fatal("scraped rows not reported as local")
 	}
 }
 
