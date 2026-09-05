@@ -111,7 +111,7 @@ type NpcLoot struct {
 type NpcQuest struct {
 	QuestID int    `json:"questId"`
 	Title   string `json:"title"`
-	Type    string `json:"type"` // "starts" or "ends"
+	Type    string `json:"type"` // "starts", "ends" or "objective" (kill/interact target)
 	Level   int    `json:"level"`
 }
 
@@ -367,6 +367,28 @@ func (s *NpcService) loadFromSQLite(entry int) (*NpcFullDetails, error) {
 			var q NpcQuest
 			q.Type = "ends"
 			if err := qRowsEnd.Scan(&q.QuestID, &q.Title, &q.Level); err == nil {
+				details.Quests = append(details.Quests, q)
+			}
+		}
+	}
+	// Objective of: quests that require killing or interacting with this
+	// creature. Unlike starts/ends there is no relation table for it — it comes
+	// straight from the quest's own requirement columns, which the WDB cache and
+	// the world dump both fill, so this needs no scrape and works offline.
+	// Gameobject objectives are stored as NEGATIVE ids in the same columns, and
+	// a creature entry is always positive, so matching the entry can't collide
+	// with an object of the same number.
+	qRowsObj, err := s.sqlite.Query(`
+		SELECT entry, Title, MinLevel
+		FROM quest_template
+		WHERE ? IN (ReqCreatureOrGOId1, ReqCreatureOrGOId2, ReqCreatureOrGOId3, ReqCreatureOrGOId4)
+	`, entry)
+	if err == nil {
+		defer qRowsObj.Close()
+		for qRowsObj.Next() {
+			var q NpcQuest
+			q.Type = "objective"
+			if err := qRowsObj.Scan(&q.QuestID, &q.Title, &q.Level); err == nil {
 				details.Quests = append(details.Quests, q)
 			}
 		}

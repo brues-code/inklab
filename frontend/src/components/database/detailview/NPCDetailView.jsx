@@ -43,6 +43,32 @@ const AbilityIcon = ({ iconName }) => {
     )
 }
 
+// One quest relation's list (starts / ends / objective of). Each row opens the
+// quest.
+const QuestList = ({ title, quests, onNavigate }) => (
+    <DetailSection title={`${title} (${quests.length})`}>
+        {quests.length > 0 ? (
+            <div className="bg-bg-sub rounded border border-border-light">
+                {quests.map((q, i) => (
+                    <div
+                        key={q.entry || q.questId}
+                        onClick={() => onNavigate('quest', q.entry || q.questId)}
+                        className={`flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-white/5 ${
+                            i !== quests.length - 1 ? 'border-b border-border-light/50' : ''
+                        }`}
+                    >
+                        <span className="hover:text-wow-gold-light truncate font-medium text-wow-gold md:text-sm">
+                            {q.name || q.title}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <div className="italic text-gray-500">None</div>
+        )}
+    </DetailSection>
+)
+
 const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTabChange }) => {
     // Active tab. When the route supplies it (activeTab/onTabChange) it lives in
     // the URL so Back/Forward and refresh work; otherwise fall back to local
@@ -164,6 +190,9 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
 
     const startsQuests = detail.quests?.filter((q) => q.type === 'starts') || []
     const endsQuests = detail.quests?.filter((q) => q.type === 'ends') || []
+    // Quests this NPC is a kill/interact target for. Most NPCs are none, so the
+    // panel only appears when there are some.
+    const objectiveQuests = detail.quests?.filter((q) => q.type === 'objective') || []
     const loot = detail.loot || []
     const abilities = detail.abilities || []
     const sells = detail.sells || []
@@ -174,7 +203,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
         { id: 'loot', label: `Loot (${loot.length})` },
         {
             id: 'quests',
-            label: `Quests (${startsQuests.length + endsQuests.length})`,
+            label: `Quests (${startsQuests.length + endsQuests.length + objectiveQuests.length})`,
         },
         { id: 'abilities', label: `Abilities (${abilities.length})` },
         ...(sells.length > 0 ? [{ id: 'sells', label: `Sells (${sells.length})` }] : []),
@@ -723,63 +752,23 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
 
                             {currentTab === 'quests' && (
                                 <div className="animate-fade-in grid grid-cols-1 gap-6 md:grid-cols-2">
-                                    <DetailSection title={`Starts Quests (${startsQuests.length})`}>
-                                        {startsQuests.length > 0 ? (
-                                            <div className="bg-bg-sub rounded border border-border-light">
-                                                {startsQuests.map((q, i) => (
-                                                    <div
-                                                        key={q.entry || q.questId}
-                                                        onClick={() =>
-                                                            onNavigate(
-                                                                'quest',
-                                                                q.entry || q.questId,
-                                                            )
-                                                        }
-                                                        className={`flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-white/5 ${
-                                                            i !== startsQuests.length - 1
-                                                                ? 'border-b border-border-light/50'
-                                                                : ''
-                                                        }`}
-                                                    >
-                                                        <span className="hover:text-wow-gold-light truncate font-medium text-wow-gold md:text-sm">
-                                                            {q.name || q.title}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="italic text-gray-500">None</div>
-                                        )}
-                                    </DetailSection>
-
-                                    <DetailSection title={`Ends Quests (${endsQuests.length})`}>
-                                        {endsQuests.length > 0 ? (
-                                            <div className="bg-bg-sub rounded border border-border-light">
-                                                {endsQuests.map((q, i) => (
-                                                    <div
-                                                        key={q.entry || q.questId}
-                                                        onClick={() =>
-                                                            onNavigate(
-                                                                'quest',
-                                                                q.entry || q.questId,
-                                                            )
-                                                        }
-                                                        className={`flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-white/5 ${
-                                                            i !== endsQuests.length - 1
-                                                                ? 'border-b border-border-light/50'
-                                                                : ''
-                                                        }`}
-                                                    >
-                                                        <span className="hover:text-wow-gold-light truncate font-medium text-wow-gold md:text-sm">
-                                                            {q.name || q.title}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="italic text-gray-500">None</div>
-                                        )}
-                                    </DetailSection>
+                                    <QuestList
+                                        title="Starts Quests"
+                                        quests={startsQuests}
+                                        onNavigate={onNavigate}
+                                    />
+                                    <QuestList
+                                        title="Ends Quests"
+                                        quests={endsQuests}
+                                        onNavigate={onNavigate}
+                                    />
+                                    {objectiveQuests.length > 0 && (
+                                        <QuestList
+                                            title="Objective Of"
+                                            quests={objectiveQuests}
+                                            onNavigate={onNavigate}
+                                        />
+                                    )}
                                 </div>
                             )}
 
