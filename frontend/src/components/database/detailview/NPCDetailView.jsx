@@ -16,7 +16,6 @@ import { DATABASE_BASE_URL } from '../../../utils/constants'
 import {
     DetailPageLayout,
     DetailHeader,
-    DetailSection,
     DetailGrid,
     LootGrid,
     StatBadge,
@@ -43,30 +42,41 @@ const AbilityIcon = ({ iconName }) => {
     )
 }
 
-// One quest relation's list (starts / ends / objective of). Each row opens the
-// quest.
-const QuestList = ({ title, quests, onNavigate }) => (
-    <DetailSection title={`${title} (${quests.length})`}>
-        {quests.length > 0 ? (
-            <div className="bg-bg-sub rounded border border-border-light">
-                {quests.map((q, i) => (
-                    <div
-                        key={q.entry || q.questId}
-                        onClick={() => onNavigate('quest', q.entry || q.questId)}
-                        className={`flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-white/5 ${
-                            i !== quests.length - 1 ? 'border-b border-border-light/50' : ''
-                        }`}
-                    >
-                        <span className="hover:text-wow-gold-light truncate font-medium text-wow-gold md:text-sm">
-                            {q.name || q.title}
-                        </span>
-                    </div>
-                ))}
+// Drop chances span four orders of magnitude — a boss's guaranteed drop at 100
+// down to a world drop at 0.0137 — so one fixed decimal count either flattens
+// every rare drop to "0.0%" or clutters the common ones. A negative chance is
+// the world-DB quest convention: it drops at that rate, but only for players on
+// the quest.
+const formatDropChance = (chance) => {
+    if (chance == null) return null
+    const pct = Math.abs(chance)
+    let text
+    if (pct >= 10) text = `${Math.round(pct)}%`
+    else if (pct >= 1) text = `${pct.toFixed(1)}%`
+    else if (pct >= 0.01) text = `${pct.toFixed(2)}%`
+    else text = '<0.01%'
+    return chance < 0 ? `${text} quest` : text
+}
+
+// The quest list behind each of the three relation tabs (Starts / Ends /
+// Objective Of). The tab label names the relation and carries the count, so the
+// rows stand on their own — same shape as the Trains tab.
+const QuestList = ({ quests, onNavigate }) => (
+    <div className="animate-fade-in bg-bg-sub rounded border border-border-light">
+        {quests.map((q, i) => (
+            <div
+                key={q.entry || q.questId}
+                onClick={() => onNavigate('quest', q.entry || q.questId)}
+                className={`flex cursor-pointer items-center justify-between p-3 transition-colors hover:bg-white/5 ${
+                    i !== quests.length - 1 ? 'border-b border-border-light/50' : ''
+                }`}
+            >
+                <span className="hover:text-wow-gold-light truncate font-medium text-wow-gold md:text-sm">
+                    {q.name || q.title}
+                </span>
             </div>
-        ) : (
-            <div className="italic text-gray-500">None</div>
-        )}
-    </DetailSection>
+        ))}
+    </div>
 )
 
 const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTabChange }) => {
@@ -176,7 +186,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                     name: item.name,
                     quality: item.quality,
                     iconPath: '', // Icon paths might be missing in scraping-only mode, but DB should have them if joined
-                    dropChance: `${item.chance.toFixed(1)}%`,
+                    dropChance: formatDropChance(item.chance),
                 }}
                 onClick={() => onNavigate('item', item.itemId)}
                 showDropChance
@@ -190,21 +200,26 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
 
     const startsQuests = detail.quests?.filter((q) => q.type === 'starts') || []
     const endsQuests = detail.quests?.filter((q) => q.type === 'ends') || []
-    // Quests this NPC is a kill/interact target for. Most NPCs are none, so the
-    // panel only appears when there are some.
+    // Quests this NPC is a kill/interact target for.
     const objectiveQuests = detail.quests?.filter((q) => q.type === 'objective') || []
     const loot = detail.loot || []
     const abilities = detail.abilities || []
     const sells = detail.sells || []
     const trains = detail.trains || []
 
+    // Each quest relation gets its own tab, and only when the NPC has that
+    // relation — most creatures start nothing and end nothing, and three
+    // permanently empty tabs would bury the ones that matter.
     const tabs = [
         { id: 'overview', label: 'Overview' },
         { id: 'loot', label: `Loot (${loot.length})` },
-        {
-            id: 'quests',
-            label: `Quests (${startsQuests.length + endsQuests.length + objectiveQuests.length})`,
-        },
+        ...(startsQuests.length > 0
+            ? [{ id: 'starts', label: `Starts (${startsQuests.length})` }]
+            : []),
+        ...(endsQuests.length > 0 ? [{ id: 'ends', label: `Ends (${endsQuests.length})` }] : []),
+        ...(objectiveQuests.length > 0
+            ? [{ id: 'objective', label: `Objective Of (${objectiveQuests.length})` }]
+            : []),
         { id: 'abilities', label: `Abilities (${abilities.length})` },
         ...(sells.length > 0 ? [{ id: 'sells', label: `Sells (${sells.length})` }] : []),
         ...(trains.length > 0 ? [{ id: 'trains', label: `Trains (${trains.length})` }] : []),
@@ -671,7 +686,7 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                                                     item.iconPath ||
                                                                     item.icon ||
                                                                     '',
-                                                                dropChance: `${item.chance.toFixed(1)}%`,
+                                                                dropChance: formatDropChance(item.chance),
                                                             }}
                                                             onClick={() =>
                                                                 onNavigate('item', itemId)
@@ -750,26 +765,14 @@ const NPCDetailView = ({ entry, onBack, onNavigate, tooltipHook, activeTab, onTa
                                 </div>
                             )}
 
-                            {currentTab === 'quests' && (
-                                <div className="animate-fade-in grid grid-cols-1 gap-6 md:grid-cols-2">
-                                    <QuestList
-                                        title="Starts Quests"
-                                        quests={startsQuests}
-                                        onNavigate={onNavigate}
-                                    />
-                                    <QuestList
-                                        title="Ends Quests"
-                                        quests={endsQuests}
-                                        onNavigate={onNavigate}
-                                    />
-                                    {objectiveQuests.length > 0 && (
-                                        <QuestList
-                                            title="Objective Of"
-                                            quests={objectiveQuests}
-                                            onNavigate={onNavigate}
-                                        />
-                                    )}
-                                </div>
+                            {currentTab === 'starts' && (
+                                <QuestList quests={startsQuests} onNavigate={onNavigate} />
+                            )}
+                            {currentTab === 'ends' && (
+                                <QuestList quests={endsQuests} onNavigate={onNavigate} />
+                            )}
+                            {currentTab === 'objective' && (
+                                <QuestList quests={objectiveQuests} onNavigate={onNavigate} />
                             )}
 
                             {currentTab === 'abilities' && (
